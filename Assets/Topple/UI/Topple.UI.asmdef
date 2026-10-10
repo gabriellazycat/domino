@@ -1,0 +1,14 @@
+{
+    "name": "Topple.UI",
+    "rootNamespace": "Topple.UI",
+    "references": [ "Topple.Core", "Unity.InputSystem" ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

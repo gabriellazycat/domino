@@ -1,0 +1,14 @@
+{
+    "name": "Topple.Game",
+    "rootNamespace": "Topple.Game",
+    "references": [ "Topple.Core", "Topple.Sim", "Topple.UI", "Unity.InputSystem" ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

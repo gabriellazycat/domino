@@ -1,0 +1,14 @@
+{
+    "name": "Topple.Tests.PlayMode",
+    "rootNamespace": "Topple.Tests",
+    "references": [ "Topple.Core", "Topple.Sim", "Topple.Game", "Topple.UI", "UnityEngine.TestRunner", "Unity.InputSystem", "Unity.InputSystem.TestFramework" ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [ "UNITY_INCLUDE_TESTS" ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,14 @@
+{
+    "name": "Topple.Tests.EditMode",
+    "rootNamespace": "Topple.Tests",
+    "references": [ "Topple.Core", "Topple.Sim", "Topple.Gen", "Topple.Game" ],
+    "includePlatforms": [ "Editor" ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [ "UNITY_INCLUDE_TESTS" ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

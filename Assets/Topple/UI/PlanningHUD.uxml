@@ -1,0 +1,24 @@
+<UXML xmlns="http://unity3d.com/UXML" xmlns:uie="UnityEngine.UIElements">
+  <uie:VisualElement name="hud-root" class="hud-root" picking-mode="Ignore">
+    <uie:VisualElement name="top-left" class="top-left" picking-mode="Ignore">
+      <uie:Label name="lbl-objective" class="objective" text="Inimigos 0/3" picking-mode="Ignore" />
+      <uie:Label name="lbl-msg" class="msg" text="" picking-mode="Ignore" />
+      <uie:Label name="lbl-coach" class="msg" text="" picking-mode="Ignore" />
+    </uie:VisualElement>
+    <uie:VisualElement name="bottom-bar" class="bottom-bar">
+      <uie:Button name="btn-piece-common" class="tray-btn" text="1 Comum (0)" />
+      <uie:Button name="btn-piece-heavy" class="tray-btn" text="2 Pesada (0)" />
+      <uie:Button name="btn-piece-ramp" class="tray-btn" text="3 Rampa (0)" />
+      <uie:Button name="btn-undo" class="tool-btn" text="Desfazer" />
+      <uie:Button name="btn-redo" class="tool-btn" text="Recarregar" />
+      <uie:Button name="btn-line" class="tool-btn" text="Linha: off" />
+      <uie:Button name="btn-path" class="tool-btn" text="Trilha (P)" />
+      <uie:Button name="btn-fire" class="fire-btn" text="DISPARAR (Enter)" />
+    </uie:VisualElement>
+    <uie:VisualElement name="banner-result" class="banner hidden" picking-mode="Ignore">
+      <uie:Label name="lbl-result" class="result-text" text="" picking-mode="Ignore" />
+      <uie:Button name="btn-again" class="fire-btn" text="Ajustar e tentar de novo" />
+      <uie:Button name="btn-next" class="fire-btn" text="Próxima fase" />
+    </uie:VisualElement>
+  </uie:VisualElement>
+</UXML>

@@ -1,0 +1,57 @@
+// TOPPLE GDD §4.4, §8, §14.7, §17 — regras puras, sem UnityEngine, para testes EditMode rápidos.
+namespace Topple.Core
+{
+    public static class ToppleRules
+    {
+        // GDD §4.4: primeira tentativa de cada fase é gratuita (reconhecimento).
+        public const int FreeAttemptsPerPhase = 1;
+
+        // GDD §4.4/§17: valor inicial a testar — 6 de Moral por ato (parâmetro de dados no v1.0).
+        public const int StartingMoralePerAct = 6;
+
+        // GDD §4.1: Previsão tem 3 cargas por fase.
+        public const int PreviewChargesPerPhase = 3;
+
+        // GDD §4.1: Previsão mostra os primeiros 3 segundos.
+        public const float PreviewSeconds = 3f;
+
+        // GDD §4.3: combo expira após 1,5s sem derrubar.
+        public const float ComboWindowSeconds = 1.5f;
+
+        // GDD §14.7: estrelas e ouro.
+        public static int StarsForWin(bool efficient, bool comboGoal) =>
+            1 + (efficient ? 1 : 0) + (comboGoal ? 1 : 0);
+
+        public static int GoldForPhase(int stars, bool noExtraAttempts) =>
+            10 + 5 * stars + (noExtraAttempts ? 5 : 0);
+
+        // GDD §8: orçamento de slots (valores conhecidos; demais peças em Content/ na T5).
+        public static int SlotCost(PieceId piece) => piece switch
+        {
+            PieceId.Common => 1,
+            PieceId.Heavy => 2,
+            PieceId.Giant => 6,
+            _ => 1,
+        };
+
+        // GDD §4.4: custo de Moral de uma tentativa (0 = reconhecimento, 1 = demais).
+        public static int MoraleCostForAttempt(int attemptIndexZeroBased) =>
+            attemptIndexZeroBased < FreeAttemptsPerPhase ? 0 : 1;
+    }
+
+    // MVP T0-T3: só Common/Heavy/Ramp são usadas. Giant declarada para o SlotCost do GDD §8 (v1.0).
+    public enum PieceId { Common, Heavy, Ramp, Giant }
+
+    // RNG com seed — GDD §4.2/§15.7: nenhuma aleatoriedade fora de RNG com seed.
+    public struct ToppleRng
+    {
+        uint _state;
+        public ToppleRng(uint seed) { _state = seed == 0 ? 0x9E3779B9u : seed; }
+        public uint Next()
+        {
+            _state ^= _state << 13; _state ^= _state >> 17; _state ^= _state << 5;
+            return _state;
+        }
+        public float NextFloat() => (Next() >> 8) / 16777216f;
+    }
+}

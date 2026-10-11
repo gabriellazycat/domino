@@ -19,3 +19,7 @@ Thumbs.db
 *.sln
 *.user
 *.userprefs
+# Ruído local: cenas temporárias do Test Runner + settings do Editor
+Assets/InitTestScene*.unity
+Assets/InitTestScene*.unity.meta
+UserSettings/

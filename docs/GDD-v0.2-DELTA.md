@@ -142,7 +142,16 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
 ## 16. Vitória imediata ao zerar (10/out/2026, pedido do dono)
 - Sim ao vivo encerrava só ao aquietar (2 s parado) ou 45 s: peça rolando sem
   fim prendia o jogo mesmo com todos derrubados. Agora `SimulationController`
-  chama `Finish()` asim que `Knocked == Total`. Headless inalterado (golden).
+  chama `Finish()` assim que `Knocked == Total`. Headless inalterado (golden).
+
+## 17. Simplificação P1+P2 + git (10/out/2026, pedido do dono)
+- `git init` + baseline `fe63c8b`; `UserSettings/` e `InitTestScene*` fora.
+- Deletado (~150 linhas): linha, `Redo` do modelo (+ pilha `_redo`), `TryMove`,
+  `PingWheel`/`PathAction`/`ShiftDown`, `TogglePath`/`CancelPath`, botões
+  `btn-line`/`btn-path` (uxml+fallback+HUD), `MovePiece` das sessions. Vivo:
+  `CancelPathSilent`, `CancelSelection`, `MovePieceMsg` (T6), `Undo` por trecho.
+- `Assets/Mirror/Examples/` (~1,4k arquivos) deletado; core intacto.
+- Testes: −`Line_EvenSpacing`, `Hand_Undo`, sem `TryMove`/`LineOn`.
 
 ## 14. Piso de espaçamento anti-travamento (10/out/2026, pedido do dono)
 - Peças em curva fechada nasciam grudadas e TRAVAVAM em vez de tombar: o filtro

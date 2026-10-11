@@ -9,7 +9,6 @@ namespace Topple.Core
         bool IsHost { get; }
         GamePhase Phase { get; }
         void PlacePiece(PieceId piece, int gx, int gz, int rotStep);
-        void MovePiece(int instanceId, int gx, int gz, int rotStep);
         void RemovePiece(int instanceId);
         void SetReady(bool ready);
         void Fire();

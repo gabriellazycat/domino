@@ -86,7 +86,7 @@ namespace Topple.Tests
         UIDocument HudDoc(TutorialSetup setup)
             => setup.GetComponentInChildren<UIDocument>();
 
-        [UnityTest] public IEnumerator Tools_LinePathUndoRemoveRotateFollow()
+        [UnityTest] public IEnumerator Tools_PathUndoRemoveRotateFollow()
         {
             TutorialSetup setup = null;
             try
@@ -97,8 +97,8 @@ namespace Topple.Tests
                 Debug.Log("[TOPPLE][HUMAN] checkpoint A: setup ok");
                 var cam = setup.Cam.GetComponent<Camera>();
                 var doc = HudDoc(setup);
-                // HUD estrutural: botoes existem (linha escondida; geometria so assenta com viewport).
-                foreach (var n in new[] { "btn-piece-common", "btn-piece-heavy", "btn-piece-ramp", "btn-fire", "btn-undo", "btn-redo", "btn-path", "btn-again", "btn-next" })
+                // HUD estrutural: botoes existem (geometria so assenta com viewport).
+                foreach (var n in new[] { "btn-piece-common", "btn-piece-heavy", "btn-piece-ramp", "btn-fire", "btn-undo", "btn-redo", "btn-again", "btn-next" })
                     Assert.IsNotNull(doc.rootVisualElement.Q<Button>(n), "botao ausente: " + n);
                 var banner = doc.rootVisualElement.Q<VisualElement>("banner-result");
                 Assert.IsTrue(banner.ClassListContains("hidden"));
@@ -107,7 +107,6 @@ namespace Topple.Tests
                 int base0 = setup.Planning.Data.Count; // 0 (tabuleiro vazio)
                 Assert.AreEqual(0, base0);
                 Assert.IsTrue(setup.Planning.PathArmed, "trilha deveria nascer ligada");
-                Assert.IsFalse(setup.Planning.LineOn, "linha desativada");
                 Debug.Log("[TOPPLE][HUMAN] checkpoint C: hud asserts ok");
                 // Trilha via mouse: inicio + destino (2 cliques). Fica ligada depois.
                 float rot0 = setup.Planning.RotDeg;

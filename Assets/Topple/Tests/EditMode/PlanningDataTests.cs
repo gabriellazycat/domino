@@ -16,16 +16,7 @@ namespace Topple.Tests
             Assert.AreEqual(0.40f, PlanningData.ToWorld(8), 1e-6f);
         }
 
-        [Test] public void Line_EvenSpacing()
-        {
-            var pts = PlanningData.LinePoints(0, 0, 80, 0, 0.40f, true);
-            Assert.AreEqual(11, pts.Count); // 4 m / 0,4 = 10 + 1
-            Assert.AreEqual((0, 0), pts[0]);
-            Assert.AreEqual((80, 0), pts[^1]);
-            Assert.AreEqual((8, 0), pts[1]);
-        }
-
-        [Test] public void Hand_UndoRedo()
+        [Test] public void Hand_Undo()
         {
             var d = new PlanningData();
             d.SetHand(PieceId.Common, 2);
@@ -35,8 +26,7 @@ namespace Topple.Tests
             Assert.IsTrue(d.Undo());
             Assert.AreEqual(2, d.HandCount(PieceId.Common));
             Assert.AreEqual(0, d.Count);
-            Assert.IsTrue(d.Redo());
-            Assert.AreEqual(1, d.Count);
+            Assert.IsTrue(d.TryPlace(PieceId.Common, 0, 0, 6, false, out id));
             Assert.IsTrue(d.TryRemove(id));
             Assert.AreEqual(2, d.HandCount(PieceId.Common));
         }
@@ -47,7 +37,6 @@ namespace Topple.Tests
             d.SetHand(PieceId.Common, 1);
             int id = d.PlaceLocked(PieceId.Common, 0, 0, 6);
             Assert.IsFalse(d.TryRemove(id));
-            Assert.IsFalse(d.TryMove(id, 5, 0, 6));
             Assert.AreEqual(1, d.Count);
         }
 

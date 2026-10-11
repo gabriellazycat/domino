@@ -11,8 +11,6 @@
       <uie:Button name="btn-piece-ramp" class="tray-btn" text="3 Rampa (0)" />
       <uie:Button name="btn-undo" class="tool-btn" text="Desfazer" />
       <uie:Button name="btn-redo" class="tool-btn" text="Recarregar" />
-      <uie:Button name="btn-line" class="tool-btn" text="Linha: off" />
-      <uie:Button name="btn-path" class="tool-btn" text="Trilha (P)" />
       <uie:Button name="btn-fire" class="fire-btn" text="DISPARAR (Enter)" />
     </uie:VisualElement>
     <uie:VisualElement name="banner-result" class="banner hidden" picking-mode="Ignore">

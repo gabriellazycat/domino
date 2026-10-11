@@ -25,7 +25,7 @@ Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub
 
 ## Regenerar / testar (com a Unity FECHADA)
 - `Tools/GenerateAll.ps1` — regenera `Assets/Generated/` (42 arquivos, idempotente).
-- `Tools/TestEditMode.ps1` — esperado 25/25.
+- `Tools/TestEditMode.ps1` — esperado tudo verde.
 - `Tools/TestPlayMode.ps1` — esperado 13/13.
 - `Tools/BuildWindows.ps1` — build `Builds/Windows/Topple.exe`.
 - Não rode `.ps1` com a Unity aberta (lockfile). Feche o Editor antes.

@@ -1,5 +1,5 @@
 // T3: HUD mínimo do planejamento (GDD §14.1/§14.4): bandeja, DISPARAR, desfazer,
-// linha, objetivo e banner de resultado. Nomes estáveis p/ bots (btn-fire, ...).
+// recarregar, objetivo e banner de resultado. Nomes estáveis p/ bots (btn-fire, ...).
 using System;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -12,17 +12,14 @@ namespace Topple.UI
         public event Action<PieceId> OnSelect;
         public event Action OnFire;
         public event Action OnUndo;
-        public event Action OnReload; // botão Recarregar (era Refazer): fase toda do zero
-        public event Action OnLineToggle;
-        public event Action OnPathToggle;
+        public event Action OnReload; // botão Recarregar: fase toda do zero
         public event Action OnAgain;
         public event Action OnNext;
 
         UIDocument _doc;
-        Button _btnCommon, _btnHeavy, _btnRamp, _btnFire, _btnUndo, _btnRedo, _btnLine, _btnPath, _btnAgain, _btnNext;
+        Button _btnCommon, _btnHeavy, _btnRamp, _btnFire, _btnUndo, _btnRedo, _btnAgain, _btnNext;
         Label _lblObjective, _lblMsg, _lblResult, _lblCoach;
         VisualElement _banner;
-        bool _lineOn;
 
         public void Setup(UIDocument doc)
         {
@@ -34,8 +31,6 @@ namespace Topple.UI
             _btnFire = root.Q<Button>("btn-fire");
             _btnUndo = root.Q<Button>("btn-undo");
             _btnRedo = root.Q<Button>("btn-redo");
-            _btnLine = root.Q<Button>("btn-line");
-            _btnPath = root.Q<Button>("btn-path");
             _btnAgain = root.Q<Button>("btn-again");
             _btnNext = root.Q<Button>("btn-next");
             _lblObjective = root.Q<Label>("lbl-objective");
@@ -43,7 +38,7 @@ namespace Topple.UI
             _lblCoach = root.Q<Label>("lbl-coach");
             _lblResult = root.Q<Label>("lbl-result");
             _banner = root.Q<VisualElement>("banner-result");
-            if (_btnCommon == null || _btnFire == null || _banner == null || _btnPath == null || _btnNext == null)
+            if (_btnCommon == null || _btnFire == null || _banner == null || _btnNext == null)
                 throw new Exception("[TOPPLE][UI] PlanningHUD.uxml incompleto.");
             _btnCommon.clicked += () => OnSelect?.Invoke(PieceId.Common);
             _btnHeavy.clicked += () => OnSelect?.Invoke(PieceId.Heavy);
@@ -51,14 +46,8 @@ namespace Topple.UI
             _btnFire.clicked += () => OnFire?.Invoke();
             _btnUndo.clicked += () => OnUndo?.Invoke();
             _btnRedo.clicked += () => OnReload?.Invoke();
-            _btnLine.clicked += () => PressLine();
-            _btnPath.clicked += () => OnPathToggle?.Invoke();
             _btnAgain.clicked += () => OnAgain?.Invoke();
             _btnNext.clicked += () => OnNext?.Invoke();
-            // Linha desativada e trilha sempre ligada (pedido do dono): esconde os
-            // dois botões, mantém métodos/eventos. Refazer virou Recarregar fase.
-            if (_btnLine != null) _btnLine.style.display = DisplayStyle.None;
-            if (_btnPath != null) _btnPath.style.display = DisplayStyle.None;
             if (_btnRedo != null) _btnRedo.text = "Recarregar";
             HideResult();
         }
@@ -69,12 +58,8 @@ namespace Topple.UI
         public void PressFire() => OnFire?.Invoke();
         public void PressUndo() => OnUndo?.Invoke();
         public void PressReload() => OnReload?.Invoke();
-        public void PressLine() { _lineOn = !_lineOn; SyncLineText(); OnLineToggle?.Invoke(); }
-        public void PressPath() => OnPathToggle?.Invoke();
         public void PressAgain() => OnAgain?.Invoke();
         public void PressNext() => OnNext?.Invoke();
-
-        public bool LineOn => _lineOn;
 
         public void RefreshTray(PieceId selected, Func<PieceId, int> counts)
         {
@@ -94,17 +79,8 @@ namespace Topple.UI
             else b.RemoveFromClassList("selected");
         }
 
-        void SyncLineText()
+        public void SyncModes()
         {
-            if (_btnLine != null) _btnLine.text = _lineOn ? "Linha: on" : "Linha: off";
-        }
-
-        public void SyncModes(bool lineOn, bool pathOn)
-        {
-            // Linha desativada e trilha sempre ligada: botões escondidos.
-            if (_btnLine != null) _btnLine.style.display = DisplayStyle.None;
-            if (_btnPath != null) _btnPath.style.display = DisplayStyle.None;
-            _lineOn = false;
             if (_btnRedo != null) _btnRedo.text = "Recarregar";
         }
 

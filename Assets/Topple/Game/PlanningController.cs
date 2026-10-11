@@ -13,7 +13,6 @@ namespace Topple.Game
     public sealed class PlanningController : MonoBehaviour
     {
         public const float GroundY = 0f;
-        public float LineSpacing = 0.40f; // normal (apertado 0,30 / largo 0,50 na T4)
 
         public readonly PlanningData Data = new();
         public PieceId Selected = PieceId.Common;
@@ -102,9 +101,6 @@ namespace Topple.Game
         readonly Dictionary<int, GameObject> _views = new();
         GameObject _ghost;
         Material _ghostOk, _ghostBad;
-        bool _dragging;
-        int _dragGx, _dragGz;
-        bool _lineMode;
         // Botão direito: clique remove, arrasto orbita a câmera (limiar em px).
         bool _rmbDown;
         Vector2 _rmbDownScreen;
@@ -140,16 +136,6 @@ namespace Topple.Game
             return ok;
         }
 
-        public bool PlaceLine(int gx0, int gz0, int gx1, int gz1)
-        {
-            if (!Active) return false;
-            var pts = PlanningData.LinePoints(gx0, gz0, gx1, gz1, LineSpacing, false);
-            pts.RemoveAll(p => !IsValidCell(p.Item1, p.Item2, Selected, RotDeg));
-            int n = Data.TryPlaceLine(Selected, pts, RotDeg);
-            if (n > 0) { Rebuild(); OnChanged?.Invoke(); }
-            return n > 0;
-        }
-
         public bool RemoveAt(int id)
         {
             if (!Active) return false;
@@ -170,7 +156,6 @@ namespace Topple.Game
         }
 
         public bool Undo() { bool ok = Active && Data.Undo(); if (ok) { Rebuild(); OnChanged?.Invoke(); if (Audio != null) Audio.UiClick(); } return ok; }
-        public bool Redo() { bool ok = Active && Data.Redo(); if (ok) { Rebuild(); OnChanged?.Invoke(); } return ok; }
 
         public void Fire()
         {
@@ -181,9 +166,6 @@ namespace Topple.Game
             if (_ghost != null) _ghost.SetActive(false);
             OnFire?.Invoke(new List<Placement>(Data.Items));
         }
-
-        public void SetLineMode(bool on) { _lineMode = false; } // linha desativada (código mantido)
-        public bool LineOn => false;
 
         // Trilha sempre ligada: chama no LoadPhase e no retry. Esc só cancela
         // a seleção atual (volta a pedir o início), nunca desliga.
@@ -199,24 +181,11 @@ namespace Topple.Game
             OnChanged?.Invoke();
         }
 
-        public void TogglePath()
-        {
-            if (!Active) return;
-            if (PathArmed) CancelPath();
-            else
-            {
-                PathArmed = true;
-                _pathStarted = false;
-                Hint = "Trilha: clique o início";
-                if (_ghost != null) _ghost.SetActive(false);
-                OnChanged?.Invoke();
-            }
-        }
-
-        public void CancelPath()
+        public void CancelPathSilent()
         {
             PathArmed = false;
             _pathStarted = false;
+            _anchored = false;
             ClearPathGhosts();
             if (_ghost != null && Active) _ghost.SetActive(true);
             Hint = null;
@@ -444,14 +413,6 @@ namespace Topple.Game
             if (n > 0) { Rebuild(); OnChanged?.Invoke(); if (Audio != null) Audio.UiClick(); }
         }
 
-        void CancelPathSilent()
-        {
-            PathArmed = false;
-            _pathStarted = false;
-            ClearPathGhosts();
-            if (_ghost != null && Active) _ghost.SetActive(true);
-        }
-
         public void SetVisualsActive(bool on)
         {
             foreach (var kv in _views) if (kv.Value != null) kv.Value.SetActive(on);
@@ -569,8 +530,8 @@ namespace Topple.Game
             var kb = Keyboard.current;
             // Esc desfaz a seleção atual da trilha (volta a pedir o início);
             // a trilha continua ligada (pedido do dono).
-            // Linha desativada: ignora L e Shift (código de linha mantido, sem chamada).
-            // Trilha sempre ligada: ignora P (TogglePath mantido p/ compat).
+            // Linha removida (P1): L/Shift sem chamada.
+            // Trilha sempre ligada (P removido: sem toggle).
             if (kb != null && kb.escapeKey.wasPressedThisFrame && _pathStarted) { CancelSelection(); return; }
             if (_in.RotLeft.WasPressedThisFrame()) SetRotDeg(RotDeg - PlanningData.StepDeg);
             if (_in.RotRight.WasPressedThisFrame()) SetRotDeg(RotDeg + PlanningData.StepDeg);
@@ -579,7 +540,6 @@ namespace Topple.Game
             if (_in.RemoveLastPressed()) { RemoveLast(); return; }
             if (_in.FireAction.WasPressedThisFrame()) { Fire(); return; }
 
-            bool wantLine = false;
             if (!MouseCell(out int gx, out int gz, out Vector3 world))
             {
                 if (_ghost != null) _ghost.SetActive(false);
@@ -639,47 +599,6 @@ namespace Topple.Game
                     }
                 }
                 return;
-            }
-
-            if (_ghost != null)
-            {
-                _ghost.SetActive(true);
-                _ghost.transform.position = new Vector3(PlanningData.ToWorld(gx), GroundY, PlanningData.ToWorld(gz));
-                _ghost.transform.rotation = Quaternion.Euler(0, RotDeg, 0);
-                SetGhostValid(IsValidCell(gx, gz, Selected, RotDeg));
-            }
-
-            if (_in.PlaceAction.WasPressedThisFrame() && !OverUI())
-            {
-                _dragging = true; _dragGx = gx; _dragGz = gz;
-            }
-            if (_dragging && _in.PlaceAction.IsPressed() && wantLine && (gx != _dragGx || gz != _dragGz))
-            {
-                // Régua da linha (espaçamento atual) — número de peças estimado.
-                var pts = PlanningData.LinePoints(_dragGx, _dragGz, gx, gz, LineSpacing, false);
-                SetGhostValid(pts.Count <= Data.HandCount(Selected));
-            }
-            if (_dragging && _in.PlaceAction.WasReleasedThisFrame())
-            {
-                _dragging = false;
-                if (OverUI()) return;
-                if (wantLine && (gx != _dragGx || gz != _dragGz)) PlaceLine(_dragGx, _dragGz, gx, gz);
-                else Place(gx, gz);
-            }
-            if (_in.RemoveAction.WasPressedThisFrame())
-            {
-                if (OverUI()) { _rmbDown = false; }
-                else { _rmbDown = true; _rmbDownScreen = _in.MousePos; }
-            }
-            if (_in.RemoveAction.WasReleasedThisFrame() && _rmbDown)
-            {
-                bool drag = RmbDragging();
-                _rmbDown = false;
-                if (!drag && !OverUI())
-                {
-                    int idx = Data.FindAt(gx, gz);
-                    if (idx >= 0) RemoveAt(Data.Items[idx].InstanceId);
-                }
             }
         }
     }

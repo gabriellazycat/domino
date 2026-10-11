@@ -171,8 +171,6 @@ namespace Topple.Game
             Hud.OnFire += Planning.Fire;
             Hud.OnUndo += () => Planning.Undo();
             Hud.OnReload += ReloadPhase;
-            Hud.OnLineToggle += () => Planning.SetLineMode(Hud.LineOn);
-            Hud.OnPathToggle += () => Planning.TogglePath();
             Hud.OnAgain += BackToPlanning;
             Hud.OnNext += NextPhase;
 
@@ -417,7 +415,7 @@ namespace Topple.Game
                     var (fx, fz) = PlanningData.FacingOf(Planning.RotDeg);
                     Cam.FollowDir = new Vector3(fx, 0f, fz);
                     Hud.RefreshTray(Planning.Selected, Planning.Data.HandCount);
-                    Hud.SyncModes(Planning.LineOn, Planning.PathArmed);
+                    Hud.SyncModes();
                     Hud.SetStatus(0, SoldierSpots.Count, Planning.Hint ?? UnreachedWarning());
                     DriveCoach();
                 }
@@ -514,7 +512,7 @@ namespace Topple.Game
         static void BuildFallbackUI(UIDocument doc)
         {
             var root = doc.rootVisualElement;
-            foreach (var (name, text) in new[] { ("btn-piece-common", "1 Comum"), ("btn-piece-heavy", "2 Pesada"), ("btn-piece-ramp", "3 Rampa"), ("btn-undo", "Desfazer"), ("btn-redo", "Recarregar"), ("btn-line", "Linha"), ("btn-path", "Trilha"), ("btn-fire", "DISPARAR") })
+            foreach (var (name, text) in new[] { ("btn-piece-common", "1 Comum"), ("btn-piece-heavy", "2 Pesada"), ("btn-piece-ramp", "3 Rampa"), ("btn-undo", "Desfazer"), ("btn-redo", "Recarregar"), ("btn-fire", "DISPARAR") })
             {
                 var b = new Button { name = name, text = text };
                 root.Add(b);

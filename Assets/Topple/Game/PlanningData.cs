@@ -25,14 +25,12 @@ namespace Topple.Game
 
         readonly List<Placement> _items = new();
         readonly Stack<IUndoAction> _undo = new();
-        readonly Stack<IUndoAction> _redo = new();
         int _nextId = 1;
         readonly Dictionary<PieceId, int> _hand = new();
 
         public IReadOnlyList<Placement> Items => _items;
         public int Count => _items.Count;
         public bool CanUndo => _undo.Count > 0;
-        public bool CanRedo => _redo.Count > 0;
 
         public void SetHand(PieceId piece, int count) => _hand[piece] = count;
         public int HandCount(PieceId piece) => _hand.TryGetValue(piece, out var c) ? c : 0;
@@ -73,37 +71,6 @@ namespace Topple.Game
                 if (System.Math.Sqrt(dx * dx + dz * dz) < min) { pts.RemoveAt(i); i--; }
                 else kept = i;
             }
-        }
-
-        // Fileira da ferramenta de linha: pontos espaçados de `spacing` (metros).
-        public static List<(int gx, int gz)> LinePoints(int gx0, int gz0, int gx1, int gz1, float spacing, bool fine)
-        {
-            float x0 = ToWorld(gx0), z0 = ToWorld(gz0), x1 = ToWorld(gx1), z1 = ToWorld(gz1);
-            float dist = (float)System.Math.Sqrt((x1 - x0) * (x1 - x0) + (z1 - z0) * (z1 - z0));
-            int n = System.Math.Max(1, (int)System.Math.Round(dist / spacing));
-            var pts = new List<(int, int)>(n + 1);
-            for (int i = 0; i <= n; i++)
-            {
-                float t = n == 0 ? 0 : i / (float)n;
-                pts.Add((Snap(ToGrid(x0 + (x1 - x0) * t), fine), Snap(ToGrid(z0 + (z1 - z0) * t), fine)));
-            }
-            return pts;
-        }
-
-        // Fileira como uma única ação de desfazer.
-        public int TryPlaceLine(PieceId piece, List<(int gx, int gz)> pts, float deg)
-        {
-            int depth = _undo.Count, n = 0;
-            foreach (var (gx, gz) in pts)
-                if (TryPlace(piece, gx, gz, deg, false, out _)) n++;
-            if (n > 1)
-            {
-                var acts = new List<IUndoAction>();
-                while (_undo.Count > depth) acts.Add(_undo.Pop());
-                acts.Reverse();
-                _undo.Push(new BatchAct(acts));
-            }
-            return n;
         }
 
         // Trilha com rotação própria por ponto (curvas), como uma única ação.
@@ -219,7 +186,6 @@ namespace Topple.Game
             _items.Add(p);
             _hand[piece]--;
             _undo.Push(new PlaceAct(p));
-            _redo.Clear();
             return true;
         }
 
@@ -231,21 +197,6 @@ namespace Topple.Game
             _items.RemoveAt(i);
             _hand[p.Piece] = HandCount(p.Piece) + 1;
             _undo.Push(new RemoveAct(p));
-            _redo.Clear();
-            return true;
-        }
-
-        public bool TryMove(int id, int gx, int gz, float deg)
-        {
-            int i = _items.FindIndex(p => p.InstanceId == id);
-            if (i < 0 || _items[i].Locked) return false;
-            int j = FindAt(gx, gz);
-            if (j >= 0 && j != i) return false;
-            var old = _items[i];
-            var cur = old; cur.Gx = gx; cur.Gz = gz; cur.Deg = WrapDeg(deg);
-            _items[i] = cur;
-            _undo.Push(new MoveAct(old, cur));
-            _redo.Clear();
             return true;
         }
 
@@ -256,7 +207,6 @@ namespace Topple.Game
         {
             _items.Clear();
             _undo.Clear();
-            _redo.Clear();
         }
 
         // Peça do cenário (Peça Zero): entra no layout sem gastar a mão e sem desfazer.
@@ -272,20 +222,10 @@ namespace Topple.Game
             if (_undo.Count == 0) return false;
             var a = _undo.Pop();
             a.Undo(this);
-            _redo.Push(a);
             return true;
         }
 
-        public bool Redo()
-        {
-            if (_redo.Count == 0) return false;
-            var a = _redo.Pop();
-            a.Redo(this);
-            _undo.Push(a);
-            return true;
-        }
-
-        interface IUndoAction { void Undo(PlanningData d); void Redo(PlanningData d); }
+        interface IUndoAction { void Undo(PlanningData d); }
 
         sealed class PlaceAct : IUndoAction
         {
@@ -295,11 +235,6 @@ namespace Topple.Game
             {
                 d._items.RemoveAll(x => x.InstanceId == _p.InstanceId);
                 d._hand[_p.Piece] = d.HandCount(_p.Piece) + 1;
-            }
-            public void Redo(PlanningData d)
-            {
-                d._items.Add(_p);
-                d._hand[_p.Piece] = d.HandCount(_p.Piece) - 1;
             }
         }
 
@@ -312,24 +247,6 @@ namespace Topple.Game
                 d._items.Add(_p);
                 d._hand[_p.Piece] = d.HandCount(_p.Piece) - 1;
             }
-            public void Redo(PlanningData d)
-            {
-                d._items.RemoveAll(x => x.InstanceId == _p.InstanceId);
-                d._hand[_p.Piece] = d.HandCount(_p.Piece) + 1;
-            }
-        }
-
-        sealed class MoveAct : IUndoAction
-        {
-            readonly Placement _old, _cur;
-            public MoveAct(Placement o, Placement c) { _old = o; _cur = c; }
-            public void Undo(PlanningData d) => Apply(d, _old);
-            public void Redo(PlanningData d) => Apply(d, _cur);
-            static void Apply(PlanningData d, Placement p)
-            {
-                int i = d._items.FindIndex(x => x.InstanceId == p.InstanceId);
-                if (i >= 0) d._items[i] = p;
-            }
         }
 
         sealed class BatchAct : IUndoAction
@@ -339,10 +256,6 @@ namespace Topple.Game
             public void Undo(PlanningData d)
             {
                 for (int i = _acts.Count - 1; i >= 0; i--) _acts[i].Undo(d);
-            }
-            public void Redo(PlanningData d)
-            {
-                foreach (var a in _acts) a.Redo(d);
             }
         }
     }

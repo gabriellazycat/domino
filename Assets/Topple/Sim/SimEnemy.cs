@@ -112,7 +112,7 @@ namespace Topple.Sim
         public void MarkKnocked(float now, string why)
         {
             Knocked = true;
-            if ((why == "impact" || why == "touch") && _shoveDir.sqrMagnitude > 1e-6f && Rb != null && !Rb.isKinematic)
+            if ((why == "impact" || why == "touch" || why == "splash") && _shoveDir.sqrMagnitude > 1e-6f && Rb != null && !Rb.isKinematic)
             {
                 // Resposta de morte T1 (apresentação final na T3/T7): o corpo é
                 // arremessado para longe do golpe e pode atingir o próximo inimigo.
@@ -121,10 +121,11 @@ namespace Topple.Sim
                 // velocidade reafirmada atravessa o contato persistente da peça que
                 // deu o golpe (determinístico: tudo em tempo de simulação).
                 float speed, up, ang;
-                if (why == "touch")
+                if (why == "touch" || why == "splash")
                 {
-                    // Encostou: tomba no lugar, sem voadora (1,6 m/s derruba 1,1 m).
-                    speed = 1.6f; up = 1.0f; ang = 3.0f;
+                    // Encostou: tomba e espirra p/ limpar o pelotão (2,2 m/s alcança
+                    // o vizinho a ~0,6 m). Sem voadora exagerada.
+                    speed = 2.2f; up = 1.2f; ang = 3.0f;
                 }
                 else
                 {
@@ -139,6 +140,39 @@ namespace Topple.Sim
             // Feedback mínimo T1 (flash/nuvem entram no polimento T7): dessatura o corpo.
             foreach (var r in GetComponentsInChildren<Renderer>())
                 foreach (var m in r.materials) m.color = Color.Lerp(m.color, Color.gray, 0.6f);
+        }
+
+        // Pelotão morre junto (pedido do dono): derrubado espirra o vizinho até
+        // 0,8 m — sem isso a limpeza do último virava loteria de tumulto (a direção
+        // do arremesso foge do triângulo). Em saltos (A→B→C), determinístico.
+        // Só dispara DE derrubados: no spawn ninguém está derrubado (sem friendly-fire).
+        public const float SplashRadius = 0.8f;
+
+        public static void Splash(SimEnemy from, System.Collections.Generic.IList<SimEnemy> all, float now)
+        {
+            for (int pass = 0; pass < 3; pass++)
+            {
+                bool fresh = false;
+                foreach (var o in all)
+                {
+                    if (o == null || o == from || o.Knocked) continue;
+                    bool near = false;
+                    foreach (var k in all)
+                    {
+                        if (k == null || k == o || !k.Knocked) continue;
+                        var d = o.transform.position - k.transform.position;
+                        d.y = 0f;
+                        if (d.sqrMagnitude <= SplashRadius * SplashRadius) { near = true; break; }
+                    }
+                    if (!near) continue;
+                    var away = o.transform.position - from.transform.position;
+                    away.y = 0f;
+                    o._shoveDir = away.sqrMagnitude > 1e-6f ? away.normalized : Vector3.right;
+                    o.MarkKnocked(now, "splash");
+                    fresh = true;
+                }
+                if (!fresh) break;
+            }
         }
     }
 }

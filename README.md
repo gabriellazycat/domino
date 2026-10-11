@@ -46,4 +46,4 @@ Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub
 - Magenta = URP inativo (`UrpSetup.Ensure()` roda no GenerateAll).
 - Mudo = sem AudioListener (ver Main Camera).
 - Mão zerada ao abrir cena salva = `InitScenario()` no `Start()` reconstrói.
-- Trilha não commita = faltam peças na mão (custa 0,35 m/peça).
+- Trilha não commita = faltam peças na mão (custa ~0,38 m/peça).

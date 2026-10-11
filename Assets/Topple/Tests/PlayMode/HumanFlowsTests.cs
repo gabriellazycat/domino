@@ -124,18 +124,18 @@ namespace Topple.Tests
                 yield return CtrlKey(_keyboard.yKey);
                 Assert.AreEqual(base0, setup.Planning.Data.Count, "recarregar zera a fase");
                 Assert.IsTrue(setup.Planning.PathArmed, "trilha ligada após recarregar");
-                Assert.AreEqual("Trilha: clique o início", setup.Planning.Hint);
+                Assert.AreEqual("Trilha: clique o início ou uma peça p/ continuar", setup.Planning.Hint);
                 Debug.Log("[TOPPLE][HUMAN] checkpoint E: undo/reload ok");
                 // P virou no-op (trilha sempre ligada).
                 yield return Key(_keyboard.pKey);
                 Assert.IsTrue(setup.Planning.PathArmed);
                 // Esc desfaz a seleção atual (volta a pedir o início), sem desligar.
                 yield return Click(GroundScreen(cam, -2f, 1f));
-                Assert.AreEqual("Trilha: clique o destino", setup.Planning.Hint);
+                Assert.IsTrue(setup.Planning.PathSelecting, "deveria estar selecionando");
                 int countSel = setup.Planning.Data.Count;
                 yield return Key(_keyboard.escapeKey);
                 Assert.IsTrue(setup.Planning.PathArmed);
-                Assert.AreEqual("Trilha: clique o início", setup.Planning.Hint);
+                Assert.AreEqual("Trilha: clique o início ou uma peça p/ continuar", setup.Planning.Hint);
                 Assert.AreEqual(countSel, setup.Planning.Data.Count, "Esc não remove peça, só a seleção");
                 Debug.Log("[TOPPLE][HUMAN] checkpoint F: P no-op / Esc cancela seleção ok");
                 // Uma trilha p/ os testes de âncora/remover (reload deixou vazio).
@@ -149,7 +149,7 @@ namespace Topple.Tests
                 var lastWorld = new Vector3(Topple.Game.PlanningData.ToWorld(last.Gx), 0f, Topple.Game.PlanningData.ToWorld(last.Gz));
                 yield return Click(cam.WorldToScreenPoint(lastWorld));
                 Assert.AreEqual(pathA, setup.Planning.Data.Count, "âncora não coloca peça");
-                StringAssert.Contains("continua", setup.Planning.Hint);
+                Assert.IsTrue(setup.Planning.PathSelecting, "âncora deveria selecionar");
                 yield return Click(GroundScreen(cam, 2f, 1f));
                 int pathAB = setup.Planning.Data.Count;
                 Assert.Greater(pathAB, pathA, "2º trecho deveria anexar");
@@ -220,6 +220,8 @@ namespace Topple.Tests
             yield return null;
         }
 
+        // Como um humano: perde? volta ao planejamento (layout mantido) e ANEXA
+        // um trecho ancorado até o centróide dos soldados, em vez de repetir igual.
         IEnumerator PlayPhaseViaUI(TutorialSetup setup, float endX, float endZ)
         {
             Debug.Log($"[TOPPLE][HUMAN] jogando {setup.PhaseName} ate ({endX},{endZ})");
@@ -228,13 +230,47 @@ namespace Topple.Tests
             yield return Click(GroundScreen(cam, 0f, 0f));
             yield return Click(GroundScreen(cam, endX, endZ));
             Assert.IsTrue(setup.Planning.PathArmed, "trilha continua ligada após commit");
-            Time.timeScale = 6f;
-            yield return Key(_keyboard.enterKey);
-            float t = 0f;
-            while (setup.LastResult == null && t < 40f)
             {
-                yield return new WaitForSecondsRealtime(0.25f);
-                t += 0.25f;
+                var cells = "";
+                foreach (var p in setup.Planning.Data.Items) cells += $"({p.Gx},{p.Gz},r{p.Deg:F0})";
+                var f0 = setup.Planning.Data.Items[0];
+                Debug.Log($"[TOPPLE][HUMAN] layout {setup.PhaseName}: n={setup.Planning.Data.Count} cells={cells}");
+                Debug.Log($"[TOPPLE][HUMAN] order0 gx={f0.Gx} gz={f0.Gz} deg={f0.Deg:F1} id={f0.InstanceId}");
+            }
+            Time.timeScale = 6f;
+            int attempt = 0;
+            while (setup.LastResult?.Win != true && attempt < 3)
+            {
+                attempt++;
+                if (attempt > 1)
+                {
+                    // De novo pelo Enter (banner) e anexa até o centróide.
+                    yield return Key(_keyboard.enterKey);
+                    yield return null;
+                    Assert.IsTrue(setup.Planning.Active, "deveria voltar ao planejamento");
+                    var mid = Vector3.zero;
+                    foreach (var s in setup.SoldierSpots) mid += s;
+                    mid /= Mathf.Max(1, setup.SoldierSpots.Count);
+                    var tail = setup.Planning.Data.Items[setup.Planning.Data.Count - 1];
+                    var tailWorld = new Vector3(Topple.Game.PlanningData.ToWorld(tail.Gx), 0f, Topple.Game.PlanningData.ToWorld(tail.Gz));
+                    yield return Click(cam.WorldToScreenPoint(tailWorld));
+                    yield return Click(cam.WorldToScreenPoint(new Vector3(mid.x, 0f, mid.z)));
+                    Debug.Log($"[TOPPLE][HUMAN] tentativa {attempt}: anexo ate ({mid.x:F2},{mid.z:F2}), n={setup.Planning.Data.Count}");
+                }
+                Debug.Log($"[TOPPLE][HUMAN] pre-fire {setup.PhaseName}: active={setup.Planning.Active} " +
+                    $"n={setup.Planning.Data.Count} armed={setup.Planning.PathArmed} hint={setup.Planning.Hint}");
+                yield return Key(_keyboard.enterKey);
+                Assert.IsFalse(setup.Planning.Active);
+                float waited = 0f;
+                while (setup.LastResult == null && waited < 40f)
+                {
+                    yield return new WaitForSecondsRealtime(0.25f);
+                    waited += 0.25f;
+                }
+                Time.timeScale = 1f;
+                Assert.IsNotNull(setup.LastResult, "sim não terminou a tempo");
+                Debug.Log($"[TOPPLE][HUMAN] tentativa {attempt}: win={setup.LastResult.Value.Win} " +
+                    $"{setup.LastResult.Value.Knocked}/{setup.LastResult.Value.Total}");
             }
             Time.timeScale = 1f;
             Assert.IsNotNull(setup.LastResult, "sim nao terminou");

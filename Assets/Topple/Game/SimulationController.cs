@@ -1,6 +1,6 @@
-ï»¿// T3: simulaÃ§Ã£o visÃ­vel na cena principal (fÃ­sica padrÃ£o do Unity) com as MESMAS
-// regras do nÃºcleo T1 (SimPiece/SimEnemy, knock Â§6, fim por repouso/45 s).
-// O gatilho (PeÃ§a Zero) recebe o impulso inicial fixo (GDD Â§4.1).
+// T3: simulação visível na cena principal (física padrão do Unity) com as MESMAS
+// regras do núcleo T1 (SimPiece/SimEnemy, knock §6, fim por repouso/45 s).
+// O gatilho (Peça Zero) recebe o impulso inicial fixo (GDD §4.1).
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -99,13 +99,13 @@ namespace Topple.Game
                     new Vector3(PlanningData.ToWorld(p.Gx), PlanningController.GroundY, PlanningData.ToWorld(p.Gz)),
                     Quaternion.Euler(0, p.Deg, 0));
                 var rb = go.GetComponent<Rigidbody>();
-                if (rb != null) { rb.isKinematic = false; rb.sleepThreshold = 0.01f; _bodies.Add(rb); }
+                if (rb != null) { rb.isKinematic = false; rb.sleepThreshold = 0.005f; _bodies.Add(rb); }
                 EnsureWood(go);
                 var sp = go.GetComponent<SimPiece>();
                 if (sp == null) sp = go.AddComponent<SimPiece>();
                 sp.Id = p.InstanceId; sp.Piece = p.Piece;
                 _spawned.Add(go);
-                if (firstRb == null && rb != null) // PeÃ§a Zero (menor id)
+                if (firstRb == null && rb != null) // Peça Zero (menor id)
                 {
                     firstRb = rb;
                     firstFacing = go.transform.rotation * Vector3.forward;
@@ -118,7 +118,7 @@ namespace Topple.Game
                 var go = Instantiate(soldierPrefab, _container.transform);
                 go.transform.SetPositionAndRotation(s, Quaternion.identity);
                 var rb = go.GetComponent<Rigidbody>();
-                if (rb != null) { rb.isKinematic = false; rb.sleepThreshold = 0.01f; _bodies.Add(rb); }
+                if (rb != null) { rb.isKinematic = false; rb.sleepThreshold = 0.005f; _bodies.Add(rb); }
                 EnsureWood(go);
                 var en = go.GetComponent<SimEnemy>();
                 if (en == null) en = go.AddComponent<SimEnemy>();
@@ -127,12 +127,14 @@ namespace Topple.Game
                 _spawned.Add(go);
             }
             DepenetrateSpawned();
-            if (firstRb != null) // impulso inicial sempre o mesmo (GDD Â§4.1)
+            if (firstRb != null) // impulso inicial sempre o mesmo (GDD §4.1)
                 firstRb.angularVelocity = Vector3.Cross(Vector3.up, firstFacing) * 4.5f;
             Running = true;
+            Debug.Log($"[TOPPLE][SIM] start corpos={_bodies.Count} inimigos={_enemies.Count} " +
+                $"impulso={firstRb != null} auto={Physics.autoSimulation} grav={Physics.gravity}");
         }
 
-        // Rede de seguranÃ§a p/ prefabs antigos (gerados antes do fix de atrito):
+        // Rede de segurança p/ prefabs antigos (gerados antes do fix de atrito):
         // garante madeira 0,75 em runtime, igual ao headless. Humano e bot iguais.
         static void EnsureWood(GameObject go)
         {
@@ -147,7 +149,7 @@ namespace Topple.Game
             }
         }
 
-        // Zera micro-penetraÃ§Ãµes de spawn (ordem de spawn â†’ determinÃ­stico).
+        // Zera micro-penetrações de spawn (ordem de spawn ? determinístico).
         void DepenetrateSpawned()
         {
             var dyn = new List<Rigidbody>();
@@ -215,7 +217,7 @@ namespace Topple.Game
                 if (en == null) continue;
                 if (en.ShoveActive(SimTime)) en.ApplyShove();
             }
-            // Paridade com SimWorld.KeepLeanersAwake (caminho visÃ­vel nÃ£o tem golden).
+            // Paridade com SimWorld.KeepLeanersAwake (caminho visível não tem golden).
             foreach (var b in _bodies)
             {
                 if (b == null || b.isKinematic) continue;
@@ -230,6 +232,7 @@ namespace Topple.Game
                     if (en != null && !en.Knocked)
                     {
                         en.MarkKnocked(SimTime, "fell");
+                        SimEnemy.Splash(en, _enemies, SimTime);
                         RegisterKnock(en.transform.position);
                     }
                     b.gameObject.SetActive(false);
@@ -239,10 +242,14 @@ namespace Topple.Game
             foreach (var en in _enemies)
             {
                 if (en == null || en.Knocked) continue;
-                if (en.CheckKnocked(SimTime)) RegisterKnock(en.transform.position);
+                if (en.CheckKnocked(SimTime))
+                {
+                    SimEnemy.Splash(en, _enemies, SimTime);
+                    RegisterKnock(en.transform.position);
+                }
             }
-            // VitÃ³ria imediata: zerou os inimigos, acabou (nÃ£o espera aquietar
-            // nem os 45 s â€” peÃ§a rolando pra sempre prendia a sim).
+            // Vitória imediata: zerou os inimigos, acabou (não espera aquietar
+            // nem os 45 s — peça rolando pra sempre prendia a sim).
             if (_enemies.Count > 0 && KnockedSoFar >= _enemies.Count) { Finish(); return; }
 
             float maxSpeed = 0f;

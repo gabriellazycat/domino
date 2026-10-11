@@ -27,7 +27,9 @@ namespace Topple.Game
         public List<ForbiddenZone> Forbidden = new();
         public List<Vector3> Soldiers = new();
         public const float SoldierRadius = 0.25f; // base Ø0,50 (GDD §13.3)
-        public const float PathSpacing = 0.35f; // curvas pedem passo apertado
+        public const float PathSpacing = 0.38f; // passo da cascata golden (T1):
+        // 0,35 grudava em escada (lean-lock), 0,40 caía em cima prendendo
+        // (drape-pin). 0,38 propaga com cadência ~19 passos/peça (prova).
         // Alcance da queda (~0,40 + margem): vãos maiores que isto quebram a onda.
         public const float WaveReach = 0.45f;
 
@@ -269,6 +271,7 @@ namespace Topple.Game
             }
             FillGaps(outPts);
             PlanningData.DropCrowded(outPts, Selected);
+            FillGaps(outPts); // de novo: o drop pode ter aberto vão (0,7 m mata a onda)
             return outPts;
         }
 

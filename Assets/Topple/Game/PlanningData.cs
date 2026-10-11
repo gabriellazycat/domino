@@ -148,8 +148,9 @@ namespace Topple.Game
             float len = System.Math.Abs(r * sweep);
             // Curva fechada adensa: giro forte com passo largo faz cada peça cair
             // fora do cone da próxima e a onda morre. Raio < 1,2 m comprime o passo
-            // (mín. 55%): giro curto gasta poucas peças extras; reta não muda.
-            float density = (float)System.Math.Max(0.55, System.Math.Min(1.0, System.Math.Abs(r) / 1.2));
+            // (mín. 60%, acima do piso 0,22): giro curto gasta poucas peças extras;
+            // reta não muda.
+            float density = (float)System.Math.Max(0.60, System.Math.Min(1.0, System.Math.Abs(r) / 1.2));
             int n2 = System.Math.Max(1, (int)System.Math.Round(len / (spacing * density)));
             float dir = sweep >= 0 ? 1f : -1f;
             float rabs = System.Math.Abs(r); // ângulos já codificam a geometria

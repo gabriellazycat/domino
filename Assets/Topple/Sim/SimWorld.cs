@@ -35,8 +35,8 @@ namespace Topple.Sim
         public bool AllowEarlyOut { get; set; } = true;
         // T-fases: peças que rastejam devagar (< sleepThreshold) adormecem no meio
         // da queda e congelam a onda. Com a flag, inclinadas >12° não dormem.
-        // Default off (não altera o golden T1). Vira dado na T5.
-        public bool KeepLeanersAwake { get; set; }
+        // Default ON desde 11/out (escada adormecida matava a onda no ao vivo).
+        public bool KeepLeanersAwake { get; set; } = true;
         public IReadOnlyList<SimEvent> Events => _events;
 
         SimWorld(Scene scene, PhysicsScene physics, uint seed)
@@ -137,7 +137,12 @@ namespace Topple.Sim
                     if (b.Kind == BodyKind.Enemy)
                     {
                         var en = b.Go.GetComponent<SimEnemy>();
-                        if (en != null && !en.Knocked) { en.MarkKnocked(Time, "fell"); _events.Add(new SimEvent(Time, "knock", b.Id, 0)); }
+                        if (en != null && !en.Knocked)
+                        {
+                            en.MarkKnocked(Time, "fell");
+                            SimEnemy.Splash(en, Enemies(), Time);
+                            _events.Add(new SimEvent(Time, "knock", b.Id, 0));
+                        }
                     }
                     b.Go.SetActive(false); // plano de queda remove o corpo
                     continue;
@@ -146,7 +151,10 @@ namespace Topple.Sim
                 {
                     var en = b.Go.GetComponent<SimEnemy>();
                     if (en != null && !en.Knocked && en.CheckKnocked(Time))
+                    {
+                        SimEnemy.Splash(en, Enemies(), Time);
                         _events.Add(new SimEvent(Time, "knock", b.Id, 0));
+                    }
                 }
             }
 
@@ -179,6 +187,19 @@ namespace Topple.Sim
                 Frames = _frames.ToArray(),
             };
             return rec;
+        }
+
+        // Lista p/ splash de pelotão (só em knock, raro; sem custo no passo).
+        List<SimEnemy> Enemies()
+        {
+            var l = new List<SimEnemy>();
+            foreach (var b in _bodies)
+            {
+                if (b.Kind != BodyKind.Enemy) continue;
+                var en = b.Go.GetComponent<SimEnemy>();
+                if (en != null) l.Add(en);
+            }
+            return l;
         }
 
         // Diagnóstico: quantos corpos tombaram além de minDeg (inclui adormecidos).

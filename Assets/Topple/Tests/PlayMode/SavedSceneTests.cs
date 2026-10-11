@@ -15,29 +15,24 @@ namespace Topple.Tests
     public class SavedSceneTests
     {
         // Restaura cena vazia: sem isto, os testes seguintes herdariam o setup
-        // vivo da Tutorial (duplo placement/sim).
+        // vivo da Tutorial (duplo placement/sim). NOTA 11/out/2026: descarregar
+        // cenas via UnloadSceneAsync travava o runner (main parado, física a
+        // 3 núcleos, sem completar) — destrói as raízes, que é o que contamina.
+        // O teste de LoadScene usa Single (troca tudo de todo jeito).
         [UnityTearDown] public IEnumerator RestoreEmptyScene()
         {
-            var clean = SceneManager.CreateScene("Clean");
-            SceneManager.SetActiveScene(clean);
-            var loaded = new System.Collections.Generic.List<Scene>();
-            for (int i = 0; i < SceneManager.sceneCount; i++)
-            {
-                var s = SceneManager.GetSceneAt(i);
-                if (s.IsValid() && s != clean) loaded.Add(s);
-            }
-            foreach (var s in loaded)
-            {
-                var op = SceneManager.UnloadSceneAsync(s);
-                while (op != null && !op.isDone) yield return null;
-            }
+            foreach (var setup in Object.FindObjectsByType<TutorialSetup>(FindObjectsSortMode.None))
+                Object.Destroy(setup.gameObject);
+            yield return null;
             yield return null;
         }
 
         [UnityTest] public IEnumerator SavedScene_LoadsPlayableAndBotWins()
         {
             var op = SceneManager.LoadSceneAsync("Tutorial", LoadSceneMode.Single);
-            while (!op.isDone) yield return null;
+            int loadGuard = 0;
+            while (!op.isDone && loadGuard++ < 900) yield return null;
+            Assert.IsTrue(op.isDone, "LoadScene Tutorial não completou em ~15 s");
             yield return null; // Start() reconstrói o cenário
             yield return null;
 

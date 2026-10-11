@@ -111,13 +111,17 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
 
 ## 11. Encostou-derruba + curva que não morre (10/out/2026, pedido do dono)
 - Encostou, derruba: `SimEnemy` agora cai no toque de qualquer corpo DINÂMICO
-  (peça ou soldado arremessado), mesmo sem impulso — tombo no lugar (1,6 m/s,
-  sem voadora); golpe forte mantém o arremesso. Chão/mesa/obstáculo são
-  kinematic e nunca contam (repousar no chão não derruba). Vale ao vivo e
+  (peça ou soldado arremessado), mesmo sem impulso — tombo no lugar (2,2 m/s,
+  sem voadora exagerada); golpe forte mantém o arremesso. Chão/mesa/obstáculo
+  são kinematic e nunca contam (repousar no chão não derruba). Vale ao vivo e
   headless (mesmo componente). Golden `cascade-v1` regenerado pela mudança.
-- Curva fechada adensa: `ArcPath` comprime o passo em raio < 1,2 m (mín. 55%;
-  reta inalterada) — giro forte com passo largo caía fora do cone da próxima
-  peça e a onda morria. Giro curto gasta poucas peças extras.
+- Pelotão morre junto (pedido do dono): derrubado espirra o vizinho até
+  0,8 m (`SimEnemy.Splash`, em saltos A→B→C, determinístico) — sem isso a
+  limpeza do último virava loteria de tumulto (a direção do arremesso foge
+  do triângulo). Vale ao vivo e headless. Golden regenerado.
+- Curva fechada adensa: `ArcPath` comprime o passo em raio < 1,2 m (mín. 60%,
+  acima do piso 0,22; reta inalterada) — giro forte com passo largo caía fora
+  do cone da próxima peça e a onda morria. Giro curto gasta poucas peças extras.
 - Sem buraco evitável: `CurrentPath` costura vãos > 0,45 m com o ponto médio
   válido (3 passadas, respeita a mão); vão sem ponto médio vira aviso no commit
   ("vão de X m — a onda pode parar aí"), não silêncio.
@@ -159,6 +163,16 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
   passavam e intersectavam. Espaçamento agora tem piso e teto por construção:
   `FallRoom` (0,22 comum / 0,30 pesada) entre vizinhas novas, `IntersectGap`
   contra o tabuleiro, `WaveReach` 0,45 de teto (`DropCrowded` + `FillGaps`).
+- Passo 0,35→0,38 (11/out/2026): a 0,35 as peças se apoiavam inclinadas (~10°,
+  abaixo do wake de 12°) e ADORMECIAM EM ESCADA; a 0,40 a peça caía EM CIMA da
+  próxima e a prendia (drape-pin, fase 3 travou na peça 9 com 0/4). 0,38 é o
+  passo da cascata golden T1 (cadência ~19 passos/peça, prova determinística).
+- Sleep 0,01→0,005 + `KeepLeanersAwake` default ON: escada adormecida matava a
+  onda só no ao vivo (variação de thread; headless determinístico não mostrava).
+  Margem 6x sobre tombo (~0,03 m/s); repouso real (0) continua dormindo.
+- Ordem importa: `filter → fill → drop` ABRIA vão depois do remendo (fase 2
+  perdeu 0/3 na UI); ordem final `filter → fill → drop → fill` (segundo
+  remendo enxerga o vão que o drop abriu).
 
 ## 13. Recarregar fase + Esc cancela seleção + sem botão de trilha (10/out/2026)
 - Botão Refazer virou **Recarregar** (botão + `Ctrl+Y`, no planejamento e na

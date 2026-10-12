@@ -38,7 +38,7 @@ namespace Topple.Tests
 
             var setup = Object.FindFirstObjectByType<TutorialSetup>();
             Assert.IsNotNull(setup, "TutorialSetup ausente na cena salva");
-            Assert.AreEqual(TutorialSetup.Phases[0].Commons, setup.Planning.Data.HandCount(PieceId.Common), "mão zerada no load");
+            Assert.AreEqual(ToppleRules.StartingCommons, setup.Planning.Data.HandCount(PieceId.Common), "mão zerada no load");
             Assert.AreEqual(0, setup.Planning.Data.Count, "tabuleiro deveria começar vazio");
             Assert.AreEqual(3, setup.SoldierSpots.Count);
             Assert.IsTrue(setup.Planning.Active);
@@ -46,7 +46,7 @@ namespace Topple.Tests
 
             // Bot completa pela API de jogador e a fase é vencida (headless).
             PlanningBot.SolveTutorial(setup.Planning);
-            Assert.AreEqual(11, setup.Planning.Data.Count);
+            Assert.AreEqual(9, setup.Planning.Data.Count);
             var world = SimWorld.Create(20261009);
             try
             {
@@ -65,7 +65,7 @@ namespace Topple.Tests
                 first.Rb.angularVelocity = Vector3.Cross(Vector3.up, facing) * 4.5f;
                 var soldiers = new SimEnemy[setup.SoldierSpots.Count];
                 for (int i = 0; i < soldiers.Length; i++)
-                    soldiers[i] = world.SpawnSoldier(setup.SoldierSpots[i]);
+                    soldiers[i] = world.SpawnSoldier(setup.SoldierSpots[i].Pos);
                 world.Finish();
                 int knocked = 0;
                 foreach (var s in soldiers) if (s.Knocked) knocked++;
@@ -85,14 +85,14 @@ namespace Topple.Tests
                 setup = TutorialSetup.Build("PhaseTest");
                 yield return null;
                 Assert.AreEqual(0, setup.PhaseIndex);
-                Assert.AreEqual(TutorialSetup.Phases[0].Commons, setup.Planning.Data.HandCount(PieceId.Common));
+                Assert.AreEqual(ToppleRules.StartingCommons, setup.Planning.Data.HandCount(PieceId.Common));
                 setup.LoadPhase(1);
                 yield return null;
                 Assert.AreEqual(1, setup.PhaseIndex);
                 var ph = TutorialSetup.Phases[1];
-                Assert.AreEqual(ph.Commons, setup.Planning.Data.HandCount(PieceId.Common));
+                Assert.AreEqual(ToppleRules.StartingCommons, setup.Planning.Data.HandCount(PieceId.Common));
             Assert.AreEqual(0, setup.Planning.Data.Count); // tabuleiro vazio
-            Assert.AreEqual(3, setup.SoldierSpots.Count);
+            Assert.AreEqual(4, setup.SoldierSpots.Count); // fase 2 tem 4
             Assert.IsTrue(setup.Planning.Active);
             // Zona de construção destacada (GDD §4.1) existe, ativa e translúcida.
             var zone = setup.transform.Find("BuildZone");

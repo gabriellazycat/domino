@@ -50,9 +50,10 @@
   rampa vista por dentro) — corrigido no gerador em 10/out/2026.
 - Previews são evidência (fora do manifesto de idempotência); `Generated/` é o jogo.
 
-## Deferidos T3 → T4/T5 (HUD mínimo não cobre)
-- Cargas de Previsão (F), telas de resultado completas, Draft/Loja/Descanso/Evento,
-  pausa, Moral — T4 (fluxo) / T5 (roguelite).
+## Deferidos T3 → T4/T5 (HUD mínima não cobre)
+- Cargas de Previsão (F), telas de resultado completas, Loja/Descanso/Evento,
+  pausa, Moral — T4 (fluxo) / T5 (roguelite). Draft 1-de-3 pós-fase JÁ pronto
+  (deckbuilder 11/out/2026); loja completa continua T4/T5.
 - ToppleCam: slow-motion, cortes e zoom no chefe — T7 (polimento).
 - PanelSettings criado em código avisa "No Theme" (só chrome base; USS próprio
   cobre). Tema final + `tokens.uss` na T4.

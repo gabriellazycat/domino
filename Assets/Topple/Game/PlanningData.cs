@@ -52,7 +52,9 @@ namespace Topple.Game
         {
             PieceId.Heavy => 0.20f,
             PieceId.Ramp => 0.25f,
-            _ => 0.12f,
+            PieceId.Big => 0.30f,
+            PieceId.Tower => 0.10f,
+            _ => 0.12f, // Common, Fork (metade é comum), Runner, Blast, Giant
         };
         public static float FallRoom(PieceId piece) => Thickness(piece) + 0.10f;
         public static float IntersectGap(PieceId piece) => Thickness(piece) + 0.02f;
@@ -74,11 +76,19 @@ namespace Topple.Game
         }
 
         // Trilha com rotação própria por ponto (curvas), como uma única ação.
-        public int TryPlacePath(PieceId piece, List<(int gx, int gz, float deg)> pts)
+        // anchorParentId = âncora existente (0 = raiz fresca): a 1ª peça que
+        // entrar registra esse pai; as seguintes encadeiam na anterior.
+        public int TryPlacePath(PieceId piece, List<(int gx, int gz, float deg)> pts, int anchorParentId = 0)
         {
             int depth = _undo.Count, n = 0;
+            int parent = anchorParentId;
             foreach (var (gx, gz, deg) in pts)
-                if (TryPlace(piece, gx, gz, deg, false, out _)) n++;
+            {
+                if (!TryPlace(piece, gx, gz, deg, false, out int id)) continue;
+                n++;
+                _parent[id] = parent;
+                parent = id;
+            }
             if (n > 1)
             {
                 var acts = new List<IUndoAction>();
@@ -190,24 +200,136 @@ namespace Topple.Game
             return true;
         }
 
+        // Bifurcação de verdade (pedido do dono): 1 carta = 2 corpos comuns lado
+        // a lado (cada metade tomba e continua a sua linha, como dominó real).
+        // Metades a ±0,25 m da perpendicular (vão interno 0,10: a peça que chega
+        // encosta nas duas de uma vez). Puro (sem UnityEngine).
+        public static (int ax, int az, int bx, int bz) ForkHalves(int gx, int gz, float deg)
+        {
+            var (fx, fz) = FacingOf(deg);
+            int ox = (int)System.Math.Round(-fz * 5f);
+            int oz = (int)System.Math.Round(fx * 5f);
+            if (ox == 0 && oz == 0) { ox = 0; oz = 5; } // nunca degenera
+            return (gx + ox, gz + oz, gx - ox, gz - oz);
+        }
+
+        // Coloca o par da bifurcação (1 carta, 2 corpos irmãos com o mesmo pai).
+        // Cada metade é cabeça própria (MaxChildren 1 p/ todos) = 2 pontos para
+        // continuar, 1 em cada peça. Retorna 2 ou 0 (sem carta / cela ocupada).
+        public int TryPlaceFork(int gx, int gz, float deg, int anchorParentId = 0)
+        {
+            if (HandCount(PieceId.Fork) <= 0) return 0;
+            var (ax, az, bx, bz) = ForkHalves(gx, gz, deg);
+            if (FindAt(ax, az) >= 0 || FindAt(bx, bz) >= 0) return 0;
+            if ((ax == bx && az == bz)) return 0;
+            int depth = _undo.Count;
+            _hand[PieceId.Fork]--;
+            int ida = _nextId++;
+            var pa = new Placement { InstanceId = ida, Piece = PieceId.Fork, Gx = ax, Gz = az, Deg = WrapDeg(deg), Locked = false };
+            _items.Add(pa);
+            _undo.Push(new PlaceAct(pa));
+            _parent[ida] = anchorParentId;
+            int idb = _nextId++;
+            var pb = new Placement { InstanceId = idb, Piece = PieceId.Fork, Gx = bx, Gz = bz, Deg = WrapDeg(deg), Locked = false };
+            _items.Add(pb);
+            _undo.Push(new PlaceAct(pb));
+            _parent[idb] = anchorParentId;
+            _twin[ida] = idb;
+            _twin[idb] = ida;
+            var acts = new List<IUndoAction>();
+            while (_undo.Count > depth) acts.Add(_undo.Pop());
+            acts.Reverse();
+            _undo.Push(new BatchAct(acts));
+            return 2;
+        }
+
         public bool TryRemove(int id)
         {
             int i = _items.FindIndex(p => p.InstanceId == id);
             if (i < 0 || _items[i].Locked) return false;
+            if (ChildrenCount(id) > 0) return false; // tem continuação: remova da ponta
             var p = _items[i];
             _items.RemoveAt(i);
-            _hand[p.Piece] = HandCount(p.Piece) + 1;
-            _undo.Push(new RemoveAct(p));
+            // Reembolso gêmeo: tirar 1 metade não devolve carta (a outra segue no
+            // tabuleiro); tirar a última devolve 1. Sem isso 1 carta virava 2.
+            int refunded = RefundFor(id, p.Piece);
+            int twin = TwinOf(id);
+            _hand[p.Piece] = HandCount(p.Piece) + refunded;
+            _undo.Push(new RemoveAct(p, refunded, twin));
+            ForgetTwin(id);
+            PruneParents();
             return true;
         }
 
         public int FindAt(int gx, int gz) => _items.FindIndex(p => p.Gx == gx && p.Gz == gz);
 
-        // Troca de fase: limpa layout e desfazer (ids seguem únicos).
+        // Regra da cabeça (deckbuilder): continuação só a partir de cabeça
+        // (peça sem filhos; cada metade da bifurcação é cabeça própria).
+        // Filho registra o pai; undo por lote (LIFO) nunca deixa órfão.
+        readonly Dictionary<int, int> _parent = new(); // filhoId -> paiId (0 = raiz)
+        // Gêmeo do par da bifurcação (metadeId -> metadeId). Sem gêmeo = corpo único.
+        readonly Dictionary<int, int> _twin = new();
+
+        public int ParentOf(int id) => _parent.TryGetValue(id, out var p) ? p : 0;
+
+        public int TwinOf(int id) => _twin.TryGetValue(id, out var t) ? t : 0;
+
+        bool TwinOnBoard(int id)
+        {
+            int t = TwinOf(id);
+            return t != 0 && FindId(t) >= 0;
+        }
+
+        int RefundFor(int id, PieceId piece)
+        {
+            if (piece == PieceId.Fork && TwinOnBoard(id)) return 0;
+            return 1;
+        }
+
+        void ForgetTwin(int id)
+        {
+            int t = TwinOf(id);
+            _twin.Remove(id);
+            if (t != 0) _twin.Remove(t);
+        }
+
+        public int ChildrenCount(int id)
+        {
+            int n = 0;
+            foreach (var kv in _parent) if (kv.Value == id) n++;
+            return n;
+        }
+
+        public int MaxChildren(PieceId piece) => 1; // par da bifurcação: cada metade é cabeça própria (2 pontos p/ continuar)
+
+        public bool IsHead(int id)
+        {
+            int i = _items.FindIndex(p => p.InstanceId == id);
+            if (i < 0) return false;
+            return ChildrenCount(id) < MaxChildren(_items[i].Piece);
+        }
+
+        void PruneParents()
+        {
+            List<int> dead = null;
+            foreach (var id in _parent.Keys)
+                if (FindId(id) < 0) (dead ??= new List<int>()).Add(id);
+            if (dead != null) foreach (var id in dead) _parent.Remove(id);
+            List<int> deadTwin = null;
+            foreach (var id in _twin.Keys)
+                if (FindId(id) < 0) (deadTwin ??= new List<int>()).Add(id);
+            if (deadTwin != null) foreach (var id in deadTwin) _twin.Remove(id);
+        }
+
+        int FindId(int id) => _items.FindIndex(p => p.InstanceId == id);
+
+        // Troca de fase: limpa layout, desfazer e parentesco (ids seguem únicos).
         public void Clear()
         {
             _items.Clear();
             _undo.Clear();
+            _parent.Clear();
+            _twin.Clear();
         }
 
         // Peça do cenário (Peça Zero): entra no layout sem gastar a mão e sem desfazer.
@@ -223,6 +345,7 @@ namespace Topple.Game
             if (_undo.Count == 0) return false;
             var a = _undo.Pop();
             a.Undo(this);
+            PruneParents();
             return true;
         }
 
@@ -234,19 +357,31 @@ namespace Topple.Game
             public PlaceAct(Placement p) => _p = p;
             public void Undo(PlanningData d)
             {
+                // Desfazer em ordem reversa (BatchAct): a 2ª metade sai com
+                // reembolso 0 (gêmea a bordo) e a 1ª com 1 — 1 carta no total.
                 d._items.RemoveAll(x => x.InstanceId == _p.InstanceId);
-                d._hand[_p.Piece] = d.HandCount(_p.Piece) + 1;
+                d._hand[_p.Piece] = d.HandCount(_p.Piece) + d.RefundFor(_p.InstanceId, _p.Piece);
+                d.ForgetTwin(_p.InstanceId);
+                d.PruneParents();
             }
         }
 
         sealed class RemoveAct : IUndoAction
         {
             readonly Placement _p;
-            public RemoveAct(Placement p) => _p = p;
+            readonly int _refunded;
+            readonly int _twin;
+            public RemoveAct(Placement p, int refunded = 1, int twin = 0) { _p = p; _refunded = refunded; _twin = twin; }
             public void Undo(PlanningData d)
             {
                 d._items.Add(_p);
-                d._hand[_p.Piece] = d.HandCount(_p.Piece) - 1;
+                d._hand[_p.Piece] = d.HandCount(_p.Piece) - _refunded;
+                if (_twin != 0 && d.FindId(_twin) >= 0)
+                {
+                    d._twin[_p.InstanceId] = _twin;
+                    d._twin[_twin] = _p.InstanceId;
+                }
+                d.PruneParents();
             }
         }
 

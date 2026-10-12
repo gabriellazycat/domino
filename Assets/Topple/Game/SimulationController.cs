@@ -1,6 +1,6 @@
-// T3: simulação visível na cena principal (física padrão do Unity) com as MESMAS
-// regras do núcleo T1 (SimPiece/SimEnemy, knock §6, fim por repouso/45 s).
-// O gatilho (Peça Zero) recebe o impulso inicial fixo (GDD §4.1).
+// T3: simulacao visivel na cena principal (fisica padrao do Unity) com as MESMAS
+// regras do nucleo T1 (SimPiece/SimEnemy, knock S6, fim por repouso/45 s).
+// O gatilho (1a peca) recebe o impulso inicial fixo (GDD 4.1).
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -62,7 +62,7 @@ namespace Topple.Game
             return _obstacleMatShared;
         }
 
-        public void StartSim(List<Placement> layout, List<Vector3> soldiers, List<ObstacleDef> statics = null)
+        public void StartSim(List<Placement> layout, List<EnemySpot> spots, List<ObstacleDef> statics = null)
         {
             SimBuilder.EnsurePhysicsDefaults();
             StopSim();
@@ -104,8 +104,9 @@ namespace Topple.Game
                 var sp = go.GetComponent<SimPiece>();
                 if (sp == null) sp = go.AddComponent<SimPiece>();
                 sp.Id = p.InstanceId; sp.Piece = p.Piece;
+                sp.ArmAt = 0.25f; // ignora o impacto de assentamento no spawn
                 _spawned.Add(go);
-                if (firstRb == null && rb != null) // Peça Zero (menor id)
+                if (firstRb == null && rb != null) // 1a peca (menor id)
                 {
                     firstRb = rb;
                     firstFacing = go.transform.rotation * Vector3.forward;
@@ -113,28 +114,40 @@ namespace Topple.Game
                 }
             }
             var soldierPrefab = PrefabRegistry.Soldier();
-            foreach (var s in soldiers)
+            var brutePrefab = PrefabRegistry.Brute();
+            foreach (var s in spots)
             {
-                var go = Instantiate(soldierPrefab, _container.transform);
-                go.transform.SetPositionAndRotation(s, Quaternion.identity);
+                bool brute = s.Kind == Topple.Core.EnemyKind.Brute;
+                bool patrol = s.Kind == Topple.Core.EnemyKind.Patroller && s.Waypoints.Count >= 2;
+                var prefab = brute ? brutePrefab : soldierPrefab;
+                if (prefab == null) continue;
+                var go = Instantiate(prefab, _container.transform);
+                go.transform.SetPositionAndRotation(s.Pos, Quaternion.identity);
                 var rb = go.GetComponent<Rigidbody>();
-                if (rb != null) { rb.isKinematic = false; rb.sleepThreshold = 0.005f; _bodies.Add(rb); }
+                // Patrulheiro nasce kinematic (anda no loop); vira corpo ao cair.
+                if (rb != null) { rb.isKinematic = patrol; rb.sleepThreshold = 0.005f; _bodies.Add(rb); }
                 EnsureWood(go);
                 var en = go.GetComponent<SimEnemy>();
                 if (en == null) en = go.AddComponent<SimEnemy>();
+                en.Kind = s.Kind;
+                if (patrol)
+                {
+                    en.Patrol = new System.Collections.Generic.List<Vector3>(s.Waypoints);
+                    en.PatrolSpeed = s.Speed;
+                }
                 en.ArmAt = 0.25f;
                 _enemies.Add(en);
                 _spawned.Add(go);
             }
             DepenetrateSpawned();
-            if (firstRb != null) // impulso inicial sempre o mesmo (GDD §4.1)
+            if (firstRb != null) // impulso inicial sempre o mesmo (GDD 4.1)
                 firstRb.angularVelocity = Vector3.Cross(Vector3.up, firstFacing) * 4.5f;
             Running = true;
             Debug.Log($"[TOPPLE][SIM] start corpos={_bodies.Count} inimigos={_enemies.Count} " +
-                $"impulso={firstRb != null} auto={Physics.autoSimulation} grav={Physics.gravity}");
+                $"impulso={firstRb != null} auto={Physics.simulationMode} grav={Physics.gravity}");
         }
 
-        // Rede de segurança p/ prefabs antigos (gerados antes do fix de atrito):
+        // Rede de seguranca p/ prefabs antigos (gerados antes do fix de atrito):
         // garante madeira 0,75 em runtime, igual ao headless. Humano e bot iguais.
         static void EnsureWood(GameObject go)
         {
@@ -149,7 +162,7 @@ namespace Topple.Game
             }
         }
 
-        // Zera micro-penetrações de spawn (ordem de spawn ? determinístico).
+        // Zera micro-penetracoes de spawn (ordem de spawn = deterministico).
         void DepenetrateSpawned()
         {
             var dyn = new List<Rigidbody>();
@@ -215,9 +228,10 @@ namespace Topple.Game
             foreach (var en in _enemies)
             {
                 if (en == null) continue;
+                if (!en.Knocked && en.Patrol.Count >= 2) en.PatrolAdvance(SimTime);
                 if (en.ShoveActive(SimTime)) en.ApplyShove();
             }
-            // Paridade com SimWorld.KeepLeanersAwake (caminho visível não tem golden).
+            // Paridade com SimWorld.KeepLeanersAwake (caminho visivel nao tem golden).
             foreach (var b in _bodies)
             {
                 if (b == null || b.isKinematic) continue;
@@ -248,8 +262,36 @@ namespace Topple.Game
                     RegisterKnock(en.transform.position);
                 }
             }
-            // Vitória imediata: zerou os inimigos, acabou (não espera aquietar
-            // nem os 45 s — peça rolando pra sempre prendia a sim).
+            // Encostou, derruba (paridade headless): toque em peÃ§a em pÃ©
+            // continua a onda â€” consome no passo, como os inimigos.
+            foreach (var go in _spawned)
+            {
+                if (go == null) continue;
+                var sp = go.GetComponent<SimPiece>();
+                if (sp != null) sp.CheckTouched(SimTime);
+            }
+            // Explosiva: detonacao em area (raio fixo, deterministico).
+            foreach (var go in _spawned)
+            {
+                if (go == null) continue;
+                var sp = go.GetComponent<SimPiece>();
+                if (sp == null || !sp.ConsumeBlast()) continue;
+                foreach (var en in _enemies)
+                {
+                    if (en == null || en.Knocked) continue;
+                    var d = en.transform.position - sp.transform.position;
+                    d.y = 0f;
+                    if (d.sqrMagnitude <= SimPiece.BlastRadius * SimPiece.BlastRadius)
+                    {
+                        if (d.sqrMagnitude < 1e-6f) d = Vector3.right;
+                        en.MarkKnocked(SimTime, "blast", d, 3.0f);
+                        SimEnemy.Splash(en, _enemies, SimTime);
+                        RegisterKnock(en.transform.position);
+                    }
+                }
+            }
+            // Vitoria imediata: zerou os inimigos, acabou (nao espera aquietar
+            // nem os 45 s - peca rolando pra sempre prendia a sim).
             if (_enemies.Count > 0 && KnockedSoFar >= _enemies.Count) { Finish(); return; }
 
             float maxSpeed = 0f;

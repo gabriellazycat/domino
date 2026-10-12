@@ -19,9 +19,11 @@ Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub
    Câmera: arrastar com botão direito OU do meio = orbitar; roda = zoom;
    `WASD`/setas = mover. Clique em botão da HUD não coloca peça no chão.
 3. A 1ª peça que VOCÊ colocar recebe o impulso e cai primeiro (dominó = peça).
-   Objetivo fase 1 (`Primeira Queda`): trilha até os 3 soldados e derrube 3/3.
-   Fases 2-3: `Curva do Muro`, `Peso Pesado` (botão Próxima após vitória).
-   Encostou, derrubou. Testar é grátis: DISPARAR não apaga nada.
+   Run deckbuilder: 10 fases (`Primeira Queda` … `Chefão`), deck base 10 comuns,
+   3 DISPARAR por fase (planejar/Recarregar livres), vida 10 (1 de dano por
+   sobrevivente). Vitória ou derrota-avançada paga draft: escolha 1 de 3 pacotes
+   (pesada antes dos pesadões, fork antes dos splits, rampa fase 1+).
+   Encostou, derrubou. Testar é grátis dentro das 3 tentativas: DISPARAR não apaga nada.
 
 ## Regenerar / testar (com a Unity FECHADA)
 - `Tools/GenerateAll.ps1` — regenera `Assets/Generated/` (42 arquivos, idempotente).
@@ -38,8 +40,9 @@ Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub
 - Testes usam botão via `Press*` (Humble Object), nunca clique por coordenada —
   geometria da UI só assenta com viewport real. Hit-test, som real, feel e FPS
   só no playtest humano.
-- `Content/` vazia (dados T5). Fases hoje inline em `TutorialSetup.Phases`.
-  Constantes em `ToppleRules.cs`. Rede solo usa `LocalSession` (`MirrorSession`
+- `Content/` vazia (dados T5). Fases hoje inline em `TutorialSetup.Phases`
+  (10 artesanais). Constantes em `ToppleRules.cs` (vida 10, 10 comuns base,
+  3 tentativas/fase, 1 dano/sobrevivente). Rede solo usa `LocalSession` (`MirrorSession`
   é esqueleto T6, Steam AppID 480 só dev).
 
 ## Se algo quebrar

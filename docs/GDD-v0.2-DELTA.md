@@ -22,6 +22,8 @@
 | Limiar de repouso/fim de sim (§4.2, sem número) | 0,08 m/s por 2 s | Medido; 500 corpos dormem rápido (carga 45 s em 1,19 s) |
 | Raio da zona proibida (§4.1/§9, sem número) | Rot-aware (extensão da peça + base Ø0,50 + 2 cm) | Círculo fixo ou impedia kill frontal ou deixava pop de spawn |
 | Passo da trilha em curva | 0,35 m, snap fino 0,05 | Curvas 0,25 desalinhavam; 0,45 deixava vão além do alcance |
+| Massa da Pesada 2,0 kg (§13.2) | 1,0 kg | A 2,0 kg (4x a comum) a onda de comuns não tombava a pesada e morria nela; a 1,0 a comum derruba. Pesadão continua caindo por toque de pesada (massa-independente) |
+| Massa das peças jogáveis | 0,25 kg uniforme | Pedido do dono: qualquer massa diferente travava a onda entre tipos; tudo igual = uma derruba a outra. Inimigos mantêm 1,0/3,0 kg. Vale headless (SimBuilder) e ao vivo (prefabs, exige Generate All) |
 | Tamanho da gravação (§9/§17: ~1-2 MB) | ~8,6 KB medidos | Só corpos acordados + GZip (500 corpos, 45 s) |
 
 ## 2. Regras esclarecidas (GDD definia, faltava o como)
@@ -119,6 +121,15 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
   0,8 m (`SimEnemy.Splash`, em saltos A→B→C, determinístico) — sem isso a
   limpeza do último virava loteria de tumulto (a direção do arremesso foge
   do triângulo). Vale ao vivo e headless. Golden regenerado.
+- Peças: encostou, derruba (12/out/2026, pedido do dono — roçar sem cair não
+  existe mais): corpo DINÂMICO que encosta em peça EM PÉ (tilt < 25°, após
+  0,25 s de assentamento) tomba ela p/ longe do contato (chute 4,5 rad/s,
+  igual ao gatilho; consome no passo como `CheckKnocked`). A onda vira cadeia
+  garantida por contato — a física ainda anima cada queda. Kinematic (chão,
+  mesa, rampa, patrulheiro em loop) nunca conta; peça já caindo não sofre
+  novo chute. Vale ao vivo (`SimulationController`) e headless (`SimWorld`,
+  mesmo componente). Golden `cascade-v1` regenerado pela mudança + prova
+  `Chain_GrazeStillKnocks` (desvio lateral 0,35 com 0,05 de face).
 - Curva fechada adensa: `ArcPath` comprime o passo em raio < 1,2 m (mín. 60%,
   acima do piso 0,22; reta inalterada) — giro forte com passo largo caía fora
   do cone da próxima peça e a onda morria. Giro curto gasta poucas peças extras.
@@ -182,6 +193,111 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
   início, nada é removido); sem seleção, não faz nada. Trilha segue ligada.
 - Botão `btn-path` escondido (`display:none`, como o de linha); `btn-redo`
   agora nasce com texto "Recarregar" (uxml + código + fallback).
+
+## 18. Deckbuilder + HUD dinâmica (11/out/2026, pedido do dono)
+- Run: `RunState` puro (deck/vida 10/tentativas 3/fase, dano brutal 1/sobrevivente,
+  `ToppleRng` com seed, sem UnityEngine) + `RewardPool.Draft3` (pesos por fase:
+  pesada f1+, rampa f1+, grande/explosiva f2+, torre/corrida f3+, fork f4+;
+  3 opções distintas, determinístico). Mão da fase = cópia do deck.
+- Fluxo: vitória paga draft e avança; derrota com tentativas = retry; sem
+  tentativas = dano, morte = fim de run, senão draft de consolação e avança
+  machucado. Última fase = vitória da run. `RestartRun` reseta tudo.
+- HUD: bandeja dinâmica (`ScrollView tray`, mostra possuídos + selecionado,
+  1-8), `Última [X]` (= `RemoveLast`), `SetActions` (DISPARAR apagado sem peças),
+  `SetSimDim` (barra esmaece na sim), `SetRun` (vida + tentativas no objetivo),
+  `SetCoach(texto, pulseBtn)`, draft no banner (again/next + 3º botão),
+  `ShowRunEnd` (Novo run). Guardas: `IsDraftOpen` bloqueia Enter/Next duplo;
+  `PressAgain/PressNext` respeitam draft como os cliques; atalhos 1-8 só no
+  planejamento ativo. Fallback de build espelha uxml (tray + 4 ações + banner).
+- Regra da cabeça: com peças, trilha só continua de cabeça (sem filhos;
+  fork aceita 2); chão longe de cabeça = "Continue da última peça!";
+  remoção só da ponta ("Tem continuação — remova da ponta!").
+   `WaveReach` por peça (torre 1,0 m, big 0,60 m, demais 0,45 m).
+- `Pular fase` (cheat de teste, pedido do dono): botão após DISPARAR (`btn-skip`,
+  `PressSkip`, presente no fallback de build); avança sem dano, sem draft e sem
+  gastar tentativa (`SkipPhase` → `LoadPhase` seguinte; na última encerra como
+  desistência). Ignorado com draft aberto. Prova `Skip_AdvancesPhaseViaUI`.
+
+## 19. Deckbuilder: linguagem + regras finas (11/out/2026, pedido do dono)
+- Bandeja 8-vs-7 tipos: o GDD lista 7 peças jogáveis; a HUD mostra 8 (inclui
+  Rampa). Mantido 8: Rampa é jogável no MVP (draft "2 Rampas" f1+, peso 15) e
+  a bandeja reflete o `PieceId` real — GDD será atualizado na T5.
+- Tokens USS adiados p/ T4: cor por tipo hoje é inline no `PlanningHUD`
+  (dicionário código→cor); `PlanningHUD.uss` só tem layout. `tokens.uss`
+  entra com as telas completas T4.
+- Toque-de-pesada (refino §6/pesadão estrito): pesadão ignora toque/tilt/splash
+  de pelotão; cai por impulso ≥2,0 N·s, TOQUE de pesada (`_touchedHeavy`,
+  qualquer `collision.impulse > 1e-4` de `SimPiece Heavy`) ou blast/queda.
+  Comum/runner encostando não derrubam (prova `Brute_SurvivesCommonWave`).
+- Splash com epsilon: `d² ≤ R² + 1e-6` (R continua 0,8 m do design). 0,8 exato
+  + jitter ±0,002 de spawn virava roleta (coluna da fase 5); número intacto.
+- Fallback nunca-colide: `Draft3` sempre devolve 3 opções distintas; se a
+  tabela não der (fase 0 tem 2 entradas), completa com "N Comuns" de rótulo
+  inédito (3, 4, 5…) — sem colisão de `Label` no draft.
+- Mãos de prova ≠ economia: `PhaseSolvabilityTests` usa 112C/24B/8H p/ provar
+  existência de solução física; economia real do deck (`StartingCommons`,
+  `RewardPool`, f1+) é T5. Sementes do solver: rotas P4–P10 no teste.
+- Draft sem par dominado (relato do dono: "3 vs 4 Comuns"): UM pack puro-comum
+  por draft, com qtd escalável (4+fase: f0=4 … f9=13); "5 Comuns" estático saiu
+  (escada 3-vs-5 colidia do mesmo jeito). Rampa desde f0 (era f1): 1º draft em
+  3 eixos — combustível (comuns) × qualidade (pesada) × ferramenta (rampa).
+  Fallback virou segurança inalcançável (f0 já tem 3 entradas). Trava de prova
+  `Draft3_SemParDominado` (fases 0–9 × 30 seeds, máx. 1 puro-comum por draft).
+- Rampa fora do draft + fork promovido (pedido do dono): "2 Rampas" saiu da
+  tabela (trava `Draft3_SemRampa`); 3º eixo de f0 virou "1 Grande" (alcance).
+  Bifurcação desde f2 (era f4), pesos 14→18 e 12→14 — chega antes do Garfo.
+- Bifurcação de verdade (pedido do dono): 1 carta = 2 corpos comuns lado a lado
+  (±0,25 m da perpendicular, vão interno 0,10 — quem chega encosta nas duas de
+  uma vez); cada metade é cabeça própria (MaxChildren 1 p/ todos = 2 pontos p/
+  continuar, 1 em cada peça, como dominó real). Par com mesmo pai, linha B
+  encadeia, metades A ficam ramos; reembolso gêmeo (1ª metade 0, última 1; undo
+  do par 1). Prefab virou meia-comum laranja (exige Generate All). Provas
+  `Fork_PlacesPairWithTwoHeads_NormalOne` + `Fork_TwinRefundAndUndo`.
+
+## 20. Gramática de puzzle + corrente obrigatória (12/out/2026, pedido do dono)
+- Camada 1 do problema "olhe→trace→vença": bastava começar do lado do inimigo
+  e 1 peça vencia. Agora a 1ª trilha SÓ nasce no trigger fixo (`BeginPathAt`
+  recusa fora do trigger com tabuleiro vazio: "Comece no trigger!"; tolerância
+  0,25 m). Trava de prova `PhaseTrigger_SinglePieceCanNeverKill`: trigger a
+  >1,2 m de todo soldado E waypoint (torre cobre 1,0 m) = peça única nunca
+  alcança. Vale p/ humano, bot e testes (prova usa `TryPlacePath` direto).
+- Gramática das 10 fases (o "pensar", mesma mecânica em todas, sem sistema novo):
+  terreno que veta o óbvio (muros/vãos), cadáver-arma (derrubar A sobre B —
+  arremesso+splash já fazem), interceptação (mirar onde o patrulheiro VAI
+  estar), escassez que força partilha (deck contado + fork-par como decisão).
+  Matriz por fase (dominante/secundária): P1 lima (—), P2 terreno, P3 lima,
+  P4 escassez+cadáver, P5 interceptação+splash, P6 partilha(fork)+contorno,
+  P7 lima+alcance, P8 duas-frentes(blasts)+standoff, P9 grade+interceptação,
+  P10 arcos+standoff.
+- Par por fase (soft, p/ estrelas da Fase B): 12/12/12/16/64/88/12/48/20/96.
+  Não bloqueia (calibra com dados); prova só exige par > 0.
+- Regra das rotas de prova (solver T5): joints ≤90° entre pernas, sem reversão.
+  Reversão gera loop gigante no `ArcPath` (ramo longo em vez de curva fechada):
+  esgota a mão, empilha peças via interpenetração e a onda nasce morta
+  (P5/P6 zerados com nem a peça 0 tombando). P8 (boxy) prova o inverso: 18/18.
+- Peça tomba p/ onde APONTA (facing), não p/ a normal do contato: a normal
+  re-apontava a queda e matava curvas (regressão da fase 2, 0/4); facing segue
+  a tangente que o autor traçou. Ondas ficam mais rápidas (~10 passos/peça).
+- Chute 6,5 (era 4,5): drape-pin — queda levemente desalinhada deitava SOBRE a
+  próxima e a prendia (<20° p/ sempre, sem novo contato p/ re-chutar); com mais
+  energia a queda atravessa em vez de deitar. Golden regenerado de novo
+  (hash atual `e45640c4ee90`; era `95c5e9fd6a59` no T1).
+- Rescue anti-drape (capado): peça que levou o 1º chute e ficou APOIADA
+  (8-25°) em contato persistido (Stay) ganha UM 2º chute 0,5 s depois (máx. 2
+  chutes; em pé e quieta sem chute anterior nunca re-chuta; >25° não). Limiar
+  em 8° (3° interferia na serpentina saudável: re-chutes redirecionavam quedas
+  e quebravam a cadeia — P10 29→24). A sim continua assentando (sem vibração
+  perpétua); só a onda tem seguro.
+- Juntas: alongar a perna ATRAVÉS da junta em vez de remendá-la (junta perto de
+  soldado filtra os primeiros pontos e abre vão > reach). Padrão: perna única
+  que passa matando de passagem + curva em espaço aberto (P4v6).
+- Bifurcação de verdade (pedido do dono): 1 carta = 2 corpos comuns lado a lado
+  (±0,25 m da perpendicular, vão interno 0,10 — quem chega encosta nas duas de
+  uma vez); cada metade é cabeça própria (MaxChildren 1 p/ todos = 2 pontos p/
+  continuar, 1 em cada peça, como dominó real). Par com mesmo pai, linha B
+  encadeia, metades A ficam ramos; reembolso gêmeo (1ª metade 0, última 1; undo
+  do par 1). Prefab virou meia-comum laranja (exige Generate All). Provas
+  `Fork_PlacesPairWithTwoHeads_NormalOne` + `Fork_TwinRefundAndUndo`.
 
 ## 12. Peça sólida exata na hitbox (10/out/2026, pedido do dono)
 - Abordagem nova: fora a caixa chanfrada (`BeveledBox`, legado). `BoxSolid`

@@ -97,8 +97,8 @@ namespace Topple.Tests
                 Debug.Log("[TOPPLE][HUMAN] checkpoint A: setup ok");
                 var cam = setup.Cam.GetComponent<Camera>();
                 var doc = HudDoc(setup);
-                // HUD estrutural: botoes existem (geometria so assenta com viewport).
-                foreach (var n in new[] { "btn-piece-common", "btn-piece-heavy", "btn-piece-ramp", "btn-fire", "btn-undo", "btn-redo", "btn-again", "btn-next" })
+                // HUD estrutural: botoes existem (bandeja é dinâmica: só comuns no deck base).
+                foreach (var n in new[] { "btn-piece-common", "btn-fire", "btn-undo", "btn-redo", "btn-last", "btn-skip", "btn-again", "btn-next" })
                     Assert.IsNotNull(doc.rootVisualElement.Q<Button>(n), "botao ausente: " + n);
                 var banner = doc.rootVisualElement.Q<VisualElement>("banner-result");
                 Assert.IsTrue(banner.ClassListContains("hidden"));
@@ -107,13 +107,17 @@ namespace Topple.Tests
                 int base0 = setup.Planning.Data.Count; // 0 (tabuleiro vazio)
                 Assert.AreEqual(0, base0);
                 Assert.IsTrue(setup.Planning.PathArmed, "trilha deveria nascer ligada");
+                // Raiz obrigatória no trigger (corrente obrigatória): começar fora
+                // do trigger com tabuleiro vazio é recusado.
+                Assert.IsFalse(setup.Planning.BeginPathAt(-40, 20, -2f, 1f), "fora do trigger deveria recusar");
+                Assert.AreEqual("Comece no trigger!", setup.Planning.Hint);
                 Debug.Log("[TOPPLE][HUMAN] checkpoint C: hud asserts ok");
                 // Trilha via mouse: inicio + destino (2 cliques). Fica ligada depois.
                 float rot0 = setup.Planning.RotDeg;
                 yield return Key(_keyboard.qKey);
                 Assert.AreNotEqual(rot0, setup.Planning.RotDeg);
-                yield return Click(GroundScreen(cam, -2f, 1f));
-                yield return Click(GroundScreen(cam, 0f, 1f));
+                yield return Click(GroundScreen(cam, 0f, 0f));
+                yield return Click(GroundScreen(cam, 2f, 0f));
                 Assert.IsTrue(setup.Planning.PathArmed, "trilha continua ligada após commit");
                 int afterPath = setup.Planning.Data.Count;
                 Debug.Log($"[TOPPLE][HUMAN] checkpoint D: trilha count={afterPath}");
@@ -130,7 +134,7 @@ namespace Topple.Tests
                 yield return Key(_keyboard.pKey);
                 Assert.IsTrue(setup.Planning.PathArmed);
                 // Esc desfaz a seleção atual (volta a pedir o início), sem desligar.
-                yield return Click(GroundScreen(cam, -2f, 1f));
+                yield return Click(GroundScreen(cam, 0f, 0f));
                 Assert.IsTrue(setup.Planning.PathSelecting, "deveria estar selecionando");
                 int countSel = setup.Planning.Data.Count;
                 yield return Key(_keyboard.escapeKey);
@@ -139,8 +143,8 @@ namespace Topple.Tests
                 Assert.AreEqual(countSel, setup.Planning.Data.Count, "Esc não remove peça, só a seleção");
                 Debug.Log("[TOPPLE][HUMAN] checkpoint F: P no-op / Esc cancela seleção ok");
                 // Uma trilha p/ os testes de âncora/remover (reload deixou vazio).
-                yield return Click(GroundScreen(cam, -2f, 1f));
-                yield return Click(GroundScreen(cam, 0f, 1f));
+                yield return Click(GroundScreen(cam, 0f, 0f));
+                yield return Click(GroundScreen(cam, 2f, 0f));
                 int pathA = setup.Planning.Data.Count;
                 Assert.Greater(pathA, base0);
                 // ÂNCORA: clicar na última peça continua dela (posição+ângulo,
@@ -150,7 +154,8 @@ namespace Topple.Tests
                 yield return Click(cam.WorldToScreenPoint(lastWorld));
                 Assert.AreEqual(pathA, setup.Planning.Data.Count, "âncora não coloca peça");
                 Assert.IsTrue(setup.Planning.PathSelecting, "âncora deveria selecionar");
-                yield return Click(GroundScreen(cam, 2f, 1f));
+                // 2º trecho CURTO (deck base 10: pathA=6, mão 4 — 4 pts cabem exato).
+                yield return Click(GroundScreen(cam, 3f, 0f));
                 int pathAB = setup.Planning.Data.Count;
                 Assert.Greater(pathAB, pathA, "2º trecho deveria anexar");
                 Assert.IsTrue(setup.Planning.PathArmed);
@@ -169,9 +174,14 @@ namespace Topple.Tests
                 yield return Key(_keyboard.xKey);
                 Assert.AreEqual(beforeX - 1, setup.Planning.Data.Count);
                 Debug.Log("[TOPPLE][HUMAN] checkpoint G: remove/X ok");
-                // Desenhar arrastando: pressão + movimento + soltura confirma.
+                // Desenhar arrastando A PARTIR da cabeça (regra da cabeça: chão
+                // longe de cabeça é recusado): pressão na última peça + soltura
+                // a 0,5 m confirma 1 peça (cabe na mão restante).
                 int beforeDrag = setup.Planning.Data.Count;
-                yield return Drag(GroundScreen(cam, -3f, -2f), GroundScreen(cam, -1f, -2f));
+                var tail = setup.Planning.Data.Items[setup.Planning.Data.Count - 1];
+                var tailWorld = new Vector3(Topple.Game.PlanningData.ToWorld(tail.Gx), 0f, Topple.Game.PlanningData.ToWorld(tail.Gz));
+                yield return Drag(cam.WorldToScreenPoint(tailWorld),
+                    GroundScreen(cam, Topple.Game.PlanningData.ToWorld(tail.Gx) + 0.5f, Topple.Game.PlanningData.ToWorld(tail.Gz)));
                 Assert.Greater(setup.Planning.Data.Count, beforeDrag, "arrasto deveria commitar");
                 Assert.IsTrue(setup.Planning.PathArmed);
                 Debug.Log("[TOPPLE][HUMAN] checkpoint H: arrasto ok");
@@ -249,7 +259,7 @@ namespace Topple.Tests
                     yield return null;
                     Assert.IsTrue(setup.Planning.Active, "deveria voltar ao planejamento");
                     var mid = Vector3.zero;
-                    foreach (var s in setup.SoldierSpots) mid += s;
+                    foreach (var s in setup.SoldierSpots) mid += s.Pos;
                     mid /= Mathf.Max(1, setup.SoldierSpots.Count);
                     var tail = setup.Planning.Data.Items[setup.Planning.Data.Count - 1];
                     var tailWorld = new Vector3(Topple.Game.PlanningData.ToWorld(tail.Gx), 0f, Topple.Game.PlanningData.ToWorld(tail.Gz));
@@ -278,6 +288,26 @@ namespace Topple.Tests
                 $"fase '{setup.PhaseName}' perdida: {setup.LastResult.Value.Knocked}/{setup.LastResult.Value.Total}");
         }
 
+        // Draft como humano: pega a opção com mais comuns (cadeia precisa).
+        int DraftMostCommons(TutorialSetup setup)
+        {
+            var draft = setup.Hud.LastDraft;
+            Assert.IsNotNull(draft, "draft deveria estar aberto");
+            Assert.AreEqual(3, draft.Count);
+            int best = 0, bestN = -1;
+            for (int i = 0; i < draft.Count; i++)
+            {
+                int n = 0;
+                foreach (var it in draft[i].Items)
+                    if (it.piece == Topple.Core.PieceId.Common) n += it.count;
+                if (n > bestN) { bestN = n; best = i; }
+            }
+            int before = setup.Run.DeckTotal();
+            setup.Hud.PressDraft(best);
+            Assert.Greater(setup.Run.DeckTotal(), before, "draft deveria engordar o deck");
+            return best;
+        }
+
         [UnityTest] public IEnumerator Human_ClearsAllPhasesViaUI()
         {
             TutorialSetup setup = null;
@@ -287,17 +317,81 @@ namespace Topple.Tests
                 yield return null;
                 yield return null;
                 var doc = HudDoc(setup);
-                // Fase 1: trilha ate o pelotao.
-                yield return PlayPhaseViaUI(setup, 4.0f, 0f);
-                setup.Hud.PressNext(); yield return null;
+                // Fase 1: trilha ate o pelotao (deck base de 10 fecha).
+                yield return PlayPhaseViaUI(setup, 3.2f, 0f);
+                setup.Hud.PressNext(); yield return null; // abre o draft
+                DraftMostCommons(setup); yield return null;
                 Assert.AreEqual(1, setup.PhaseIndex);
                 // Fase 2: trilha em arco ate o pelotao.
                 yield return PlayPhaseViaUI(setup, 3.7f, -0.7f);
                 setup.Hud.PressNext(); yield return null;
+                DraftMostCommons(setup); yield return null;
                 Assert.AreEqual(2, setup.PhaseIndex);
                 // Fase 3.
                 yield return PlayPhaseViaUI(setup, 3.7f, 0.9f);
                 Debug.Log("[TOPPLE][HUMAN] 3 fases zeradas so pela UI");
+            }
+            finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
+            yield return null;
+        }
+
+        [UnityTest] public IEnumerator Skip_AdvancesPhaseViaUI()
+        {
+            TutorialSetup setup = null;
+            try
+            {
+                setup = TutorialSetup.Build("HumanSkip");
+                yield return null;
+                yield return null;
+                var doc = HudDoc(setup);
+                Assert.IsNotNull(doc.rootVisualElement.Q<Button>("btn-skip"), "botao pular ausente");
+                Assert.AreEqual(0, setup.PhaseIndex);
+                int life = setup.Run.Life;
+                setup.Hud.PressSkip(); yield return null;
+                Assert.AreEqual(1, setup.PhaseIndex, "pular deveria avancar 1 fase");
+                Assert.IsTrue(setup.Planning.Active, "pular devolve ao planejamento");
+                Assert.AreEqual(life, setup.Run.Life, "pular nao da dano");
+                // Até a última e além: encerra o run como desistência, sem dano.
+                for (int i = 0; i < 8; i++) { setup.Hud.PressSkip(); yield return null; }
+                Assert.AreEqual(9, setup.PhaseIndex);
+                setup.Hud.PressSkip(); yield return null;
+                Assert.AreEqual(life, setup.Run.Life);
+                var banner = doc.rootVisualElement.Q<VisualElement>("banner-result");
+                Assert.IsFalse(banner.ClassListContains("hidden"), "fim de run deveria aparecer");
+                Debug.Log("[TOPPLE][HUMAN] pular fase ok (0→9 + fim sem dano)");
+            }
+            finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
+            yield return null;
+        }
+
+        [UnityTest] public IEnumerator Draft_DynamicTrayAndStates()
+        {
+            TutorialSetup setup = null;
+            try
+            {
+                setup = TutorialSetup.Build("HumanDraft");
+                yield return null;
+                yield return null;
+                var doc = HudDoc(setup);
+                // Deck base: só comuns na bandeja.
+                Assert.IsNotNull(doc.rootVisualElement.Q<Button>("btn-piece-common"));
+                Assert.IsNull(doc.rootVisualElement.Q<Button>("btn-piece-fork"));
+                // Draft engorda: fork aparece na bandeja dinâmica.
+                setup.Run.ApplyReward(new[] { (PieceId.Fork, 2) });
+                setup.LoadPhase(0);
+                yield return null;
+                yield return null;
+                Assert.IsNotNull(doc.rootVisualElement.Q<Button>("btn-piece-fork"), "fork deveria entrar na bandeja");
+                // Estados: sem peças, DISPARAR apagado; com peças, aceso.
+                setup.Hud.SetActions(false, false);
+                Assert.IsFalse(doc.rootVisualElement.Q<Button>("btn-fire").enabledSelf);
+                setup.Hud.SetActions(true, true);
+                Assert.IsTrue(doc.rootVisualElement.Q<Button>("btn-fire").enabledSelf);
+                // Draft abre 3 opções clicáveis via PressDraft.
+                setup.Hud.PressFire(); yield return null;
+                setup.Hud.PressNext(); yield return null;
+                Assert.IsNotNull(setup.Hud.LastDraft, "draft deveria abrir");
+                Assert.AreEqual(3, setup.Hud.LastDraft.Count);
             }
             finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
             yield return null;

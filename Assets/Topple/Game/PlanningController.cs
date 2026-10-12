@@ -1,4 +1,4 @@
-﻿// T3: planejamento — colocação em grade, fantasma verde/vermelho, traçar linha,
+// T3: planejamento — colocação em grade, fantasma verde/vermelho, traçar linha,
 // desfazer/refazer, bandeja e disparo (GDD §4.1/§14.4/§14.6). API pública de
 // comandos de jogador (Select/Place/Fire) usada pelo PlanningBot e pelos testes.
 using System;
@@ -25,20 +25,34 @@ namespace Topple.Game
         // Blocos: círculos conservadores. Raios viram dados na T5.
         public struct ForbiddenZone { public Vector3 C; public float R; }
         public List<ForbiddenZone> Forbidden = new();
-        public List<Vector3> Soldiers = new();
-        public const float SoldierRadius = 0.25f; // base Ø0,50 (GDD §13.3)
+        // Corredores de patrulha proibidos (segmentos + margem): construir na rota
+        // faz o patrulheiro passar por cima das peças.
+        public List<(Vector3 a, Vector3 b)> PatrolSegs = new();
+        const float PatrolMargin = 0.45f;
+        public List<EnemySpot> Soldiers = new();
+        // Raio de exclusão por tipo (base Ø0,50 soldado; Ø0,70 pesadão).
+        public static float EnemyRadius(Topple.Core.EnemyKind kind)
+            => kind == Topple.Core.EnemyKind.Brute ? 0.35f : 0.25f;
         public const float PathSpacing = 0.38f; // passo da cascata golden (T1):
         // 0,35 grudava em escada (lean-lock), 0,40 caía em cima prendendo
         // (drape-pin). 0,38 propaga com cadência ~19 passos/peça (prova).
-        // Alcance da queda (~0,40 + margem): vãos maiores que isto quebram a onda.
-        public const float WaveReach = 0.45f;
+        // Alcance da queda por peça (topo que alcança + margem): vãos maiores
+        // quebram a onda. Torre cobre ~1,0 m; demais, ~0,45 m.
+        public static float WaveReach(PieceId piece) => piece switch
+        {
+            PieceId.Big => 0.60f,
+            PieceId.Tower => 1.00f,
+            _ => 0.45f,
+        };
 
         // Meia-extensão da peça na direção dir (mundo), conforme a rotação.
         public static float PieceExtent(PieceId piece, float deg, Vector2 dir)
         {
-            float hx = piece == PieceId.Heavy ? 0.225f : 0.20f; // meio de 0,45/0,40
-            float hz = piece == PieceId.Heavy ? 0.10f : 0.06f; // meio de 0,20/0,12
-            if (piece == PieceId.Ramp) { hx = 0.30f; hz = 0.20f; }
+            float hx = 0.20f, hz = 0.06f; // comum/padrão: meio de 0,40/0,12 (metade da bifurcação é comum)
+            if (piece == PieceId.Heavy) { hx = 0.225f; hz = 0.10f; }
+            else if (piece == PieceId.Ramp) { hx = 0.30f; hz = 0.20f; }
+            else if (piece == PieceId.Big) { hx = 0.30f; hz = 0.08f; }
+            else if (piece == PieceId.Tower) { hx = 0.15f; hz = 0.05f; }
             float r = deg * Mathf.Deg2Rad;
             var lx = new Vector2(Mathf.Cos(r), -Mathf.Sin(r));
             var lz = new Vector2(Mathf.Sin(r), Mathf.Cos(r));
@@ -46,23 +60,38 @@ namespace Topple.Game
                  + hz * Mathf.Abs(lz.x * dir.x + lz.y * dir.y);
         }
 
-        public static bool OverlapsSoldier(float wx, float wz, PieceId piece, float deg, Vector3 soldier)
+        public static bool OverlapsSoldier(float wx, float wz, PieceId piece, float deg, EnemySpot spot)
         {
-            var d = new Vector2(soldier.x - wx, soldier.z - wz);
+            var d = new Vector2(spot.Pos.x - wx, spot.Pos.z - wz);
             float dist = d.magnitude;
             if (dist < 1e-5f) return true;
             d /= dist;
-            return dist < PieceExtent(piece, deg, d) + SoldierRadius + 0.02f;
+            return dist < PieceExtent(piece, deg, d) + EnemyRadius(spot.Kind) + 0.02f;
         }
 
         public bool IsValidCell(int gx, int gz, PieceId piece, float deg)
         {
             if (Data.HandCount(piece) <= 0 || Data.FindAt(gx, gz) >= 0) return false;
+            // Bifurcação valida as 2 metades (recursão em comum, termina).
+            if (piece == PieceId.Fork)
+            {
+                var (ax, az, bx, bz) = PlanningData.ForkHalves(gx, gz, deg);
+                if (Data.FindAt(ax, az) >= 0 || Data.FindAt(bx, bz) >= 0) return false;
+                return IsValidCell(ax, az, PieceId.Common, deg) && IsValidCell(bx, bz, PieceId.Common, deg);
+            }
             float wx = PlanningData.ToWorld(gx), wz = PlanningData.ToWorld(gz);
             foreach (var f in Forbidden)
             {
                 float dx = wx - f.C.x, dz = wz - f.C.z;
                 if (dx * dx + dz * dz < f.R * f.R) return false;
+            }
+            foreach (var sg in PatrolSegs)
+            {
+                float dx = sg.b.x - sg.a.x, dz = sg.b.z - sg.a.z;
+                float len2 = dx * dx + dz * dz;
+                float t = len2 < 1e-6f ? 0f : Mathf.Clamp(((wx - sg.a.x) * dx + (wz - sg.a.z) * dz) / len2, 0f, 1f);
+                float px = sg.a.x + dx * t - wx, pz = sg.a.z + dz * t - wz;
+                if (px * px + pz * pz < PatrolMargin * PatrolMargin) return false;
             }
             foreach (var s in Soldiers)
                 if (OverlapsSoldier(wx, wz, piece, deg, s)) return false;
@@ -76,6 +105,7 @@ namespace Topple.Game
         public Vector3 GhostWorldPos { get; private set; }
         bool _pathStarted;
         bool _anchored; // início é peça existente (posição+rotação dela, sem custo)
+        int _anchorId; // InstanceId da âncora (0 = raiz fresca)
         int _pathSx, _pathSz;
         float _pathRot;
         readonly List<GameObject> _pathGhosts = new();
@@ -95,7 +125,16 @@ namespace Topple.Game
         // Som de interface (colocar/remover/desfazer). Opcional (null-safe).
         public AudioManager Audio;
 
+        // Raiz obrigatória no trigger (corrente obrigatória, pedido do dono):
+        // com tabuleiro vazio a 1ª trilha SÓ nasce no trigger fixo da fase.
+        // Sem isso bastava começar do lado do inimigo e 1 peça vencia a fase.
+        // Distância trigger→inimigos > 1,2 m (trava de prova) = peça única
+        // nunca alcança (torre, a mais longa, cobre 1,0 m).
+        public Vector2 TriggerPos;
+        public bool HasTrigger;
+
         // Mira assistida: clique inicial até 0,25 m de uma peça ancora nela.
+        // Raiz no trigger usa a mesma tolerância (clicar PERTO do trigger vale).
         public const float AnchorSnapM = 0.25f;
 
         PlanningInput _in;
@@ -176,6 +215,7 @@ namespace Topple.Game
             PathArmed = true;
             _pathStarted = false;
             _anchored = false;
+            _anchorId = 0;
             ClearPathGhosts();
             _pathHoverKey = int.MinValue;
             Hint = "Trilha: clique o início ou uma peça p/ continuar";
@@ -188,6 +228,7 @@ namespace Topple.Game
             PathArmed = false;
             _pathStarted = false;
             _anchored = false;
+            _anchorId = 0;
             ClearPathGhosts();
             if (_ghost != null && Active) _ghost.SetActive(true);
             Hint = null;
@@ -202,7 +243,8 @@ namespace Topple.Game
         }
 
         // Mira assistida: peça existente mais próxima do ponto (mundo), até 0,25 m.
-        // -1 = chão livre. Fork liberado: vale peça do meio, não só ponta.
+        // -1 = chão livre. Metades da bifurcação são cabeças próprias: a mira
+        // pega a metade mais próxima (1 ponto p/ continuar em cada peça).
         public int AnchorIndexAt(float wx, float wz)
         {
             int best = -1;
@@ -217,11 +259,43 @@ namespace Topple.Game
             return best;
         }
 
-        // Início da trilha: em peça = ancora (posição+rotação dela, sem custo);
-        // no chão = início fresco (rotação do jogador; reta ignora facing).
-        public void BeginPathAt(int gx, int gz, float wx, float wz)
+        // Início da trilha — regra da cabeça (deckbuilder): tabuleiro vazio = chão
+        // livre; com peças, SÓ cabeça (cada metade da bifurcação é cabeça
+        // própria: 2 pontos p/ continuar, 1 em cada peça). Chão
+        // longe de cabeça = recusado ("continue da última peça!"). Em peça =
+        // ancora (posição+rotação dela, sem custo); no chão = início fresco.
+        // Retorna false se recusado (nada selecionado).
+        public bool BeginPathAt(int gx, int gz, float wx, float wz)
         {
             int anchor = AnchorIndexAt(wx, wz);
+            if (Data.Count == 0 && HasTrigger)
+            {
+                // Tabuleiro vazio: só o trigger (sem peça p/ ancorar, anchor<0).
+                float tdx = PlanningData.ToWorld(gx) - TriggerPos.x;
+                float tdz = PlanningData.ToWorld(gz) - TriggerPos.y;
+                if (Mathf.Sqrt(tdx * tdx + tdz * tdz) > AnchorSnapM)
+                {
+                    Hint = "Comece no trigger!";
+                    OnChanged?.Invoke();
+                    return false;
+                }
+            }
+            if (Data.Count > 0)
+            {
+                if (anchor < 0)
+                {
+                    Hint = "Continue da última peça!";
+                    OnChanged?.Invoke();
+                    return false;
+                }
+                var cand = Data.Items[anchor];
+                if (!Data.IsHead(cand.InstanceId))
+                {
+                    Hint = "Só da última peça!";
+                    OnChanged?.Invoke();
+                    return false;
+                }
+            }
             _pathStarted = true;
             _pathHoverKey = int.MinValue;
             ClearPathGhosts();
@@ -229,17 +303,20 @@ namespace Topple.Game
             {
                 var a = Data.Items[anchor];
                 _anchored = true;
+                _anchorId = a.InstanceId;
                 _pathSx = a.Gx; _pathSz = a.Gz; _pathRot = a.Deg;
                 Hint = "Trilha: clique o destino (continua da peça)";
             }
             else
             {
                 _anchored = false;
+                _anchorId = 0;
                 _pathSx = gx; _pathSz = gz; _pathRot = RotDeg;
                 Hint = "Trilha: clique o destino";
             }
             if (_ghost != null) _ghost.SetActive(false);
             OnChanged?.Invoke();
+            return true;
         }
 
         // Desfaz só a seleção atual (Esc): volta a pedir o início, nada some.
@@ -247,6 +324,7 @@ namespace Topple.Game
         {
             _pathStarted = false;
             _anchored = false;
+            _anchorId = 0;
             ClearPathGhosts();
             _pathHoverKey = int.MinValue;
             Hint = "Trilha: clique o início ou uma peça p/ continuar";
@@ -266,7 +344,7 @@ namespace Topple.Game
                 // Anti-interseção com o tabuleiro: ponto em cima de peça existente
                 // nasce grudado e trava (nem o início escapa — colocar ali é
                 // impossível de todo jeito, o TryPlace recusaria).
-                if (CrowdsExisting(p.gx, p.gz)) continue;
+                if (CrowdsExisting(p.gx, p.gz, p.deg)) continue;
                 outPts.Add(p);
             }
             FillGaps(outPts);
@@ -276,7 +354,18 @@ namespace Topple.Game
         }
 
         // Intersecta peça existente? (só anti-interseção, p/ não quebrar a emenda)
-        bool CrowdsExisting(int gx, int gz)
+        // Bifurcação testa as 2 metades (deg do ponto, não o RotDeg global).
+        bool CrowdsExisting(int gx, int gz, float deg)
+        {
+            if (Selected == PieceId.Fork)
+            {
+                var (ax, az, bx, bz) = PlanningData.ForkHalves(gx, gz, deg);
+                return CrowdsAt(ax, az) || CrowdsAt(bx, bz);
+            }
+            return CrowdsAt(gx, gz);
+        }
+
+        bool CrowdsAt(int gx, int gz)
         {
             float wx = PlanningData.ToWorld(gx), wz = PlanningData.ToWorld(gz);
             float min = PlanningData.IntersectGap(Selected);
@@ -298,6 +387,7 @@ namespace Topple.Game
         void FillGaps(List<(int gx, int gz, float deg)> pts)
         {
             float room = PlanningData.FallRoom(Selected);
+            float reach = WaveReach(Selected);
             for (int pass = 0; pass < 3; pass++)
             {
                 bool added = false;
@@ -306,13 +396,13 @@ namespace Topple.Game
                     float ax = PlanningData.ToWorld(pts[i].gx), az = PlanningData.ToWorld(pts[i].gz);
                     float bx = PlanningData.ToWorld(pts[i + 1].gx), bz = PlanningData.ToWorld(pts[i + 1].gz);
                     float dx = bx - ax, dz = bz - az;
-                    if (Mathf.Sqrt(dx * dx + dz * dz) <= WaveReach) continue;
+                    if (Mathf.Sqrt(dx * dx + dz * dz) <= reach) continue;
                     int mx = PlanningData.Snap(PlanningData.ToGrid((ax + bx) * 0.5f), true);
                     int mz = PlanningData.Snap(PlanningData.ToGrid((az + bz) * 0.5f), true);
                     if ((mx == pts[i].gx && mz == pts[i].gz) || (mx == pts[i + 1].gx && mz == pts[i + 1].gz)) continue;
                     float mdeg = PlanningData.DegFromTangent(dx, dz);
                     if (!IsValidCell(mx, mz, Selected, mdeg)) continue;
-                    if (CrowdsExisting(mx, mz)) continue;
+                    if (CrowdsExisting(mx, mz, mdeg)) continue;
                     float d1 = Mathf.Sqrt((PlanningData.ToWorld(mx) - ax) * (PlanningData.ToWorld(mx) - ax) + (PlanningData.ToWorld(mz) - az) * (PlanningData.ToWorld(mz) - az));
                     float d2 = Mathf.Sqrt((bx - PlanningData.ToWorld(mx)) * (bx - PlanningData.ToWorld(mx)) + (bz - PlanningData.ToWorld(mz)) * (bz - PlanningData.ToWorld(mz)));
                     if (d1 < room || d2 < room) continue; // não cabe sem grudar
@@ -342,10 +432,20 @@ namespace Topple.Game
             ClearPathGhosts();
             bool affordable = pts.Count <= Data.HandCount(Selected);
             var mat = affordable ? _ghostOk : _ghostBad;
-            int cap = Math.Min(pts.Count, 40);
+            // Bifurcação prevê o PAR (2 fantasmas por ponto).
+            var bodies = new List<(int gx, int gz, float deg)>();
+            if (Selected == PieceId.Fork)
+                foreach (var p in pts)
+                {
+                    var (ax, az, bx, bz) = PlanningData.ForkHalves(p.gx, p.gz, p.deg);
+                    bodies.Add((ax, az, p.deg));
+                    bodies.Add((bx, bz, p.deg));
+                }
+            else bodies.AddRange(pts);
+            int cap = Math.Min(bodies.Count, 40);
             for (int i = 0; i < cap; i++)
             {
-                var go = SpawnView(new Placement { Piece = Selected, Gx = pts[i].gx, Gz = pts[i].gz, Deg = pts[i].deg }, true);
+                var go = SpawnView(new Placement { Piece = Selected, Gx = bodies[i].gx, Gz = bodies[i].gz, Deg = bodies[i].deg }, true);
                 if (go == null) continue;
                 foreach (var r in go.GetComponentsInChildren<Renderer>())
                 {
@@ -355,8 +455,8 @@ namespace Topple.Game
                 }
                 _pathGhosts.Add(go);
             }
-            Hint = affordable ? $"Trilha: {pts.Count} peças — clique o destino"
-                              : $"Trilha: {pts.Count} peças, tem {Data.HandCount(Selected)}";
+            Hint = affordable ? $"Trilha: {bodies.Count} peças — clique o destino"
+                              : $"Trilha: {bodies.Count} peças, tem {Data.HandCount(Selected)}";
             OnChanged?.Invoke();
         }
 
@@ -382,7 +482,7 @@ namespace Topple.Game
             {
                 _ghost.transform.position = new Vector3(PlanningData.ToWorld(gx), GroundY, PlanningData.ToWorld(gz));
                 _ghost.transform.rotation = Quaternion.Euler(0, RotDeg, 0);
-                bool ok = Data.HandCount(Selected) > 0 && IsValidCell(gx, gz, Selected, RotDeg) && !CrowdsExisting(gx, gz);
+                bool ok = Data.HandCount(Selected) > 0 && IsValidCell(gx, gz, Selected, RotDeg) && !CrowdsExisting(gx, gz, RotDeg);
                 SetGhostValid(ok);
                 if (Data.HandCount(Selected) <= 0) Hint = "Sem peças — Recarregar (Ctrl+Y)";
                 else if (!ok) Hint = "Célula bloqueada";
@@ -391,7 +491,11 @@ namespace Topple.Game
             OnChanged?.Invoke();
         }
 
-        void CommitPath(int gx, int gz)
+        // 2º clique da trilha (ou soltura do arrasto): commita o caminho atual.
+        // Comando de jogador como Select/Place/Fire (bots e testes usam).
+        // Bifurcação: 1 carta por ponto, par de metades por ponto, encadeando
+        // pela linha B — cada metade A fica cabeça (ramo a continuar).
+        public void CommitPath(int gx, int gz)
         {
             var pts = CurrentPath(gx, gz);
             if (pts.Count > Data.HandCount(Selected))
@@ -400,17 +504,32 @@ namespace Topple.Game
                 OnChanged?.Invoke();
                 return;
             }
-            int n = Data.TryPlacePath(Selected, pts);
+            int n;
+            if (Selected == PieceId.Fork)
+            {
+                n = 0;
+                int parent = _anchored ? _anchorId : 0;
+                foreach (var pt in pts)
+                {
+                    if (Data.HandCount(PieceId.Fork) <= 0) break;
+                    if (Data.TryPlaceFork(pt.gx, pt.gz, pt.deg, parent) != 2) break;
+                    n += 2;
+                    parent = Data.Items[Data.Count - 1].InstanceId; // metade B
+                }
+            }
+            else n = Data.TryPlacePath(Selected, pts, _anchored ? _anchorId : 0);
             Hint = null;
             // Trilha sempre ligada: limpa o traço mas rearma p/ próxima trilha.
             PathArmed = true;
             _pathStarted = false;
             _anchored = false;
+            _anchorId = 0;
             ClearPathGhosts();
             _pathHoverKey = int.MinValue;
             if (_ghost != null && Active) _ghost.SetActive(false);
             float gap = MaxGapM(pts);
-            Hint = gap > WaveReach
+            float reach = WaveReach(Selected);
+            Hint = gap > reach
                 ? $"Trilha: clique o início ou uma peça (vão de {gap:F2} m — a onda pode parar aí)"
                 : "Trilha: clique o início ou uma peça p/ continuar";
             if (n > 0) { Rebuild(); OnChanged?.Invoke(); if (Audio != null) Audio.UiClick(); }
@@ -598,7 +717,8 @@ namespace Topple.Game
                     if (!drag && !OverUI())
                     {
                         int idx = Data.FindAt(gx, gz);
-                        if (idx >= 0) RemoveAt(Data.Items[idx].InstanceId);
+                        if (idx >= 0 && !RemoveAt(Data.Items[idx].InstanceId))
+                            Hint = "Tem continuação — remova da ponta!";
                     }
                 }
                 return;

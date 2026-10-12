@@ -6,12 +6,14 @@
       <uie:Label name="lbl-coach" class="msg" text="" picking-mode="Ignore" />
     </uie:VisualElement>
     <uie:VisualElement name="bottom-bar" class="bottom-bar">
-      <uie:Button name="btn-piece-common" class="tray-btn" text="1 Comum (0)" />
-      <uie:Button name="btn-piece-heavy" class="tray-btn" text="2 Pesada (0)" />
-      <uie:Button name="btn-piece-ramp" class="tray-btn" text="3 Rampa (0)" />
-      <uie:Button name="btn-undo" class="tool-btn" text="Desfazer" />
-      <uie:Button name="btn-redo" class="tool-btn" text="Recarregar" />
-      <uie:Button name="btn-fire" class="fire-btn" text="DISPARAR (Enter)" />
+      <uie:ScrollView name="tray" class="tray" mode="Horizontal" />
+      <uie:VisualElement name="actions" class="actions">
+        <uie:Button name="btn-undo" class="tool-btn" text="Desfazer [Ctrl+Z]" />
+        <uie:Button name="btn-redo" class="tool-btn" text="Recarregar [Ctrl+Y]" />
+        <uie:Button name="btn-last" class="tool-btn" text="Última [X]" />
+        <uie:Button name="btn-fire" class="fire-btn" text="DISPARAR (Enter)" />
+        <uie:Button name="btn-skip" class="tool-btn" text="Pular fase" />
+      </uie:VisualElement>
     </uie:VisualElement>
     <uie:VisualElement name="banner-result" class="banner hidden" picking-mode="Ignore">
       <uie:Label name="lbl-result" class="result-text" text="" picking-mode="Ignore" />

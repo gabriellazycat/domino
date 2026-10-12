@@ -1,12 +1,15 @@
 // Inimigo do SimWorld com detecção de knock do GDD §6.
 // NOTA Unity: um MonoBehaviour por arquivo.
+using System.Collections.Generic;
 using UnityEngine;
+using Topple.Core;
 
 namespace Topple.Sim
 {
     public sealed class SimEnemy : MonoBehaviour
     {
         public int Id;
+        public Topple.Core.EnemyKind Kind;
         public Rigidbody Rb { get; private set; }
 
         // GDD §6: tombado (>50°) por mais de 0,5 s, ou caído da plataforma, ou energia acima do limiar.
@@ -18,11 +21,24 @@ namespace Topple.Sim
         // Soldado "cai com qualquer impacto" (GDD §6): limiar baixo de impulso (N·s).
         // Contato de repouso (peso×dt ≈ 0,08) fica abaixo; uma queda de dominó (≈1,0) passa folgado.
         public float KnockImpulse = 0.25f;
+        // Pesadão (estrito, decisão do dono): SÓ peça pesada (impulso alto) e
+        // explosão derrubam. Toque/tilt/splash de pelotão ele ignora (RESISTE).
+        // Refinamento 11/out/2026 (dono): TOQUE DE PESADA também derruba —
+        // o limiar 2.0 N·s por passo nunca dispara no encosto (a pesada deita
+        // em cima sem um passo ≥ 2.0). Toque de comum/runner continua ignorado.
+        // Queda pra fora da plataforma mata qualquer um (chamadores, não aqui).
+        public float HeavyKnockImpulse = 2.0f;
+        // Patrulheiro: loop fechado em função do tempo (cinemático, determinístico
+        // headless e ao vivo). Ao cair, vira corpo dinâmico (isKinematic=false).
+        public List<Vector3> Patrol = new List<Vector3>();
+        public float PatrolSpeed = 0.3f;
+        float _patrolDist;
         // Encostou, derrubou (pedido do dono): qualquer toque de corpo DINÂMICO
         // (peça ou soldado arremessado) derruba, mesmo sem impulso. Chão/mesa/
         // obstáculo são kinematic e nunca contam — repousar no chão não derruba.
         public const float TouchEpsilon = 0.0001f;
         bool _touched;
+        bool _touchedHeavy; // toque de peça pesada (único toque que derruba pesadão)
         public float ArmAt;
         float _tiltedSince = -1f;
         float _pendingImpulse;
@@ -43,17 +59,23 @@ namespace Topple.Sim
         public bool CheckKnocked(float now)
         {
             if (Knocked) return false;
-            if (now >= ArmAt && (_touched || _pendingImpulse >= KnockImpulse))
+            float need = Kind == Topple.Core.EnemyKind.Brute ? HeavyKnockImpulse : KnockImpulse;
+            // Pesadão ignora toque comum e tilt: só impulso de pesada, TOQUE DE
+            // PESADA (ou blast, via MarkKnocked).
+            if (now >= ArmAt && ((Kind != Topple.Core.EnemyKind.Brute && _touched) || (Kind == Topple.Core.EnemyKind.Brute && _touchedHeavy) || _pendingImpulse >= need))
             {
                 _knockImpulse = _pendingImpulse;
-                bool touch = _touched && _pendingImpulse < KnockImpulse;
+                bool touch = (Kind != Topple.Core.EnemyKind.Brute && _touched && _pendingImpulse < KnockImpulse) || (Kind == Topple.Core.EnemyKind.Brute && _touchedHeavy && _pendingImpulse < need);
                 _pendingImpulse = 0f;
                 _touched = false;
+                _touchedHeavy = false;
                 MarkKnocked(now, touch ? "touch" : "impact");
                 return true;
             }
             _pendingImpulse = 0f;
             _touched = false;
+            _touchedHeavy = false;
+            if (Kind == Topple.Core.EnemyKind.Brute) return false; // sem tilt p/ pesadão
             var tilt = Vector3.Angle(transform.up, Vector3.up);
             if (tilt > KnockAngleDeg)
             {
@@ -85,14 +107,17 @@ namespace Topple.Sim
 
         // Toque de corpo dinâmico (peça ou soldado arremessado): encostou, derruba.
         // Estático/kinematic (chão, mesa, previews) nunca conta.
+        // Pesadão: só o toque de PESADA conta (comum/runner ele ignora).
         void NoteTouch(Collision collision)
         {
-            if (Knocked || _touched) return;
+            if (Knocked || (_touched && _touchedHeavy)) return;
             var rb = collision.rigidbody;
             if (rb == null || rb.isKinematic) return;
             if (rb.gameObject == gameObject) return;
             if (collision.impulse.magnitude < TouchEpsilon) return;
             _touched = true;
+            var sp = rb.gameObject.GetComponent<SimPiece>();
+            if (sp != null && sp.Piece == Topple.Core.PieceId.Heavy) _touchedHeavy = true;
             if (_shoveDir.sqrMagnitude < 1e-6f && collision.contactCount > 0)
             {
                 var away = Rb.worldCenterOfMass - collision.contacts[0].point;
@@ -109,9 +134,18 @@ namespace Topple.Sim
             Rb.WakeUp();
         }
 
-        public void MarkKnocked(float now, string why)
+        public void MarkKnocked(float now, string why, Vector3 blastDir = default, float blastForce = 0f)
         {
             Knocked = true;
+            // Patrulheiro derrubado vira corpo dinâmico (para de patrulhar).
+            if (Patrol.Count > 0 && Rb != null) Rb.isKinematic = false;
+            // Explosiva: direção e força vêm da detonação (espalha de verdade).
+            if (blastForce > 0f && blastDir.sqrMagnitude > 1e-6f)
+            {
+                _shoveDir = blastDir.normalized;
+                _knockImpulse = blastForce;
+                why = "impact";
+            }
             if ((why == "impact" || why == "touch" || why == "splash") && _shoveDir.sqrMagnitude > 1e-6f && Rb != null && !Rb.isKinematic)
             {
                 // Resposta de morte T1 (apresentação final na T3/T7): o corpo é
@@ -142,10 +176,52 @@ namespace Topple.Sim
                 foreach (var m in r.materials) m.color = Color.Lerp(m.color, Color.gray, 0.6f);
         }
 
+        // Patrulha cinemática: posição em função do tempo de sim (loop fechado,
+        // velocidade constante). Determinístico headless e ao vivo (golden intacto).
+        // Retorna false se não há loop (parado).
+        public bool PatrolAdvance(float now)
+        {
+            if (Knocked || Patrol.Count < 2) return false;
+            float total = 0f;
+            for (int i = 0; i < Patrol.Count; i++)
+            {
+                var a = Patrol[i];
+                var b = Patrol[(i + 1) % Patrol.Count];
+                var d = b - a; d.y = 0f;
+                total += d.magnitude;
+            }
+            if (total < 1e-4f) return false;
+            float target = (now * PatrolSpeed) % total;
+            for (int i = 0; i < Patrol.Count; i++)
+            {
+                var a = Patrol[i];
+                var b = Patrol[(i + 1) % Patrol.Count];
+                var d = b - a; d.y = 0f;
+                float seg = d.magnitude;
+                if (target <= seg)
+                {
+                    float t = seg < 1e-6f ? 0f : target / seg;
+                    var p = a + (b - a) * t;
+                    p.y = transform.position.y;
+                    transform.position = p;
+                    if (Rb != null)
+                    {
+                        Rb.position = p;
+                        Rb.linearVelocity = Vector3.zero;
+                        Rb.angularVelocity = Vector3.zero;
+                    }
+                    return true;
+                }
+                target -= seg;
+            }
+            return false;
+        }
+
         // Pelotão morre junto (pedido do dono): derrubado espirra o vizinho até
         // 0,8 m — sem isso a limpeza do último virava loteria de tumulto (a direção
         // do arremesso foge do triângulo). Em saltos (A→B→C), determinístico.
         // Só dispara DE derrubados: no spawn ninguém está derrubado (sem friendly-fire).
+        // Pesadão resiste ao splash (só pesada/explosão/queda).
         public const float SplashRadius = 0.8f;
 
         public static void Splash(SimEnemy from, System.Collections.Generic.IList<SimEnemy> all, float now)
@@ -156,13 +232,16 @@ namespace Topple.Sim
                 foreach (var o in all)
                 {
                     if (o == null || o == from || o.Knocked) continue;
+                    if (o.Kind == Topple.Core.EnemyKind.Brute) continue; // resiste ao splash
                     bool near = false;
                     foreach (var k in all)
                     {
                         if (k == null || k == o || !k.Knocked) continue;
                         var d = o.transform.position - k.transform.position;
                         d.y = 0f;
-                        if (d.sqrMagnitude <= SplashRadius * SplashRadius) { near = true; break; }
+                        // Epsilon 1e-6: 0,8 exato + jitter ±0,002 virava roleta
+                        // (coluna da fase 5). Design continua 0,8 m.
+                        if (d.sqrMagnitude <= SplashRadius * SplashRadius + 1e-6f) { near = true; break; }
                     }
                     if (!near) continue;
                     var away = o.transform.position - from.transform.position;

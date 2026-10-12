@@ -127,7 +127,13 @@ namespace Topple.Gen
                 $"{GenRoot}/Prefabs/piece_common.prefab",
                 $"{GenRoot}/Prefabs/piece_heavy.prefab",
                 $"{GenRoot}/Prefabs/piece_ramp.prefab",
+                $"{GenRoot}/Prefabs/piece_fork.prefab",
+                $"{GenRoot}/Prefabs/piece_big.prefab",
+                $"{GenRoot}/Prefabs/piece_runner.prefab",
+                $"{GenRoot}/Prefabs/piece_blast.prefab",
+                $"{GenRoot}/Prefabs/piece_tower.prefab",
                 $"{GenRoot}/Prefabs/enemy_soldier.prefab",
+                $"{GenRoot}/Prefabs/enemy_brute.prefab",
                 $"{GenRoot}/Prefabs/field_table.prefab",
             }, GenUtil.ProjectRoot().Replace('\\', '/') + "/Artifacts/previews");
         }

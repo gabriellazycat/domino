@@ -17,8 +17,11 @@ namespace Topple.Game
         public PlanningHUD Hud;
         public CameraController Cam;
         public AudioManager Audio;
-        public List<Vector3> SoldierSpots = new();
+        public List<EnemySpot> SoldierSpots = new();
         public SimResult? LastResult { get; private set; }
+        // Run deckbuilder (não serializa: reconstrói no InitScenario).
+        [System.NonSerialized] public RunState Run;
+        bool _runOver;
 
         GameObject _previews;
         bool _inited;
@@ -165,14 +168,17 @@ namespace Topple.Game
             // HUD (re-assina: delegates não serializam).
             var doc = GetComponentInChildren<UIDocument>();
             Hud.Setup(doc);
+            Run ??= RunState.NewRun((uint)System.Environment.TickCount);
             Planning.Hud = Hud; // p/ OverUI ignorar cliques nos botões
             Planning.Audio = Audio; // cliques de interface (colocar/remover)
             Hud.OnSelect += Planning.Select;
             Hud.OnFire += Planning.Fire;
             Hud.OnUndo += () => Planning.Undo();
             Hud.OnReload += ReloadPhase;
-            Hud.OnAgain += BackToPlanning;
-            Hud.OnNext += NextPhase;
+            Hud.OnLastRemove += () => Planning.RemoveLast();
+            Hud.OnNext += OpenDraft; // próxima = draft antes (vitória ou derrota-avançada)
+            Hud.OnSkip += SkipPhase; // cheat de teste (dono): pula sem dano/draft
+            Hud.OnAgain += () => { if (_runOver) RestartRun(); else BackToPlanning(); };
 
             LoadPhase(0);
         }
@@ -184,30 +190,109 @@ namespace Topple.Game
         public struct PhaseDef
         {
             public string Name;
-            public int Commons, Heavies, Ramps;
             public int TriggerGx, TriggerGz; public float TriggerDeg;
-            public List<Vector3> Soldiers;
+            // Par (nº de peças): soft, p/ estrelas (Fase B) — vencer acima do par
+            // vale 1★, dentro do par +1★. Não bloqueia (calibra com dados depois).
+            public int ParPieces;
+            public List<EnemySpot> Soldiers;
             public List<BlockDef> Blocks;
         }
 
         public static readonly List<PhaseDef> Phases = new()
         {
-            new PhaseDef { // 1. Primeira Queda (geometria validada T1/T3)
-                Name = "Primeira Queda", Commons = 16, Heavies = 0, Ramps = 0,
+            new PhaseDef { // 1. Primeira Queda (3; deck base fecha)
+                Name = "Primeira Queda",
                 TriggerGx = 0, TriggerGz = 0, TriggerDeg = 90f,
-                Soldiers = new() { new(4.55f, 0f, 0f), new(5.15f, 0f, 0f), new(5.75f, 0f, 0f) },
+                ParPieces = 12,
+                Soldiers = new() { EnemySpot.Soldier(3.55f, 0f), EnemySpot.Soldier(4.10f, 0f), EnemySpot.Soldier(4.65f, 0f) },
                 Blocks = new(),
             },
-            new PhaseDef { // 2. Curva do Muro: contorna o bloco e cai no pelotão
-                Name = "Curva do Muro", Commons = 16, Heavies = 0, Ramps = 0,
+            new PhaseDef { // 2. Curva do Muro (4; contorna o bloco)
+                Name = "Curva do Muro",
                 TriggerGx = 0, TriggerGz = 0, TriggerDeg = 90f,
-                Soldiers = new() { new(3.7f, 0f, -0.7f), new(4.25f, 0f, -0.65f), new(3.95f, 0f, -0.15f) },
+                ParPieces = 12,
+                Soldiers = new() { EnemySpot.Soldier(3.7f, -0.7f), EnemySpot.Soldier(4.25f, -0.65f), EnemySpot.Soldier(3.95f, -0.15f), EnemySpot.Soldier(4.6f, -0.1f) },
                 Blocks = new() { new BlockDef { Center = new(2.2f, 0.5f, 0.9f), Size = new(1.2f, 1.0f, 1.2f) } },
             },
-            new PhaseDef { // 3. Peso Pesado: arco + pelotão de 4
-                Name = "Peso Pesado", Commons = 16, Heavies = 1, Ramps = 0,
+            new PhaseDef { // 3. Peso Pesado (5; fileira longa)
+                Name = "Peso Pesado",
                 TriggerGx = 0, TriggerGz = 0, TriggerDeg = 90f,
-                Soldiers = new() { new(3.7f, 0f, 0.9f), new(4.25f, 0f, 0.9f), new(3.975f, 0f, 0.42f), new(4.7f, 0f, 0.5f) },
+                ParPieces = 12,
+                Soldiers = new() { EnemySpot.Soldier(3.6f, 0.9f), EnemySpot.Soldier(4.15f, 0.9f), EnemySpot.Soldier(4.7f, 0.9f), EnemySpot.Soldier(5.25f, 0.9f), EnemySpot.Soldier(5.8f, 0.9f) },
+                Blocks = new(),
+            },
+            new PhaseDef { // 4. Muralha Viva (7: 1 pesadão + 6; pesada já draftada)
+                Name = "Muralha Viva",
+                TriggerGx = 0, TriggerGz = 0, TriggerDeg = 90f,
+                ParPieces = 16,
+                Soldiers = new() { EnemySpot.Brute(5.2f, 0.3f),
+                    EnemySpot.Soldier(3.8f, -0.8f), EnemySpot.Soldier(4.35f, -0.8f), EnemySpot.Soldier(4.9f, -0.7f),
+                    EnemySpot.Soldier(3.8f, 0.8f), EnemySpot.Soldier(4.35f, 0.9f), EnemySpot.Soldier(4.9f, 0.8f) },
+                Blocks = new(),
+            },
+            new PhaseDef { // 5. Ronda (9: 1 patrulheiro + 8)
+                Name = "Ronda",
+                TriggerGx = 0, TriggerGz = 0, TriggerDeg = 90f,
+                ParPieces = 64,
+                Soldiers = new() {
+                    EnemySpot.Patroller(0.3f, new Vector3(4.5f, 0f, -1.5f), new Vector3(6.0f, 0f, -1.5f), new Vector3(6.0f, 0f, 1.5f), new Vector3(4.5f, 0f, 1.5f)),
+                    EnemySpot.Soldier(3.6f, -1.2f), EnemySpot.Soldier(3.6f, -0.4f), EnemySpot.Soldier(3.6f, 0.4f), EnemySpot.Soldier(3.6f, 1.2f),
+                    EnemySpot.Soldier(6.7f, -1.2f), EnemySpot.Soldier(6.7f, -0.4f), EnemySpot.Soldier(6.7f, 0.4f), EnemySpot.Soldier(6.7f, 1.2f) },
+                Blocks = new(),
+            },
+            new PhaseDef { // 6. Garfo (12: dois pelotões pedem bifurcação)
+                Name = "Garfo",
+                TriggerGx = 0, TriggerGz = 0, TriggerDeg = 90f,
+                ParPieces = 88,
+                Soldiers = new() {
+                    EnemySpot.Soldier(3.8f, -1.6f), EnemySpot.Soldier(4.35f, -1.7f), EnemySpot.Soldier(4.9f, -1.6f),
+                    EnemySpot.Soldier(3.8f, -0.9f), EnemySpot.Soldier(4.35f, -0.9f), EnemySpot.Soldier(4.9f, -0.9f),
+                    EnemySpot.Soldier(3.8f, 1.6f), EnemySpot.Soldier(4.35f, 1.7f), EnemySpot.Soldier(4.9f, 1.6f),
+                    EnemySpot.Soldier(3.8f, 0.9f), EnemySpot.Soldier(4.35f, 0.9f), EnemySpot.Soldier(4.9f, 0.9f) },
+                Blocks = new() { new BlockDef { Center = new(2.5f, 0.5f, 0f), Size = new(1.0f, 1.0f, 1.0f) } },
+            },
+            new PhaseDef { // 7. Avenida (15: fileira longa, corrida brilha)
+                Name = "Avenida",
+                TriggerGx = 0, TriggerGz = 0, TriggerDeg = 90f,
+                ParPieces = 12,
+                Soldiers = new() {
+                    EnemySpot.Soldier(3.6f, 0f), EnemySpot.Soldier(4.15f, 0f), EnemySpot.Soldier(4.7f, 0f), EnemySpot.Soldier(5.25f, 0f), EnemySpot.Soldier(5.8f, 0f), EnemySpot.Soldier(6.35f, 0f), EnemySpot.Soldier(6.9f, 0f),
+                    EnemySpot.Soldier(3.85f, 0.85f), EnemySpot.Soldier(4.4f, 0.85f), EnemySpot.Soldier(4.95f, 0.85f), EnemySpot.Soldier(5.5f, 0.85f), EnemySpot.Soldier(6.05f, 0.85f), EnemySpot.Soldier(6.6f, 0.85f), EnemySpot.Soldier(7.15f, 0.85f), EnemySpot.Soldier(7.7f, 0.85f) },
+                Blocks = new(),
+            },
+            new PhaseDef { // 8. Cerco (18: 2 pesadões + 16)
+                Name = "Cerco",
+                TriggerGx = 0, TriggerGz = 0, TriggerDeg = 90f,
+                ParPieces = 48,
+                Soldiers = new() { EnemySpot.Brute(5.5f, -1.2f), EnemySpot.Brute(5.5f, 1.2f),
+                    EnemySpot.Soldier(4.3f, -1.8f), EnemySpot.Soldier(4.85f, -1.9f), EnemySpot.Soldier(5.4f, -1.9f), EnemySpot.Soldier(5.95f, -1.8f),
+                    EnemySpot.Soldier(4.3f, -0.6f), EnemySpot.Soldier(4.85f, -0.5f), EnemySpot.Soldier(5.4f, -0.5f), EnemySpot.Soldier(5.95f, -0.6f),
+                    EnemySpot.Soldier(4.3f, 1.8f), EnemySpot.Soldier(4.85f, 1.9f), EnemySpot.Soldier(5.4f, 1.9f), EnemySpot.Soldier(5.95f, 1.8f),
+                    EnemySpot.Soldier(4.3f, 0.6f), EnemySpot.Soldier(4.85f, 0.5f), EnemySpot.Soldier(5.4f, 0.5f), EnemySpot.Soldier(5.95f, 0.6f) },
+                Blocks = new(),
+            },
+            new PhaseDef { // 9. Tempestade (24: 2 patrulheiros + 20 em grade)
+                Name = "Tempestade",
+                TriggerGx = 0, TriggerGz = 0, TriggerDeg = 90f,
+                ParPieces = 20,
+                Soldiers = new() {
+                    EnemySpot.Patroller(0.3f, new Vector3(4.35f, 0f, -1.8f), new Vector3(4.35f, 0f, 1.8f), new Vector3(5.45f, 0f, 1.8f), new Vector3(5.45f, 0f, -1.8f)),
+                    EnemySpot.Patroller(0.3f, new Vector3(6.55f, 0f, -1.8f), new Vector3(6.55f, 0f, 1.8f), new Vector3(7.65f, 0f, 1.8f), new Vector3(7.65f, 0f, -1.8f)),
+                    EnemySpot.Soldier(3.8f, -1.1f), EnemySpot.Soldier(3.8f, -0.55f), EnemySpot.Soldier(3.8f, 0f), EnemySpot.Soldier(3.8f, 0.55f), EnemySpot.Soldier(3.8f, 1.1f),
+                    EnemySpot.Soldier(4.9f, -1.1f), EnemySpot.Soldier(4.9f, -0.55f), EnemySpot.Soldier(4.9f, 0f), EnemySpot.Soldier(4.9f, 0.55f), EnemySpot.Soldier(4.9f, 1.1f),
+                    EnemySpot.Soldier(6.0f, -1.1f), EnemySpot.Soldier(6.0f, -0.55f), EnemySpot.Soldier(6.0f, 0f), EnemySpot.Soldier(6.0f, 0.55f), EnemySpot.Soldier(6.0f, 1.1f),
+                    EnemySpot.Soldier(7.1f, -1.1f), EnemySpot.Soldier(7.1f, -0.55f), EnemySpot.Soldier(7.1f, 0f), EnemySpot.Soldier(7.1f, 0.55f), EnemySpot.Soldier(7.1f, 1.1f),
+                    EnemySpot.Soldier(8.2f, -0.55f), EnemySpot.Soldier(8.2f, 0.55f) },
+                Blocks = new(),
+            },
+            new PhaseDef { // 10. Chefão (30: 2 pesadões + 28 em arcos)
+                Name = "Chefão",
+                TriggerGx = 0, TriggerGz = 0, TriggerDeg = 90f,
+                ParPieces = 96,
+                Soldiers = new() { EnemySpot.Brute(6.5f, -1.5f), EnemySpot.Brute(6.5f, 1.5f),
+                    EnemySpot.Soldier(3.06f, -2.57f), EnemySpot.Soldier(3.46f, -2.0f), EnemySpot.Soldier(3.77f, -1.37f), EnemySpot.Soldier(3.94f, -0.69f), EnemySpot.Soldier(4f, 0f), EnemySpot.Soldier(3.94f, 0.69f), EnemySpot.Soldier(3.77f, 1.37f), EnemySpot.Soldier(3.46f, 2.0f), EnemySpot.Soldier(3.06f, 2.57f),
+                    EnemySpot.Soldier(3.83f, -3.21f), EnemySpot.Soldier(4.33f, -2.5f), EnemySpot.Soldier(4.70f, -1.71f), EnemySpot.Soldier(4.92f, -0.87f), EnemySpot.Soldier(5f, 0f), EnemySpot.Soldier(4.92f, 0.87f), EnemySpot.Soldier(4.70f, 1.71f), EnemySpot.Soldier(4.33f, 2.5f), EnemySpot.Soldier(3.83f, 3.21f),
+                    EnemySpot.Soldier(4.6f, -3.86f), EnemySpot.Soldier(5.2f, -3.0f), EnemySpot.Soldier(5.64f, -2.05f), EnemySpot.Soldier(5.91f, -1.04f), EnemySpot.Soldier(5.91f, 1.04f), EnemySpot.Soldier(5.64f, 2.05f), EnemySpot.Soldier(5.2f, 3.0f), EnemySpot.Soldier(4.6f, 3.86f), EnemySpot.Soldier(4.24f, -4.24f), EnemySpot.Soldier(4.24f, 4.24f) },
                 Blocks = new(),
             },
         };
@@ -225,22 +310,34 @@ namespace Topple.Game
             Planning.Active = true;
             LastResult = null;
 
-            Planning.Data.SetHand(PieceId.Common, ph.Commons);
-            Planning.Data.SetHand(PieceId.Heavy, ph.Heavies);
-            Planning.Data.SetHand(PieceId.Ramp, ph.Ramps);
-            // Tabuleiro vazio: nada pré-colocado, nada travado. A 1ª peça que o
-            // jogador colocar (menor InstanceId) recebe o impulso e cai primeiro.
-            // TriggerGx/Gz/Deg viram só sugestão de direção inicial + mira.
-            Planning.Select(PieceId.Common);
+            // Mão = cópia do deck da run (deckbuilder). Tabuleiro vazio: nada
+            // pré-colocado, nada travado. A 1ª peça colocada (menor InstanceId)
+            // recebe o impulso e cai primeiro.
+            foreach (PieceId p in System.Enum.GetValues(typeof(PieceId)))
+                Planning.Data.SetHand(p, Run.DeckCount(p));
+            Run.PhaseIndex = PhaseIndex;
+            Run.RefillAttempts();
+            _runOver = false;
+            Planning.Select(FirstAvailable());
             Planning.SetRotDeg(ph.TriggerDeg);
             Planning.ArmPathDefault(); // trilha sempre ligada
-            SoldierSpots = new List<Vector3>(ph.Soldiers);
-            Planning.Soldiers = new List<Vector3>(ph.Soldiers);
+            // Raiz obrigatória: 1ª trilha nasce no trigger (corrente obrigatória).
+            Planning.TriggerPos = new Vector2(PlanningData.ToWorld(ph.TriggerGx), PlanningData.ToWorld(ph.TriggerGz));
+            Planning.HasTrigger = true;
+            SoldierSpots = new List<EnemySpot>(ph.Soldiers);
+            Planning.Soldiers = new List<EnemySpot>(ph.Soldiers);
             Planning.Forbidden = new List<PlanningController.ForbiddenZone>();
+            Planning.PatrolSegs.Clear();
             foreach (var b in ph.Blocks)
             {
                 float r = Mathf.Max(b.Size.x, b.Size.z) * 0.5f + 0.2f;
                 Planning.Forbidden.Add(new PlanningController.ForbiddenZone { C = new Vector3(b.Center.x, 0f, b.Center.z), R = r });
+            }
+            foreach (var s in ph.Soldiers)
+            {
+                if (s.Kind != EnemyKind.Patroller || s.Waypoints.Count < 2) continue;
+                for (int w = 0; w < s.Waypoints.Count; w++)
+                    Planning.PatrolSegs.Add((s.Waypoints[w], s.Waypoints[(w + 1) % s.Waypoints.Count]));
             }
             SpawnSoldierPreviews();
             SpawnBlockPreviews();
@@ -248,10 +345,10 @@ namespace Topple.Game
             _zone.SetActive(true);
             // Câmera enquadra os soldados (sem trigger: tabuleiro começa vazio).
             var mid = Vector3.zero;
-            foreach (var s in SoldierSpots) mid += s;
+            foreach (var s in SoldierSpots) mid += s.Pos;
             mid /= Mathf.Max(1, SoldierSpots.Count);
             float spread = 0f;
-            foreach (var s in SoldierSpots) spread = Mathf.Max(spread, Vector3.Distance(s, mid));
+            foreach (var s in SoldierSpots) spread = Mathf.Max(spread, Vector3.Distance(s.Pos, mid));
             Cam.Target = mid;
             Cam.Distance = Mathf.Clamp(spread * 3.2f, 8f, 22f);
             Planning.Rebuild();
@@ -261,6 +358,7 @@ namespace Topple.Game
             Sim.OnDone -= OnSimDone; Sim.OnDone += OnSimDone;
             Hud.HideResult();
             Hud.SetPhase("Fase " + (PhaseIndex + 1) + ": " + ph.Name);
+            Hud.SetRun(Run.Life, Run.AttemptsLeft, ToppleRules.AttemptsPerPhase);
             Hud.RefreshTray(Planning.Selected, Planning.Data.HandCount);
             Hud.SetStatus(0, SoldierSpots.Count);
             Debug.Log($"[TOPPLE][GAME] fase {PhaseIndex + 1}/{Phases.Count}: {ph.Name}");
@@ -270,6 +368,41 @@ namespace Topple.Game
         {
             if (LastResult == null || !LastResult.Value.Win) return; // só com vitória
             if (PhaseIndex + 1 < Phases.Count) LoadPhase(PhaseIndex + 1);
+        }
+
+        // Avança cego (draft paga a passagem): vitória e derrota-avançada usam.
+        // Passou da última = vitória da run (sobreviveu às 10 conta).
+        public void AdvancePhase()
+        {
+            if (PhaseIndex + 1 < Phases.Count) LoadPhase(PhaseIndex + 1);
+            else ShowRunEnd(true);
+        }
+
+        // Pular fase (cheat de teste, pedido do dono): abandona sem dano, sem
+        // draft e sem gastar tentativa — carrega a próxima (LoadPhase para a
+        // sim e limpa tudo); na última, encerra como desistência.
+        public void SkipPhase()
+        {
+            if (Hud != null && Hud.IsDraftOpen) return; // draft se resolve nos picks
+            if (Audio != null) Audio.UiClick();
+            Debug.Log($"[TOPPLE][GAME] pular fase {PhaseIndex + 1} (cheat de teste)");
+            if (PhaseIndex + 1 < Phases.Count) LoadPhase(PhaseIndex + 1);
+            else ShowRunEnd(false);
+        }
+
+        // Novo run: deck base igual, vida cheia, fase 0.
+        public void RestartRun()
+        {
+            Run = RunState.NewRun((uint)System.Environment.TickCount);
+            LoadPhase(0);
+        }
+
+        // Primeira carta com saldo no deck (padrão: comum).
+        PieceId FirstAvailable()
+        {
+            foreach (PieceId p in System.Enum.GetValues(typeof(PieceId)))
+                if (Run.DeckCount(p) > 0) return p;
+            return PieceId.Common;
         }
 
         // Botão Recarregar / Ctrl+Y: fase atual toda do zero (mão cheia, vazio).
@@ -290,14 +423,40 @@ namespace Topple.Game
             if (_previews != null) Destroy(_previews);
             _previews = new GameObject("SoldierPreviews");
             _previews.transform.SetParent(transform, false);
-            var prefab = PrefabRegistry.Soldier();
-            if (prefab == null) return;
+            var soldierPrefab = PrefabRegistry.Soldier();
+            var brutePrefab = PrefabRegistry.Brute();
+            if (soldierPrefab == null) return;
             foreach (var s in SoldierSpots)
             {
+                var prefab = s.Kind == EnemyKind.Brute && brutePrefab != null ? brutePrefab : soldierPrefab;
                 var go = Instantiate(prefab, _previews.transform);
-                go.transform.SetPositionAndRotation(s, Quaternion.identity);
+                go.transform.SetPositionAndRotation(s.Pos, Quaternion.identity);
                 var rb = go.GetComponent<Rigidbody>();
                 if (rb != null) rb.isKinematic = true;
+            }
+            SpawnPatrolMarkers();
+        }
+
+        // Rota do patrulheiro em loop (discos nos waypoints): planejar sabendo
+        // por onde ele passa + onde está em t=0 (primeiro waypoint, maior disco).
+        void SpawnPatrolMarkers()
+        {
+            if (_previews == null) return;
+            var markMat = SimulationController.ObstacleMat();
+            foreach (var s in SoldierSpots)
+            {
+                if (s.Kind != EnemyKind.Patroller || s.Waypoints.Count < 2) continue;
+                for (int i = 0; i < s.Waypoints.Count; i++)
+                {
+                    var m = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                    m.name = "PatrolMark";
+                    m.transform.SetParent(_previews.transform, false);
+                    m.transform.position = s.Waypoints[i] + new Vector3(0f, 0.03f, 0f);
+                    float d = i == 0 ? 0.30f : 0.18f;
+                    m.transform.localScale = new Vector3(d, 0.06f, d);
+                    m.GetComponent<Renderer>().sharedMaterial = markMat;
+                    Object.Destroy(m.GetComponent<Collider>());
+                }
             }
         }
 
@@ -359,6 +518,13 @@ namespace Topple.Game
 
         void StartSim(List<Placement> layout)
         {
+            // Deckbuilder: cada DISPARAR consome 1 de 3 tentativas (planejar livre).
+            if (!Run.SpendAttempt())
+            {
+                Debug.Log("[TOPPLE][GAME] sem tentativas!");
+                Planning.Active = true;
+                return;
+            }
             _knocksHeard = 0;
             if (_previews != null) _previews.SetActive(false);
             if (_blockPreviews != null) _blockPreviews.SetActive(false);
@@ -368,6 +534,7 @@ namespace Topple.Game
             foreach (var b in Phases[PhaseIndex].Blocks)
                 blocks.Add(new ObstacleDef { Center = b.Center, Size = b.Size });
             Sim.StartSim(layout, SoldierSpots, blocks);
+            Hud.SetRun(Run.Life, Run.AttemptsLeft, ToppleRules.AttemptsPerPhase);
             Hud.SetStatus(0, SoldierSpots.Count, "Simulando…");
         }
 
@@ -376,8 +543,48 @@ namespace Topple.Game
             LastResult = r;
             if (r.Win) _coachSeen = true; // aprendeu: some o mini-tutorial
             Hud.SetStatus(r.Knocked, r.Total);
-            Hud.ShowResult(r.Win, r.Knocked, r.Total, PhaseIndex + 1 < Phases.Count);
+            Hud.SetRun(Run.Life, Run.AttemptsLeft, ToppleRules.AttemptsPerPhase);
+            if (r.Win)
+            {
+                // Última fase = vitória da run (sobreviveu às 10 conta).
+                if (PhaseIndex + 1 >= Phases.Count) { ShowRunEnd(true); return; }
+                Hud.ShowResult(true, r.Knocked, r.Total, true);
+            }
+            else if (Run.AttemptsLeft > 0)
+            {
+                Hud.ShowResult(false, r.Knocked, r.Total, false);
+            }
+            else
+            {
+                // 3 tentativas esgotadas: brutal puro, 1 de dano por sobrevivente.
+                int life = Run.Damage(r.Total - r.Knocked);
+                Hud.SetRun(life, 0, ToppleRules.AttemptsPerPhase);
+                Debug.Log($"[TOPPLE][GAME] fase '{PhaseName}': dano, vida={life}");
+                if (Run.IsDead) { ShowRunEnd(false); return; }
+                Hud.ShowResult(false, r.Knocked, r.Total, true); // avança p/ draft
+            }
             Debug.Log($"[TOPPLE][GAME] fase '{PhaseName}': win={r.Win} {r.Knocked}/{r.Total} em {r.Elapsed:F1}s");
+        }
+
+        // Draft sempre: vitória e derrota-avançada pagam 1 de 3 pacotes.
+        // Depois da escolha, avança (vitória) ou avança machucado (derrota).
+        void OpenDraft()
+        {
+            if (Hud != null && Hud.IsDraftOpen) return; // Enter duplo / Next duplo: não reabre
+            var options = RewardPool.Draft3(ref Run.Rng, PhaseIndex);
+            Hud.ShowDraft(options, pick =>
+            {
+                if (pick < 0 || pick >= options.Count) return; // Pick inválido: ignora
+                Run.ApplyReward(options[pick].Items);
+                Debug.Log($"[TOPPLE][DRAFT] +{options[pick].Label} (deck {Run.DeckTotal()})");
+                AdvancePhase();
+            });
+        }
+
+        void ShowRunEnd(bool victory)
+        {
+            _runOver = true;
+            Hud.ShowRunEnd(victory, Run.Life);
         }
 
         void BackToPlanning()
@@ -397,7 +604,7 @@ namespace Topple.Game
 
         void Update()
         {
-            if (Hud != null) Hud.PollShortcuts();
+            if (Hud != null && Planning != null && Planning.Active) Hud.PollShortcuts();
             if (Hud != null && Planning != null && Sim != null)
             {
                 if (Sim.Running)
@@ -406,6 +613,7 @@ namespace Topple.Game
                     int k = Sim.KnockedSoFar;
                     if (Audio != null)
                         while (_knocksHeard < k) { Audio.Knock(); _knocksHeard++; }
+                    Hud.SetSimDim(true);
                     Hud.SetStatus(k, SoldierSpots.Count, "Simulando… (Espaço: pular na T4)");
                 }
                 else if (Planning.Active)
@@ -414,8 +622,10 @@ namespace Topple.Game
                     Cam.FollowPoint = Planning.GhostWorldPos;
                     var (fx, fz) = PlanningData.FacingOf(Planning.RotDeg);
                     Cam.FollowDir = new Vector3(fx, 0f, fz);
+                    Hud.SetSimDim(false);
                     Hud.RefreshTray(Planning.Selected, Planning.Data.HandCount);
                     Hud.SyncModes();
+                    Hud.SetActions(Planning.Data.Count > 0, Planning.Data.CanUndo);
                     Hud.SetStatus(0, SoldierSpots.Count, Planning.Hint ?? UnreachedWarning());
                     DriveCoach();
                 }
@@ -426,9 +636,12 @@ namespace Topple.Game
         void ConfirmBanner()
         {
             // Via OnConfirm do Planning (FireAction provado); sem Keyboard direto.
+            // Draft aberto: Enter ignora (escolha é pelos botões/Pick).
+            if (Hud != null && Hud.IsDraftOpen) return;
             if (LastResult == null) return;
-            if (LastResult.Value.Win && PhaseIndex + 1 < Phases.Count) NextPhase();
-            else BackToPlanning();
+            if (LastResult.Value.Win) OpenDraft(); // vitória paga draft antes de avançar
+            else if (Run.AttemptsLeft > 0) BackToPlanning(); // retry (tentativa sobrando)
+            else OpenDraft(); // derrota-avançada: draft de consolação
         }
 
         // Mini-tutorial de gestos: 3 passos até a 1ª vitória DA SESSÃO (sem
@@ -444,7 +657,7 @@ namespace Topple.Game
             else if (Planning.PathSelecting)
                 Hud.SetCoach("2/3 Clique o destino (Esc cancela a seleção)");
             else
-                Hud.SetCoach("3/3 DISPARE (Enter) — testar é grátis, nada se apaga");
+                Hud.SetCoach("3/3 DISPARE (Enter) — testar é grátis, nada se apaga", "btn-fire");
         }
 
         // GDD §14.4: aviso amarelo p/ inimigos a >2 m de qualquer peça (não bloqueia).
@@ -459,8 +672,8 @@ namespace Topple.Game
                 float best = float.MaxValue;
                 foreach (var p in Planning.Data.Items)
                 {
-                    float dx = PlanningData.ToWorld(p.Gx) - s.x;
-                    float dz = PlanningData.ToWorld(p.Gz) - s.z;
+                    float dx = PlanningData.ToWorld(p.Gx) - s.Pos.x;
+                    float dz = PlanningData.ToWorld(p.Gz) - s.Pos.z;
                     float d = Mathf.Sqrt(dx * dx + dz * dz);
                     if (d < best) best = d;
                 }
@@ -512,11 +725,18 @@ namespace Topple.Game
         static void BuildFallbackUI(UIDocument doc)
         {
             var root = doc.rootVisualElement;
-            foreach (var (name, text) in new[] { ("btn-piece-common", "1 Comum"), ("btn-piece-heavy", "2 Pesada"), ("btn-piece-ramp", "3 Rampa"), ("btn-undo", "Desfazer"), ("btn-redo", "Recarregar"), ("btn-fire", "DISPARAR") })
+            var bottom = new VisualElement { name = "bottom-bar" };
+            var tray = new ScrollView { name = "tray" };
+            tray.mode = ScrollViewMode.Horizontal;
+            bottom.Add(tray);
+            var actions = new VisualElement { name = "actions" };
+            foreach (var (name, text) in new[] { ("btn-undo", "Desfazer [Ctrl+Z]"), ("btn-redo", "Recarregar [Ctrl+Y]"), ("btn-last", "Última [X]"), ("btn-fire", "DISPARAR (Enter)"), ("btn-skip", "Pular fase") })
             {
                 var b = new Button { name = name, text = text };
-                root.Add(b);
+                actions.Add(b);
             }
+            bottom.Add(actions);
+            root.Add(bottom);
             root.Add(new Label { name = "lbl-objective", text = "Inimigos 0/3" });
             root.Add(new Label { name = "lbl-msg", text = "" });
             root.Add(new Label { name = "lbl-coach", text = "" });

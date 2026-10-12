@@ -65,11 +65,35 @@ namespace Topple.Sim
             var id = _nextId++;
             var sp = go.AddComponent<SimPiece>();
             sp.Id = id; sp.Piece = piece;
+            sp.ArmAt = Time + 0.25f; // ignora o impacto de assentamento no spawn
             _bodies.Add(new SimBody(id, go, sp.Rb, BodyKind.Piece));
             return sp;
         }
 
         public SimEnemy SpawnSoldier(Vector3 pos) => SpawnEnemy(pos);
+
+        // Deckbuilder: spawna por tipo (pesadão + patrulheiro com loop).
+        public SimEnemy SpawnEnemy(EnemySpot spot)
+        {
+            var pos = spot.Pos;
+            pos.x += Jitter(0.002f); pos.z += Jitter(0.002f);
+            var go = spot.Kind == Topple.Core.EnemyKind.Brute
+                ? SimBuilder.BuildBrute() : SimBuilder.BuildSoldier();
+            go.transform.SetPositionAndRotation(pos, Quaternion.Euler(0, Jitter(180f), 0));
+            SceneManager.MoveGameObjectToScene(go, _scene);
+            var id = _nextId++;
+            var en = go.AddComponent<SimEnemy>();
+            en.Id = id;
+            en.Kind = spot.Kind;
+            if (spot.Kind == Topple.Core.EnemyKind.Patroller && spot.Waypoints.Count >= 2)
+            {
+                en.Patrol = new System.Collections.Generic.List<Vector3>(spot.Waypoints);
+                en.PatrolSpeed = spot.Speed;
+            }
+            en.ArmAt = Time + 0.25f; // ignora o impacto de assentamento no spawn
+            _bodies.Add(new SimBody(id, go, en.Rb, BodyKind.Enemy));
+            return en;
+        }
 
         SimEnemy SpawnEnemy(Vector3 pos)
         {
@@ -118,7 +142,9 @@ namespace Topple.Sim
             {
                 if (b.Kind != BodyKind.Enemy || !b.Go.activeSelf) continue;
                 var en = b.Go.GetComponent<SimEnemy>();
-                if (en != null && en.ShoveActive(now)) en.ApplyShove();
+                if (en == null) continue;
+                if (!en.Knocked && en.Patrol.Count >= 2) en.PatrolAdvance(Time);
+                if (en.ShoveActive(now)) en.ApplyShove();
             }
             _physics.Simulate(StepDt);
             _steps++;
@@ -156,6 +182,14 @@ namespace Topple.Sim
                         _events.Add(new SimEvent(Time, "knock", b.Id, 0));
                     }
                 }
+                if (b.Kind == BodyKind.Piece)
+                {
+                    // Encostou, derruba: toque em peça em pé continua a onda
+                    // (consome no passo, com o relógio da sim, como os inimigos).
+                    var sp = b.Go.GetComponent<SimPiece>();
+                    if (sp != null) sp.CheckTouched(Time);
+                    if (sp != null && sp.ConsumeBlast()) Detonate(sp);
+                }
             }
 
             if (_steps % RecordEverySteps == 0) RecordFrame();
@@ -187,6 +221,27 @@ namespace Topple.Sim
                 Frames = _frames.ToArray(),
             };
             return rec;
+        }
+
+        // Explosiva: detonação em área (raio fixo, determinístico). Mata por
+        // proximidade mesmo sem toque — diferencia do splash de pelotão.
+        void Detonate(SimPiece sp)
+        {
+            foreach (var b in _bodies)
+            {
+                if (b.Kind != BodyKind.Enemy || !b.Go.activeSelf) continue;
+                var en = b.Go.GetComponent<SimEnemy>();
+                if (en == null || en.Knocked) continue;
+                var d = b.Go.transform.position - sp.transform.position;
+                d.y = 0f;
+                if (d.sqrMagnitude <= SimPiece.BlastRadius * SimPiece.BlastRadius)
+                {
+                    if (d.sqrMagnitude < 1e-6f) d = Vector3.right;
+                    en.MarkKnocked(Time, "blast", d, 3.0f);
+                    SimEnemy.Splash(en, Enemies(), Time);
+                    _events.Add(new SimEvent(Time, "knock", b.Id, 0));
+                }
+            }
         }
 
         // Lista p/ splash de pelotão (só em knock, raro; sem custo no passo).

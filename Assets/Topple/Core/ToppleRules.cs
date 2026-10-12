@@ -3,7 +3,12 @@ namespace Topple.Core
 {
     public static class ToppleRules
     {
-        // GDD §4.4: primeira tentativa de cada fase é gratuita (reconhecimento).
+        // Deckbuilder (run): valores iniciais.
+        public const int StartingLife = 10; // vida Y da run
+        public const int StartingCommons = 10; // deck base: 10 comuns
+        public const int AttemptsPerPhase = 3; // 3 DISPARAR por fase (planejar/Recarregar livres)
+        public const int DamagePerSurvivor = 1; // brutal puro, sem teto (decisão do dono)
+        // GDD §4.4: primeira tentativa de cada fase é gratuita (reconhecimento, sistema de Moral; run usa Attempts).
         public const int FreeAttemptsPerPhase = 1;
 
         // GDD §4.4/§17: valor inicial a testar — 6 de Moral por ato (parâmetro de dados no v1.0).
@@ -30,6 +35,11 @@ namespace Topple.Core
         {
             PieceId.Common => 1,
             PieceId.Heavy => 2,
+            PieceId.Fork => 3,
+            PieceId.Big => 2,
+            PieceId.Runner => 2,
+            PieceId.Blast => 3,
+            PieceId.Tower => 2,
             PieceId.Giant => 6,
             _ => 1,
         };
@@ -40,7 +50,13 @@ namespace Topple.Core
     }
 
     // MVP T0-T3: só Common/Heavy/Ramp são usadas. Giant declarada para o SlotCost do GDD §8 (v1.0).
-    public enum PieceId { Common, Heavy, Ramp, Giant }
+    // Deckbuilder: Fork (bifurcação), Big (grande), Runner (corrida), Blast (explosiva),
+    // Tower (torre). Física própria de cada uma entra na F2 (até lá, tombam como comum).
+    public enum PieceId { Common, Heavy, Ramp, Giant, Fork, Big, Runner, Blast, Tower }
+
+    // Inimigos: soldado (base), pesadão (só pesada/explosão/queda) e
+    // patrulheiro (loop cinemático lento). Puro (sem UnityEngine).
+    public enum EnemyKind { Soldier, Brute, Patroller }
 
     // RNG com seed — GDD §4.2/§15.7: nenhuma aleatoriedade fora de RNG com seed.
     public struct ToppleRng

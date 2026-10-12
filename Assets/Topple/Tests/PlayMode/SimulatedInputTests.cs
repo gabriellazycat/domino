@@ -56,11 +56,12 @@ namespace Topple.Tests
                 Assert.AreEqual(Topple.Core.PieceId.Common, setup.Planning.Selected);
 
                 // Trilha como um humano: 2 cliques (início + destino até os soldados).
+                // Deck base de 10: mira curta (3,2 m cabem ~9 peças).
                 Assert.IsTrue(setup.Planning.PathArmed, "trilha sempre ligada");
                 {
                     var start = cam.WorldToScreenPoint(new Vector3(0f, 0f, 0f));
                     yield return Click(start);
-                    var end = cam.WorldToScreenPoint(new Vector3(4.0f, 0f, 0f));
+                    var end = cam.WorldToScreenPoint(new Vector3(3.2f, 0f, 0f));
                     yield return Click(end);
                     Assert.Greater(setup.Planning.Data.Count, 5, "trilha deveria colocar a fileira");
                 }

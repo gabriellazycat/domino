@@ -16,6 +16,9 @@ namespace Topple.Game
         public static GameObject Soldier()
             => Load("enemy_soldier");
 
+        public static GameObject Brute()
+            => Load("enemy_brute");
+
         public static GameObject Table()
             => Load("field_table");
 

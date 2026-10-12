@@ -21,6 +21,20 @@
 .tray-btn.selected {
   background-color: #f28c28; color: #2b1d14;
 }
+.tray-btn:disabled, .tool-btn:disabled, .fire-btn:disabled {
+  opacity: 0.45;
+}
+.pulse {
+  border-left-width: 3px; border-right-width: 3px;
+  border-top-width: 3px; border-bottom-width: 3px;
+  border-color: #ffd23f;
+}
+.danger { color: #e05a4e; }
+.tray {
+  flex-direction: row;
+  max-width: 900px;
+}
+.actions { flex-direction: row; align-items: center; }
 .tool-btn.on {
   background-color: #4f9dde; color: #2b1d14;
 }

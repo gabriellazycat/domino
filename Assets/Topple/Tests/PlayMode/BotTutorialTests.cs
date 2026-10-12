@@ -28,7 +28,7 @@ namespace Topple.Tests
             yield return null; // HUD/input assentam
 
             PlanningBot.SolveTutorial(_setup.Planning);
-            Assert.AreEqual(11, _setup.Planning.Data.Count); // 1ª peça + 10
+            Assert.AreEqual(9, _setup.Planning.Data.Count); // 1ª peça + 8 (deck base)
 
             // Mesma fase no SimWorld headless (rápido e determinístico).
             var world = SimWorld.Create(20261009);
@@ -50,7 +50,7 @@ namespace Topple.Tests
                 first.Rb.angularVelocity = Vector3.Cross(Vector3.up, facing) * 4.5f;
                 SimEnemy[] soldiers = new SimEnemy[_setup.SoldierSpots.Count];
                 for (int i = 0; i < soldiers.Length; i++)
-                    soldiers[i] = world.SpawnSoldier(_setup.SoldierSpots[i]);
+                    soldiers[i] = world.SpawnSoldier(_setup.SoldierSpots[i].Pos);
                 var rec = world.Finish();
                 int knocked = 0;
                 foreach (var s in soldiers) if (s.Knocked) knocked++;

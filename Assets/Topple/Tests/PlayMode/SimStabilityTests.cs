@@ -129,6 +129,24 @@ namespace Topple.Tests
             yield break;
         }
 
+        [UnityTest] public IEnumerator Chain_GrazeStillKnocks()
+        {
+            // Roçar tomba (pedido do dono): 2ª peça a 0,38 m com desvio lateral
+            // 0,35 (só 0,05 de sobreposição de face) — física pura desliza no
+            // canto, encostou-derruba tomba de verdade.
+            _world = SimWorld.Create(61001);
+            _world.SpawnGround(new Vector2(24, 16));
+            var p1 = _world.SpawnPiece(PieceId.Common, new Vector3(0f, 0f, 0f), 90f);
+            var p2 = _world.SpawnPiece(PieceId.Common, new Vector3(0.38f, 0f, 0.35f), 90f);
+            _world.Depenetrate();
+            p1.Rb.angularVelocity = new Vector3(0, 0, -4.5f);
+            _world.Finish();
+            float tilt = Vector3.Angle(p2.transform.up, Vector3.up);
+            UnityEngine.Debug.Log($"[TOPPLE][SIM] graze tilt={tilt:F1}");
+            Assert.Greater(tilt, 20f, "rocar deveria tombar a peca");
+            yield break;
+        }
+
         [UnityTest] public IEnumerator Golden_CascadeMatchesReference()
         {
             _world = SimWorld.Create(CascadeSeed);

@@ -7,11 +7,41 @@ namespace Topple.Tests
 {
     public class RunStateTests
     {
+        [Test] public void NewRun_GoldZeroExtraAttemptsZero()
+        {
+            var run = RunState.NewRun(5);
+            Assert.AreEqual(0, run.Gold);
+            Assert.AreEqual(0, run.ExtraAttempts);
+        }
+
+        [Test] public void ShopPrice_ScalesWithSlots()
+        {
+            Assert.AreEqual(5, ToppleRules.ShopPrice(PieceId.Common, 1));
+            Assert.AreEqual(20, ToppleRules.ShopPrice(PieceId.Common, 4));
+            Assert.AreEqual(30, ToppleRules.ShopPrice(PieceId.Fork, 2));
+            Assert.AreEqual(15, ToppleRules.ShopPrice(PieceId.Heavy, 1) + ToppleRules.ShopPrice(PieceId.Common, 1));
+        }
+
+        [Test] public void ShopEvery3_OccasionalNeverEveryPhase()
+        {
+            // Loja ocasião, nunca toda fase: a cada 3 (fases 3, 6, 9… = idx 2, 5, 8…).
+            Assert.AreEqual(3, ToppleRules.ShopEvery);
+            Assert.IsFalse(ToppleRules.IsShopPhase(0));
+            Assert.IsFalse(ToppleRules.IsShopPhase(1));
+            Assert.IsTrue(ToppleRules.IsShopPhase(2));
+            Assert.IsFalse(ToppleRules.IsShopPhase(3));
+            Assert.IsFalse(ToppleRules.IsShopPhase(4));
+            Assert.IsTrue(ToppleRules.IsShopPhase(5));
+            Assert.IsTrue(ToppleRules.IsShopPhase(8));
+            for (int i = 0; i < 30; i++)
+                Assert.AreEqual((i + 1) % 3 == 0, ToppleRules.IsShopPhase(i), "fase " + i);
+        }
         [Test] public void NewRun_DeckBase10ComunsVida10()
         {
             var run = RunState.NewRun(1234);
             Assert.AreEqual(10, run.DeckCount(PieceId.Common));
-            Assert.AreEqual(10, run.DeckTotal());
+            Assert.AreEqual(ToppleRules.StartingForks, run.DeckCount(PieceId.Fork));
+            Assert.AreEqual(10 + ToppleRules.StartingForks, run.DeckTotal());
             Assert.AreEqual(10, run.Life);
             Assert.AreEqual(0, run.PhaseIndex);
             Assert.AreEqual(3, run.AttemptsLeft);
@@ -43,9 +73,9 @@ namespace Topple.Tests
         {
             var run = RunState.NewRun(1);
             run.ApplyReward(new[] { (PieceId.Fork, 2), (PieceId.Common, 5) });
-            Assert.AreEqual(2, run.DeckCount(PieceId.Fork));
+            Assert.AreEqual(2 + ToppleRules.StartingForks, run.DeckCount(PieceId.Fork));
             Assert.AreEqual(15, run.DeckCount(PieceId.Common));
-            Assert.AreEqual(17, run.DeckTotal());
+            Assert.AreEqual(15 + 2 + ToppleRules.StartingForks, run.DeckTotal());
         }
 
         [Test] public void Draft3_Sempre3DistintasDeterministico()

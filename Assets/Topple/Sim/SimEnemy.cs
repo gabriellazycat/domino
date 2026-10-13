@@ -108,6 +108,9 @@ namespace Topple.Sim
         // Toque de corpo dinâmico (peça ou soldado arremessado): encostou, derruba.
         // Estático/kinematic (chão, mesa, previews) nunca conta.
         // Pesadão: só o toque de PESADA conta (comum/runner ele ignora).
+        // Patrulheiro em ronda: encosto manso (ele andando na peça parada) NÃO
+        // conta — ele EMPURRA a peça (TryBulldoze, no passo). Só peça CAINDO
+        // (impulso ≥ limiar) mata patrulheiro.
         void NoteTouch(Collision collision)
         {
             if (Knocked || (_touched && _touchedHeavy)) return;
@@ -115,6 +118,8 @@ namespace Topple.Sim
             if (rb == null || rb.isKinematic) return;
             if (rb.gameObject == gameObject) return;
             if (collision.impulse.magnitude < TouchEpsilon) return;
+            if (Kind == Topple.Core.EnemyKind.Patroller && Patrol.Count >= 2
+                && collision.impulse.magnitude < KnockImpulse) return;
             _touched = true;
             var sp = rb.gameObject.GetComponent<SimPiece>();
             if (sp != null && sp.Piece == Topple.Core.PieceId.Heavy) _touchedHeavy = true;
@@ -223,6 +228,38 @@ namespace Topple.Sim
         // Só dispara DE derrubados: no spawn ninguém está derrubado (sem friendly-fire).
         // Pesadão resiste ao splash (só pesada/explosão/queda).
         public const float SplashRadius = 0.8f;
+
+        // Bulldoze da patrulha: andando na peça EM PÉ, empurra ela (estraga o
+        // caminho do jogador). Peça já caindo não sofre — ela que mata o
+        // patrulheiro, pelo impulso (NoteTouch). Chamado 1x por passo, com o
+        // relógio da sim (vale headless e ao vivo, determinístico).
+        public const float PushRadius = 0.55f;
+        public const float PushSpeed = 2.4f;
+        public const float PushCooldown = 0.35f;
+        float _lastPush = -10f;
+
+        public bool TryBulldoze(SimPiece piece, float now)
+        {
+            if (Knocked || Patrol.Count < 2) return false;
+            if (piece == null) return false;
+            var prb = piece.Rb;
+            if (prb == null || prb.isKinematic) return false;
+            if (now - _lastPush < PushCooldown) return false;
+            float tilt = Vector3.Angle(piece.transform.up, Vector3.up);
+            if (tilt > SimPiece.StandingDeg) return false; // caindo: ela mata, não ele
+            var d = piece.transform.position - transform.position;
+            d.y = 0f;
+            if (d.sqrMagnitude > PushRadius * PushRadius) return false;
+            if (d.sqrMagnitude < 1e-6f) d = transform.forward;
+            d.y = 0f;
+            if (d.sqrMagnitude < 1e-6f) d = Vector3.right;
+            d.Normalize();
+            prb.linearVelocity = d * PushSpeed + Vector3.up * 0.6f;
+            prb.angularVelocity = Vector3.Cross(Vector3.up, d) * 3.5f;
+            prb.WakeUp();
+            _lastPush = now;
+            return true;
+        }
 
         public static void Splash(SimEnemy from, System.Collections.Generic.IList<SimEnemy> all, float now)
         {

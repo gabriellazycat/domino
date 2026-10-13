@@ -135,9 +135,13 @@ namespace Topple.Sim
             return true;
         }
 
-        public bool ConsumeBlast()
+        public bool ConsumeBlast(float now)
         {
             if (!BlastPending) return false;
+            // Contato no assentamento não detona: blast nascendo encostado no
+            // inimigo explodia sozinho no t≈0 e os corpos atingiam as peças
+            // vizinhas (parecia "só de existir já derruba"). Só vale armado.
+            if (now < ArmAt) { BlastPending = false; return false; }
             BlastPending = false;
             return true;
         }

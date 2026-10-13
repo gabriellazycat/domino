@@ -6,6 +6,7 @@ namespace Topple.Core
         // Deckbuilder (run): valores iniciais.
         public const int StartingLife = 10; // vida Y da run
         public const int StartingCommons = 10; // deck base: 10 comuns
+        public const int StartingForks = 1; // deck base: +1 bifurcação (split/timing desde o início)
         public const int AttemptsPerPhase = 3; // 3 DISPARAR por fase (planejar/Recarregar livres)
         public const int DamagePerSurvivor = 1; // brutal puro, sem teto (decisão do dono)
         // GDD §4.4: primeira tentativa de cada fase é gratuita (reconhecimento, sistema de Moral; run usa Attempts).
@@ -29,6 +30,18 @@ namespace Topple.Core
 
         public static int GoldForPhase(int stars, bool noExtraAttempts) =>
             10 + 5 * stars + (noExtraAttempts ? 5 : 0);
+
+        // Loja (placeholders p/ calibrar no playtest; finais em Content/ na T5).
+        public const int ShopPriceMult = 5; // preço da carta = SlotCost × 5
+        public const int ShopEvery = 3; // loja ocasião, nunca toda fase: a cada 3 (fases 3, 6, 9…)
+        public static bool IsShopPhase(int phaseIndex) => (phaseIndex + 1) % ShopEvery == 0;
+        public const int ShopRerollBase = 10; // +5 por uso na mesma loja
+        public const int ShopRerollStep = 5;
+        public const int ShopHealLife = 2; // +2 vida...
+        public const int ShopHealCost = 15; // ...por 15 ouro (teto = StartingLife)
+        public const int ShopAttemptCost = 12; // +1 tentativa na próxima fase
+        public const int ShopMaxExtraAttempts = 2;
+        public static int ShopPrice(PieceId piece, int count) => SlotCost(piece) * count * ShopPriceMult;
 
         // GDD §8: orçamento de slots (valores conhecidos; demais peças em Content/ na T5).
         public static int SlotCost(PieceId piece) => piece switch

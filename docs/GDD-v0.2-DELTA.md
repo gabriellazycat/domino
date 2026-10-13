@@ -299,6 +299,126 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
   do par 1). Prefab virou meia-comum laranja (exige Generate All). Provas
   `Fork_PlacesPairWithTwoHeads_NormalOne` + `Fork_TwinRefundAndUndo`.
 
+## 21. Fork no deck base + leitura de split/timing (13/out/2026, pedido do dono)
+- Deck base `10C → 10C+1F` (`ToppleRules.StartingForks`, `RunState.NewRun`): split
+  e timing jogáveis desde P1, sem depender de sorte no draft. `FirstAvailable`
+  continua comum (ordem do enum); bot tutorial inalterado (9 comuns).
+- P1 ganha bloco-aula ao norte (fora da linha do bot): ensina contorno no
+  tutorial. P5/P6 sem mudança de geometria neste slice (provas físicas
+  preservadas); timing emerge do comprimento dos ramos + patrulha desenhada.
+- Leitura intuitiva, sem tela nova: hint do fork `1 carta → 2 corpos`
+  (`PlanningController.ShowPathPreview`), `Bifurcou — continue de cada ponta
+  laranja` no commit, patrulha com discos + linhas do loop
+  (`SpawnPatrolMarkers`), coach contextual P6/P5 pós-tutorial (`DriveCoach`).
+  Testes: `RunStateTests` atualizados (total 11).
+- Mapa/inimigos (fases com prova preservada): P2 muro em L (2 blocos extras ao
+  norte, curva sul forçada, rota intacta 4/4); P5 patrulheiro 0,3→0,5 e P9
+  0,3→0,45 (interceptação com timing, rotas intactas 9/9 e 24/24); P6 trigger
+  oeste (-1,0 m, tronco longo, 12/12); P8 SEM bloco central (sobrepunha as
+  fileiras internas — pop no spawn, 9/18; densidade já veta o meio, 18/18).
+  Verde: EditMode 37/37 + PlayMode 28/28, golden `e45640c4ee90` intacto.
+- Marcador do trigger (`SpawnTriggerMarker`): disco verde + seta na direção
+  inicial, sem colisor/física, some na sim com os previews; câmera enquadra
+  soldados + trigger; coach `1/3 Clique no marcador VERDE`. Report do dono:
+  sem indicação de onde começar.
+- Explosiva parada não detona (`SimPiece.ConsumeBlast(now)`): contato no
+  assentamento (< `ArmAt`) é descartado em vez de explodir no t≈0 — blast
+  nascendo encostada matava por proximidade e os corpos derrubavam as peças
+  vizinhas ("só de existir já derruba"). Só a onda detona. Prova
+  `  Blast_SpawnContactDoesNotDetonateBeforeArmed`; `Brute_DiesToBlast` intacta
+  (contato pós-armado).
+
+## 22. Run infinita + ouro + loja (13/out/2026, pedido do dono)
+- Fim da run de 10 fases removido: `PhaseForDepth(depth)` recicla os 10
+  templates + escala mista por ciclo (+2 soldados além do mais distante, em
+  zigue-zague 0,55/±0,2; patrulha +0,1/ciclo até 0,8; 1 soldado vira pesadão a
+  cada 2 ciclos, teto +2; par += 2/extras). Ciclo 0 intacto (provas físicas).
+  Corrige o bug da derrota-avançada na fase 10 caindo em `ShowRunEnd(true)`.
+- Ouro: vitória paga `GoldForPhase(estrelas, 1ª-tentativa)` (eficiência = peças
+  ≤ par); derrota-avançada paga metade de 1 estrela. `RunState.Gold` (+
+  `ExtraAttempts` p/ a loja). HUD: `❤·▶·◉` na linha da run.
+- Loja em tela única no banner (`ShowShop`): 3 ofertas (`SlotCost×5`), reroll
+  (10+5/uso; draft também tem reroll), +2 vida (15, teto 10), +1 tentativa na
+  próxima (12, teto +2). Sair avança. Guardas `IsShopOpen` como no draft;
+  `PressShop*` p/ testes; sem ouro = apagado. Relíquias cortadas pelo dono.
+-   Fluxo: banner → draft → loja → próxima. Testes: `Shop_BuyRerollHealLeave`,
+  `Infinite_LoadsBeyondPhase10`, invariantes do provider (EditMode, prof. 0–29).
+
+## 23. Passe visual Inscryption+Balatro (13/out/2026, pedido do dono)
+- `ToppleJuice` (só visual, sem física/lógica): fundo quase-preto quente,
+  ambiente baixo, sol mais quente, feltro escuro (instância — nunca o asset
+  gerado), vela quente tremeluzente sem sombra, poeira no knock (no ponto do
+  `LastKnockPoint`), flash da vela + puff grande na vitória, pulso do marcador.
+- `TopplePulseUnlit` p/ o trigger (fallback p/ Lit em código se faltar).
+- HUD carta-estilo só por USS aditivo (nomes/APIs intactos): banner com borda
+  âmbar, hover nos botões, `.shop-card` com borda dourada, objetivo dourado com
+  ouro. Sem Volume/bloom (exigiria ref de assembly — follow-up com Unity fechada).
+
+## 24. Revisão humana/QoL (13/out/2026, pedido do dono)
+- `Pular fase` escondido na release (`!Debug.isDebugBuild` → display:none; segue
+  existindo p/ `Q()` nos testes). Calibragem de dificuldade sem cheat à vista.
+- Par no objetivo: `Peças n/par` ao vivo (par apertado legível antes do DISPARAR).
+- Patrulha em âmbar (discos+linhas), muros em cinza, trigger em verde: 3 leituras,
+  3 cores. README com controles/atual e contagens (41 + 31).
+
+## 25. Patrulha empurra, só queda mata (13/out/2026, pedido do dono)- Caminho da patrulha é CONSTRUÍVEL: `IsValidCell` não barra mais `PatrolSegs`
+  (só corpo do inimigo barra); hint avisa `(na rota da patrulha!)` no hover e no preview.
+- `SimEnemy.TryBulldoze` (no passo, headless+ao vivo): patrulheiro em ronda a
+  ≤0,55m de peça EM PÉ aplica chute (2,4 m/s + tombo) com cooldown 0,35s —
+  estraga o caminho parado. Peça caindo não sofre (ela que mata).
+- `NoteTouch`: patrulheiro ignora encosto manso (impulso < 0,25 N·s); peça
+  caindo (~0,5+) mata normal. Splash/blast/queda inalterados.
+-   Provas: `Patroller_BulldozesStandingPiece`, `Patrol_PathIsBuildable`;
+  `Patroller_StopsWhenKnocked` intacta. Verde 42+33 com P5 9/9 (a onda chega
+  antes da patrulha nos trechos críticos) — re-solve adiado até o playtest
+  pedir.
+
+## 26. Geração procedural de verdade (13/out/2026, pedido do dono)
+- Report do dono: Tutorial.unity mostrava as mesmas 10 fases (o "infinito" era
+  reciclagem com escala). Agora `MapGen` (puro, `Topple.Core`): rota de
+  referência primeiro (2-4 pernas, juntas ≤90°), 2-5 grupos de 2-5 ao longo
+  dela (fileira 0,6 m, gap ≥1,0 m entre grupos), veto por grupo (muro OU
+  patrulha), pesadão (prof. 6+), patrulha 0,3→0,8, trigger alternando quadrante,
+  par = rota + 2/soldado, fallback anti-fase-vazia. Prof. 0-9 intactas; 10+ geradas.
+- Testes: `MapGen_StructuralInvariants` (20 seeds × 10 profs) + invariantes do
+  provider; determinismo por (seed da run, profundidade).
+
+## 27. Cena Procedural desde a fase 1 (13/out/2026, pedido do dono)
+- Report do dono: Tutorial.unity mostrava as mesmas 10 (procedural só da 11+).
+  Agora `Procedural.unity` (dup da Tutorial + `ProceduralFromStart: 1` no YAML):
+  `PhaseForDepth(d, seed, proc)` gera tudo desde a 1; Tutorial intacta.
+- `RunState.Seed` guarda a semente (mapas derivam dela); cena registrada no
+  build settings; teste espelho `ProceduralScene_StartsGeneratedFromPhase1`.
+  Verde 42+34.
+
+## 28. Curva, ponte-vão e buraco no gerador (13/out/2026, pedido do dono)
+- Report do dono: procedural começava difícil + faltavam pontes/buracos.
+- Curva em tabela: prof 0-1 (1 grupo 2-3, sem veto), 2-3 (só muro), 4-5
+  (muro/patrulha lenta), 6+ (tudo). Testes `MapGen_Curve*`.
+- Ponte-vão (prof 4+): disco proibido Ø 0,45-1,0 no meio da rota; a queda
+  atravessa com Grande (≤0,6) / Torre (≤1,0). Preview azul + hints.
+  Testes `MapGen_GapRules`, `ConvertPreservesGaps`, `Gap_BlocksPlacementAndWarns`.
+- Buraco (prof 6+, dono: "a linha morre ali"): ret 1-2 m SEM chão (lajes 1 m em
+  `RebuildGround`/`SpawnGroundTiled`; `KillY` já remove); construir em cima é
+  inválido (`Buraco: contorne!`). Física emergente, sem regra de morte nova.
+  Testes `MapGen_VoidRules`, `ConvertPreservesVoids`, `Void_PieceFallsThroughHole`,
+  `Void_BlocksPlacement`. Verde 48+37.
+
+## 29. Loja-ocasião a cada 3 fases (13/out/2026, pedido do dono)
+- Antes: banner → draft → loja → próxima TODA fase (loja diluía o draft).
+  Agora: draft sempre (grátis, 1-de-3); loja só quando
+  `ToppleRules.IsShopPhase(PhaseIndex)` — `(idx+1)%3==0` (fases 3, 6, 9…).
+  Pick sem loja avança direto (`AdvancePhase`); com loja abre `OpenShop`.
+- Sinalização sem tela nova: fase de loja mostra `· Próxima: ★ LOJA ★` no
+  `SetPhase`; draft vira `Recompensa (grátis) — escolha 1 de 3:` (+
+  `Próxima parada: ★ LOJA ★` quando há loja a seguir); loja vira
+  `★ LOJA ★ — ◉X ouro`. Draft+loja convivem, loja nunca toda fase.
+- Testes: `ShopEvery3_OccasionalNeverEveryPhase` (EditMode, idx 0–29);
+  `Human_ClearsAllPhasesViaUI` vira draft-direto nas fases 1–2 e
+  draft→loja→sair na fase 3 (com asserts de título/sinal);
+  `Shop_BuyRerollHealLeaveViaUI` joga a fase 3 (idx 2, `LoadPhase(2)` +
+  rota 3,7/0,9) e mantém compra/reroll/cura/tentativa/sair (sai p/ idx 3).
+
 ## 12. Peça sólida exata na hitbox (10/out/2026, pedido do dono)
 - Abordagem nova: fora a caixa chanfrada (`BeveledBox`, legado). `BoxSolid`
   constrói o paralelepípedo vértice por vértice com a MEDIDA EXATA do

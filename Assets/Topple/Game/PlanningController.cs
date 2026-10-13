@@ -28,6 +28,8 @@ namespace Topple.Game
         // Corredores de patrulha proibidos (segmentos + margem): construir na rota
         // faz o patrulheiro passar por cima das peças.
         public List<(Vector3 a, Vector3 b)> PatrolSegs = new();
+        public List<(Vector3 c, float r, float reach)> GapDiscs = new();
+        public List<(Vector3 min, Vector3 max)> VoidRects = new();
         const float PatrolMargin = 0.45f;
         public List<EnemySpot> Soldiers = new();
         // Raio de exclusão por tipo (base Ø0,50 soldado; Ø0,70 pesadão).
@@ -85,17 +87,29 @@ namespace Topple.Game
                 float dx = wx - f.C.x, dz = wz - f.C.z;
                 if (dx * dx + dz * dz < f.R * f.R) return false;
             }
+            // Buraco: sem chão (a peça cairia) — não constrói.
+            foreach (var v in VoidRects)
+                if (wx > v.min.x - 0.1f && wx < v.max.x + 0.1f && wz > v.min.z - 0.1f && wz < v.max.z + 0.1f) return false;
+            // Caminho da patrulha é CONSTRUÍVEL (por sua conta e risco: ela
+            // empurra peça em pé — ver SimEnemy.TryBulldoze). Só o corpo do
+            // inimigo barra (OverlapsSoldier abaixo).
+            foreach (var s in Soldiers)
+                if (OverlapsSoldier(wx, wz, piece, deg, s)) return false;
+            return true;
+        }
+
+        // Perto da rota da patrulha? (só aviso no hint — não bloqueia.)
+        public bool NearPatrolSeg(float wx, float wz)
+        {
             foreach (var sg in PatrolSegs)
             {
                 float dx = sg.b.x - sg.a.x, dz = sg.b.z - sg.a.z;
                 float len2 = dx * dx + dz * dz;
                 float t = len2 < 1e-6f ? 0f : Mathf.Clamp(((wx - sg.a.x) * dx + (wz - sg.a.z) * dz) / len2, 0f, 1f);
                 float px = sg.a.x + dx * t - wx, pz = sg.a.z + dz * t - wz;
-                if (px * px + pz * pz < PatrolMargin * PatrolMargin) return false;
+                if (px * px + pz * pz < PatrolMargin * PatrolMargin) return true;
             }
-            foreach (var s in Soldiers)
-                if (OverlapsSoldier(wx, wz, piece, deg, s)) return false;
-            return true;
+            return false;
         }
 
         // ---- Trilha inteligente (arco com preview fantasma) ----
@@ -455,9 +469,47 @@ namespace Topple.Game
                 }
                 _pathGhosts.Add(go);
             }
-            Hint = affordable ? $"Trilha: {bodies.Count} peças — clique o destino"
-                              : $"Trilha: {bodies.Count} peças, tem {Data.HandCount(Selected)}";
+            Hint = affordable ? (Selected == PieceId.Fork
+                    ? $"1 carta → 2 corpos: {bodies.Count} peças — clique o destino{PatrolRisk(pts)}"
+                    : $"Trilha: {bodies.Count} peças — clique o destino{PatrolRisk(pts)}")
+                              : (Selected == PieceId.Fork
+                    ? $"1 carta → 2 corpos: {bodies.Count} peças, tem {Data.HandCount(Selected)}"
+                    : $"Trilha: {bodies.Count} peças, tem {Data.HandCount(Selected)}");
             OnChanged?.Invoke();
+        }
+
+        // Sufixo de aviso quando a trilha cruza a rota da patrulha (ela empurra).
+        string PatrolRisk(List<(int gx, int gz, float deg)> pts)
+        {
+            foreach (var p in pts)
+            {
+                float wx = PlanningData.ToWorld(p.gx), wz = PlanningData.ToWorld(p.gz);
+                if (NearPatrolSeg(wx, wz)) return " (na rota da patrulha!)";
+                foreach (var g in GapDiscs)
+                {
+                    float dx = wx - g.c.x, dz = wz - g.c.z;
+                    if (dx * dx + dz * dz < (g.r + 0.45f) * (g.r + 0.45f))
+                        return g.reach > 0.6f ? " (ponte: precisa de Torre!)" : " (ponte: precisa de Grande!)";
+                }
+            }
+            return "";
+        }
+
+        public bool NearGap(float wx, float wz)
+        {
+            foreach (var g in GapDiscs)
+            {
+                float dx = wx - g.c.x, dz = wz - g.c.z;
+                if (dx * dx + dz * dz < g.r * g.r) return true;
+            }
+            return false;
+        }
+
+        public bool NearVoid(float wx, float wz)
+        {
+            foreach (var v in VoidRects)
+                if (wx > v.min.x && wx < v.max.x && wz > v.min.z && wz < v.max.z) return true;
+            return false;
         }
 
         // Fantasma sempre visível antes do início (verde/vermelho): o jogador vê
@@ -485,7 +537,10 @@ namespace Topple.Game
                 bool ok = Data.HandCount(Selected) > 0 && IsValidCell(gx, gz, Selected, RotDeg) && !CrowdsExisting(gx, gz, RotDeg);
                 SetGhostValid(ok);
                 if (Data.HandCount(Selected) <= 0) Hint = "Sem peças — Recarregar (Ctrl+Y)";
+                else if (!ok && NearVoid(PlanningData.ToWorld(gx), PlanningData.ToWorld(gz))) Hint = "Buraco: contorne!";
+                else if (!ok && NearGap(PlanningData.ToWorld(gx), PlanningData.ToWorld(gz))) Hint = "Ponte: atravessa com Grande/Torre";
                 else if (!ok) Hint = "Célula bloqueada";
+                else if (NearPatrolSeg(PlanningData.ToWorld(gx), PlanningData.ToWorld(gz))) Hint = "Trilha: clique o início (na rota da patrulha!)";
                 else Hint = "Trilha: clique o início ou uma peça p/ continuar";
             }
             OnChanged?.Invoke();
@@ -518,7 +573,7 @@ namespace Topple.Game
                 }
             }
             else n = Data.TryPlacePath(Selected, pts, _anchored ? _anchorId : 0);
-            Hint = null;
+            bool wasFork = Selected == PieceId.Fork;
             // Trilha sempre ligada: limpa o traço mas rearma p/ próxima trilha.
             PathArmed = true;
             _pathStarted = false;
@@ -529,7 +584,9 @@ namespace Topple.Game
             if (_ghost != null && Active) _ghost.SetActive(false);
             float gap = MaxGapM(pts);
             float reach = WaveReach(Selected);
-            Hint = gap > reach
+            if (wasFork && n > 0 && gap <= reach)
+                Hint = "Bifurcou — continue de cada ponta laranja";
+            else Hint = gap > reach
                 ? $"Trilha: clique o início ou uma peça (vão de {gap:F2} m — a onda pode parar aí)"
                 : "Trilha: clique o início ou uma peça p/ continuar";
             if (n > 0) { Rebuild(); OnChanged?.Invoke(); if (Audio != null) Audio.UiClick(); }

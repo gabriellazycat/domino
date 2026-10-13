@@ -70,6 +70,38 @@ namespace Topple.Tests
             yield break;
         }
 
+        [UnityTest] public IEnumerator Blast_SpawnContactDoesNotDetonateBeforeArmed()
+        {
+            _world = SimWorld.Create(41006);
+            _world.SpawnGround(new Vector2(24, 16));
+            var soldier = _world.SpawnEnemy(new EnemySpot(EnemyKind.Soldier, new Vector3(2f, 0f, 0f)));
+            // Sobreposta no spawn (pós-Depenetrate vira contato no assentamento).
+            _world.SpawnPiece(PieceId.Blast, new Vector3(1.85f, 0f, 0f), 90f);
+            _world.Depenetrate();
+            for (int i = 0; i < 3; i++) _world.Step(); // 0,05 s < ArmAt 0,25
+            Assert.IsFalse(soldier.Knocked, "contato no assentamento não detona");
+            yield break;
+        }
+
+        [UnityTest] public IEnumerator Patroller_BulldozesStandingPiece()
+        {
+            var loop = new System.Collections.Generic.List<Vector3>
+            {
+                new Vector3(4f, 0f, 0f), new Vector3(6f, 0f, 0f),
+            };
+            _world = SimWorld.Create(41007);
+            _world.AllowEarlyOut = false;
+            _world.SpawnGround(new Vector2(24, 16));
+            var en = _world.SpawnEnemy(new EnemySpot(EnemyKind.Patroller, loop[0]) { Waypoints = loop, Speed = 0.6f });
+            // Peça em pé NO caminho (construção válida desde o bulldoze).
+            var p = _world.SpawnPiece(PieceId.Common, new Vector3(5f, 0f, 0f), 0f);
+            _world.Depenetrate();
+            for (int i = 0; i < 300; i++) _world.Step(); // 5 s: patrulha chega a ~1,7 s
+            Assert.Greater(Vector3.Angle(p.transform.up, Vector3.up), 25f, "patrulha deveria tombar a peça parada");
+            Assert.IsFalse(en.Knocked, "encosto manso não mata patrulheiro");
+            yield break;
+        }
+
         [UnityTest] public IEnumerator Patroller_LoopsClosedDeterministic()
         {
             var loop = new System.Collections.Generic.List<Vector3>

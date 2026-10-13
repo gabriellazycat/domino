@@ -230,6 +230,14 @@ namespace Topple.Game
                 if (en == null) continue;
                 if (!en.Knocked && en.Patrol.Count >= 2) en.PatrolAdvance(SimTime);
                 if (en.ShoveActive(SimTime)) en.ApplyShove();
+                // Paridade headless: patrulha empurra peça em pé no caminho.
+                if (!en.Knocked && en.Patrol.Count >= 2)
+                    foreach (var go in _spawned)
+                    {
+                        if (go == null) continue;
+                        var sp = go.GetComponent<SimPiece>();
+                        if (sp != null) en.TryBulldoze(sp, SimTime);
+                    }
             }
             // Paridade com SimWorld.KeepLeanersAwake (caminho visivel nao tem golden).
             foreach (var b in _bodies)
@@ -275,7 +283,7 @@ namespace Topple.Game
             {
                 if (go == null) continue;
                 var sp = go.GetComponent<SimPiece>();
-                if (sp == null || !sp.ConsumeBlast()) continue;
+                if (sp == null || !sp.ConsumeBlast(SimTime)) continue;
                 foreach (var en in _enemies)
                 {
                     if (en == null || en.Knocked) continue;

@@ -77,6 +77,33 @@ namespace Topple.Tests
             yield return null;
         }
 
+        [UnityTest] public IEnumerator ProceduralScene_StartsGeneratedFromPhase1()
+        {
+            var op = SceneManager.LoadSceneAsync("Procedural", LoadSceneMode.Single);
+            int loadGuard = 0;
+            while (!op.isDone && loadGuard++ < 900) yield return null;
+            Assert.IsTrue(op.isDone, "LoadScene Procedural não completou em ~15 s");
+            yield return null; // Start() reconstrói o cenário
+            yield return null;
+
+            var setup = Object.FindFirstObjectByType<TutorialSetup>();
+            Assert.IsNotNull(setup, "TutorialSetup ausente na cena Procedural");
+            Assert.IsTrue(setup.ProceduralFromStart, "cena Procedural deveria ligar a flag");
+            Assert.AreEqual(0, setup.PhaseIndex);
+            Assert.IsTrue(setup.PhaseName.StartsWith("Gerada"), "fase 1 procedural: " + setup.PhaseName);
+            Assert.Greater(setup.SoldierSpots.Count, 0, "fase gerada tem inimigos");
+            Assert.AreEqual(ToppleRules.StartingCommons, setup.Planning.Data.HandCount(PieceId.Common), "deck base intacto");
+            Assert.IsTrue(setup.Planning.Active);
+            Assert.IsTrue(setup.Planning.PathArmed, "trilha deveria nascer ligada");
+            // Avança: fase 2 também gerada (determinística na run).
+            setup.LoadPhase(1);
+            yield return null;
+            Assert.AreEqual(1, setup.PhaseIndex);
+            Assert.IsTrue(setup.PhaseName.StartsWith("Gerada"), "fase 2 procedural: " + setup.PhaseName);
+            Object.Destroy(setup.gameObject);
+            yield return null;
+        }
+
         [UnityTest] public IEnumerator Progression_LoadPhaseResets()
         {
             TutorialSetup setup = null;

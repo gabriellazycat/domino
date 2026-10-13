@@ -13,6 +13,9 @@ namespace Topple.Core
         public int PhaseIndex;
         public int AttemptsLeft;
         public ToppleRng Rng;
+        public uint Seed; // semente da run (mapas gerados derivam dela)
+        public int Gold; // economia da run (loja entre fases)
+        public int ExtraAttempts; // +1 tentativa na próxima fase (compra da loja)
 
         public static RunState NewRun(uint seed)
         {
@@ -22,8 +25,12 @@ namespace Topple.Core
                 PhaseIndex = 0,
                 AttemptsLeft = ToppleRules.AttemptsPerPhase,
                 Rng = new ToppleRng(seed),
+                Seed = seed,
             };
             r.Deck[PieceId.Common] = ToppleRules.StartingCommons;
+            r.Deck[PieceId.Fork] = ToppleRules.StartingForks;
+            r.Gold = 0;
+            r.ExtraAttempts = 0;
             return r;
         }
 

@@ -317,19 +317,40 @@ namespace Topple.Tests
                 yield return null;
                 yield return null;
                 var doc = HudDoc(setup);
-                // Fase 1: trilha ate o pelotao (deck base de 10 fecha).
+                // Fase 1 (idx 0, sem loja): draft avança direto, sem loja.
                 yield return PlayPhaseViaUI(setup, 3.2f, 0f);
+                int gold0 = setup.Run.Gold;
+                Assert.Greater(gold0, 0, "vitória deveria pagar ouro");
+                Assert.IsFalse(Topple.Core.ToppleRules.IsShopPhase(0), "fase 1 não é fase de loja");
                 setup.Hud.PressNext(); yield return null; // abre o draft
-                DraftMostCommons(setup); yield return null;
+                Assert.IsNotNull(setup.Hud.LastDraft);
+                Assert.IsFalse(doc.rootVisualElement.Q<Label>("lbl-result").text.Contains("LOJA"),
+                    "draft sem loja não sinaliza LOJA");
+                DraftMostCommons(setup); yield return null; // pick → avança direto
+                Assert.IsFalse(setup.Hud.IsShopOpen, "fase sem loja não abre loja");
+                Assert.IsFalse(setup.Hud.IsDraftOpen, "draft deveria ter fechado");
                 Assert.AreEqual(1, setup.PhaseIndex);
-                // Fase 2: trilha em arco ate o pelotao.
+                // Fase 2 (idx 1, sem loja): mesmo fluxo direto.
                 yield return PlayPhaseViaUI(setup, 3.7f, -0.7f);
+                Assert.IsFalse(Topple.Core.ToppleRules.IsShopPhase(1));
                 setup.Hud.PressNext(); yield return null;
                 DraftMostCommons(setup); yield return null;
+                Assert.IsFalse(setup.Hud.IsShopOpen);
                 Assert.AreEqual(2, setup.PhaseIndex);
-                // Fase 3.
+                // Fase 3 (idx 2, FASE DE LOJA): draft → loja → sair avança.
+                Assert.IsTrue(Topple.Core.ToppleRules.IsShopPhase(2), "fase 3 é fase de loja (a cada 3)");
                 yield return PlayPhaseViaUI(setup, 3.7f, 0.9f);
-                Debug.Log("[TOPPLE][HUMAN] 3 fases zeradas so pela UI");
+                setup.Hud.PressNext(); yield return null;
+                Assert.IsNotNull(setup.Hud.LastDraft);
+                Assert.IsTrue(doc.rootVisualElement.Q<Label>("lbl-result").text.Contains("LOJA"),
+                    "draft da fase de loja sinaliza Próxima parada: LOJA");
+                DraftMostCommons(setup); yield return null;
+                Assert.IsTrue(setup.Hud.IsShopOpen, "fase de loja abre loja após o draft");
+                Assert.IsTrue(doc.rootVisualElement.Q<Label>("lbl-result").text.Contains("★ LOJA ★"),
+                    "título da loja deveria ser ★ LOJA ★");
+                setup.Hud.PressShopLeave(); yield return null; // sair avança
+                Assert.AreEqual(3, setup.PhaseIndex);
+                Debug.Log("[TOPPLE][HUMAN] 3 fases zeradas so pela UI (draft sempre, loja só na 3ª)");
             }
             finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
             yield return null;
@@ -351,14 +372,16 @@ namespace Topple.Tests
                 Assert.AreEqual(1, setup.PhaseIndex, "pular deveria avancar 1 fase");
                 Assert.IsTrue(setup.Planning.Active, "pular devolve ao planejamento");
                 Assert.AreEqual(life, setup.Run.Life, "pular nao da dano");
-                // Até a última e além: encerra o run como desistência, sem dano.
+                // Run infinita: pular sempre avança, sem dano e sem fim.
                 for (int i = 0; i < 8; i++) { setup.Hud.PressSkip(); yield return null; }
                 Assert.AreEqual(9, setup.PhaseIndex);
                 setup.Hud.PressSkip(); yield return null;
+                Assert.AreEqual(10, setup.PhaseIndex, "run infinita: fase 10 existe (ciclo 2)");
                 Assert.AreEqual(life, setup.Run.Life);
+                Assert.IsTrue(setup.Planning.Active);
                 var banner = doc.rootVisualElement.Q<VisualElement>("banner-result");
-                Assert.IsFalse(banner.ClassListContains("hidden"), "fim de run deveria aparecer");
-                Debug.Log("[TOPPLE][HUMAN] pular fase ok (0→9 + fim sem dano)");
+                Assert.IsTrue(banner.ClassListContains("hidden"), "pular nao abre banner");
+                Debug.Log("[TOPPLE][HUMAN] pular fase ok (0→10, infinito, sem dano)");
             }
             finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
             yield return null;
@@ -373,15 +396,17 @@ namespace Topple.Tests
                 yield return null;
                 yield return null;
                 var doc = HudDoc(setup);
-                // Deck base: só comuns na bandeja.
+                // Deck base: comuns + 1 bifurcação na bandeja.
                 Assert.IsNotNull(doc.rootVisualElement.Q<Button>("btn-piece-common"));
-                Assert.IsNull(doc.rootVisualElement.Q<Button>("btn-piece-fork"));
-                // Draft engorda: fork aparece na bandeja dinâmica.
+                Assert.IsNotNull(doc.rootVisualElement.Q<Button>("btn-piece-fork"), "fork do deck base deveria estar na bandeja");
+                // Draft engorda: fork soma na bandeja dinâmica.
+                int fork0 = setup.Run.DeckCount(PieceId.Fork);
                 setup.Run.ApplyReward(new[] { (PieceId.Fork, 2) });
                 setup.LoadPhase(0);
                 yield return null;
                 yield return null;
-                Assert.IsNotNull(doc.rootVisualElement.Q<Button>("btn-piece-fork"), "fork deveria entrar na bandeja");
+                Assert.AreEqual(fork0 + 2, setup.Run.DeckCount(PieceId.Fork));
+                Assert.IsNotNull(doc.rootVisualElement.Q<Button>("btn-piece-fork"), "fork deveria seguir na bandeja");
                 // Estados: sem peças, DISPARAR apagado; com peças, aceso.
                 setup.Hud.SetActions(false, false);
                 Assert.IsFalse(doc.rootVisualElement.Q<Button>("btn-fire").enabledSelf);
@@ -392,6 +417,146 @@ namespace Topple.Tests
                 setup.Hud.PressNext(); yield return null;
                 Assert.IsNotNull(setup.Hud.LastDraft, "draft deveria abrir");
                 Assert.AreEqual(3, setup.Hud.LastDraft.Count);
+            }
+            finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
+            yield return null;
+        }
+        [UnityTest] public IEnumerator Shop_BuyRerollHealLeaveViaUI()
+        {
+            TutorialSetup setup = null;
+            try
+            {
+                setup = TutorialSetup.Build("HumanShop");
+                yield return null;
+                yield return null;
+                // Loja ocasião (a cada 3): fase 3 (idx 2) é fase de loja.
+                setup.LoadPhase(2); yield return null;
+                Assert.AreEqual(2, setup.PhaseIndex);
+                Assert.IsTrue(Topple.Core.ToppleRules.IsShopPhase(2));
+                yield return PlayPhaseViaUI(setup, 3.7f, 0.9f); // vence e paga ouro
+                Assert.Greater(setup.Run.Gold, 0, "vitória deveria pagar ouro");
+                setup.Hud.PressNext(); yield return null; // abre o draft
+                Assert.IsNotNull(setup.Hud.LastDraft);
+                setup.Run.Gold += 100; // caixa de teste: tudo acessível
+                DraftMostCommons(setup); yield return null; // pick → loja
+                Assert.IsTrue(setup.Hud.IsShopOpen, "fase de loja abre loja após o draft");
+                Assert.IsNotNull(setup.Hud.LastShop);
+                Assert.AreEqual(3, setup.Hud.LastShop.Count);
+                // Compra: deck cresce, ouro cai.
+                int deck0 = setup.Run.DeckTotal(), gold0 = setup.Run.Gold;
+                setup.Hud.PressShop(0); yield return null;
+                Assert.Greater(setup.Run.DeckTotal(), deck0, "compra deveria engordar o deck");
+                Assert.Less(setup.Run.Gold, gold0, "compra deveria gastar ouro");
+                // Reroll: novas ofertas, ouro cai.
+                int gold1 = setup.Run.Gold;
+                setup.Hud.PressShopReroll(); yield return null;
+                Assert.AreEqual(3, setup.Hud.LastShop.Count, "reroll deveria repor 3 ofertas");
+                Assert.Less(setup.Run.Gold, gold1, "reroll deveria gastar ouro");
+                // Cura: machuca, cura, vida sobe com teto.
+                setup.Run.Damage(3);
+                int life0 = setup.Run.Life, gold2 = setup.Run.Gold;
+                setup.Hud.PressShopHeal(); yield return null;
+                Assert.Greater(setup.Run.Life, life0, "cura deveria recuperar vida");
+                Assert.LessOrEqual(setup.Run.Life, Topple.Core.ToppleRules.StartingLife);
+                Assert.Less(setup.Run.Gold, gold2);
+                // Tentativa extra: próxima fase com 4.
+                setup.Hud.PressShopAttempt(); yield return null;
+                Assert.AreEqual(1, setup.Run.ExtraAttempts);
+                // Sair avança.
+                setup.Hud.PressShopLeave(); yield return null;
+                Assert.AreEqual(3, setup.PhaseIndex);
+                Assert.IsFalse(setup.Hud.IsShopOpen);
+                Assert.AreEqual(4, setup.Run.AttemptsLeft, "tentativa extra deveria entrar na fase");
+                Debug.Log("[TOPPLE][HUMAN] loja ok (compra/reroll/cura/tentativa/sair)");
+            }
+            finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
+            yield return null;
+        }
+
+        [UnityTest] public IEnumerator Infinite_LoadsBeyondPhase10()
+        {
+            TutorialSetup setup = null;
+            try
+            {
+                setup = TutorialSetup.Build("HumanInfinite");
+                yield return null;
+                yield return null;
+                setup.LoadPhase(10); yield return null;
+                Assert.AreEqual(10, setup.PhaseIndex);
+                Assert.GreaterOrEqual(setup.SoldierSpots.Count, 4, "fase gerada tem pelotões");
+                Assert.IsTrue(setup.PhaseName.StartsWith("Gerada"), "prof. 10+ é procedural: " + setup.PhaseName);
+                Assert.IsTrue(setup.Planning.Active);
+                setup.LoadPhase(25); yield return null;
+                Assert.AreEqual(25, setup.PhaseIndex);
+                Assert.Greater(setup.SoldierSpots.Count, 0);
+                setup.LoadPhase(0); yield return null;
+                Assert.AreEqual(0, setup.PhaseIndex);
+                Debug.Log("[TOPPLE][HUMAN] infinito ok (10/25/0)");
+            }
+            finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
+            yield return null;
+        }
+        [UnityTest] public IEnumerator Patrol_PathIsBuildable()
+        {
+            TutorialSetup setup = null;
+            try
+            {
+                setup = TutorialSetup.Build("HumanPatrolBuild");
+                yield return null;
+                yield return null;
+                setup.LoadPhase(4); // Ronda: loop 4.5-6.0 x ±1.5
+                yield return null;
+                // Meio do segmento sul do loop: construível (por sua conta e risco).
+                Assert.IsTrue(setup.Planning.IsValidCell(105, -30, Topple.Core.PieceId.Common, 90f),
+                    "caminho da patrulha deveria aceitar peça");
+                // Corpo do soldado continua proibido (só o caminho liberou).
+                Assert.IsFalse(setup.Planning.IsValidCell(72, -24, Topple.Core.PieceId.Common, 90f),
+                    "em cima do soldado continua bloqueado");
+                Debug.Log("[TOPPLE][HUMAN] caminho da patrulha construível ok");
+            }
+            finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
+            yield return null;
+        }
+        [UnityTest] public IEnumerator Gap_BlocksPlacementAndWarns()
+        {
+            TutorialSetup setup = null;
+            try
+            {
+                setup = TutorialSetup.Build("HumanGap");
+                yield return null;
+                yield return null;
+                // Disco injetado (mesma forma do conversor): barra dentro, libera fora.
+                setup.Planning.Forbidden.Add(new Topple.Game.PlanningController.ForbiddenZone
+                    { C = new Vector3(6f, 0f, 0f), R = 0.4f });
+                setup.Planning.GapDiscs.Add((new Vector3(6f, 0f, 0f), 0.4f, 0.6f));
+                Assert.IsFalse(setup.Planning.IsValidCell(120, 0, Topple.Core.PieceId.Common, 90f),
+                    "dentro da ponte não constrói");
+                Assert.IsTrue(setup.Planning.IsValidCell(140, 0, Topple.Core.PieceId.Common, 90f),
+                    "fora da ponte constrói");
+                Assert.IsTrue(setup.Planning.NearGap(6f, 0f));
+                Assert.IsFalse(setup.Planning.NearGap(7f, 0f));
+                Debug.Log("[TOPPLE][HUMAN] ponte-vao ok (barra + avisa)");
+            }
+            finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
+            yield return null;
+        }
+        [UnityTest] public IEnumerator Void_BlocksPlacement()
+        {
+            TutorialSetup setup = null;
+            try
+            {
+                setup = TutorialSetup.Build("HumanVoid");
+                yield return null;
+                yield return null;
+                // Retângulo injetado (mesma forma do conversor): barra dentro, libera fora.
+                setup.Planning.VoidRects.Add((new Vector3(6f, 0f, -1f), new Vector3(7f, 0f, 1f)));
+                Assert.IsFalse(setup.Planning.IsValidCell(130, -10, Topple.Core.PieceId.Common, 90f),
+                    "no buraco não constrói");
+                Assert.IsTrue(setup.Planning.IsValidCell(150, -10, Topple.Core.PieceId.Common, 90f),
+                    "fora do buraco constrói");
+                Assert.IsTrue(setup.Planning.NearVoid(6.5f, 0f));
+                Assert.IsFalse(setup.Planning.NearVoid(7.5f, 0f));
+                Debug.Log("[TOPPLE][HUMAN] buraco ok (barra + avisa)");
             }
             finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
             yield return null;

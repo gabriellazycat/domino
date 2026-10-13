@@ -51,3 +51,19 @@
 }
 .result-text { font-size: 28px; color: #f4e7d0; }
 .hidden { display: none; }
+
+/* Cartas (draft/loja, clima Balatro): papel claro sobre o feltro escuro. */
+.banner {
+  border-left-width: 3px; border-right-width: 3px;
+  border-top-width: 3px; border-bottom-width: 3px;
+  border-color: #f28c28;
+}
+.fire-btn:hover { background-color: #ffb35c; }
+.tray-btn:hover { border-left-width: 6px; }
+.tool-btn:hover { background-color: #54402e; }
+.shop-card {
+  border-left-width: 3px; border-right-width: 3px;
+  border-top-width: 1px; border-bottom-width: 1px;
+  border-color: #ffd23f;
+}
+.objective.gold { color: #ffd23f; }

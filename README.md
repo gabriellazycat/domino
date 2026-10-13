@@ -3,32 +3,44 @@
 Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub.
 
 ## Entrada certa
-- Cena jogável: `Assets/Topple/Game/Tutorial.unity` (única no build).
+- Cena jogável: `Assets/Topple/Game/Tutorial.unity` (10 fixas) ou
+  `Assets/Topple/Game/Procedural.unity` (tudo gerado desde a fase 1, mesma run
+  = mesmos mapas). Ambas no build.
 - `Bootstrap.unity` é vazia (só câmera+luz T0). Não dê Play nela.
 
 ## Jogar (humano)
 1. Abra `Tutorial.unity` > aperte Play. O tabuleiro começa VAZIO.
-2. **Trilha** (sempre ligada): **chão vazio = reta, clique numa peça = continua**
-   dela (posição + ângulo, sem custo). 2 cliques = 1 trecho — ou aperte,
-   arraste desenhando e solte. 2 cliques no mesmo lugar = 1 peça avulsa.
-   `Q/E` gira (só avulsa) | `1/2/3` peça (vale pro trecho atual)
-   botão direito remove | `X` remove a última | `Ctrl+Z` desfaz por trecho
-   `Ctrl+Y` ou botão Recarregar = fase toda do zero | `C` follow
-   `Enter` ou botão DISPARAR | banner: `Enter` = De novo/Próxima.
-   `Esc` desfaz a seleção atual. Linha desativada.
+2. **Trilha** (sempre ligada): **comece no marcador VERDE, chão vazio = reta,
+   clique numa peça = continua** dela (posição + ângulo, sem custo). 2 cliques =
+   1 trecho — ou aperte, arraste desenhando e solte. 2 cliques no mesmo lugar =
+   1 peça avulsa. `1-8` troca a peça (bandeja mostra o que você tem) |
+   `Q/E` gira (só avulsa) | botão direito remove | `X` remove a última |
+   `Ctrl+Z` desfaz por trecho | `Ctrl+Y` ou botão Recarregar = fase toda do zero |
+   `C` follow | `Enter` ou botão DISPARAR | banner: `Enter` = De novo/Próxima.
+   `Esc` desfaz a seleção atual. Linha desativada. `Pular fase` só aparece em
+   build de debug (cheat de teste, fora da release).
    Câmera: arrastar com botão direito OU do meio = orbitar; roda = zoom;
    `WASD`/setas = mover. Clique em botão da HUD não coloca peça no chão.
+   Patrulha = discos+linhas **âmbar**; muros = cinza; trigger = verde;
+   ponte-vão = disco **azul** (só Grande/Torre atravessa); buraco = sem chão.
+   Pode construir NO caminho da patrulha (o hint avisa) — mas ela EMPURRA peça
+   em pé e estraga o caminho; só peça CAINDO mata patrulheiro. No buraco não
+   constrói (`Buraco: contorne!`).
 3. A 1ª peça que VOCÊ colocar recebe o impulso e cai primeiro (dominó = peça).
-   Run deckbuilder: 10 fases (`Primeira Queda` … `Chefão`), deck base 10 comuns,
+   Run deckbuilder INFINITA: templates reciclados com escala mista por ciclo,
+   deck base 10 comuns + 1 bifurcação,
    3 DISPARAR por fase (planejar/Recarregar livres), vida 10 (1 de dano por
-   sobrevivente). Vitória ou derrota-avançada paga draft: escolha 1 de 3 pacotes
-   (pesada antes dos pesadões, fork antes dos splits, rampa fase 1+).
-   Encostou, derrubou. Testar é grátis dentro das 3 tentativas: DISPARAR não apaga nada.
+   sobrevivente). Vitória paga ouro por estrelas (par + 1ª tentativa);
+    derrota-avançada paga metade. Draft 1-de-3 (grátis, sempre) + ★ LOJA ★
+    a cada 3 fases em tela única (peças, reroll, cura, +tentativa) e Sair
+    avança (draft sozinho avança direto; fase de loja sinaliza
+    Próxima: ★ LOJA ★). Sem relíquias.
+   Encostou, derrubou. Testar é grátis dentro das tentativas: DISPARAR não apaga nada.
 
 ## Regenerar / testar (com a Unity FECHADA)
 - `Tools/GenerateAll.ps1` — regenera `Assets/Generated/` (42 arquivos, idempotente).
-- `Tools/TestEditMode.ps1` — esperado tudo verde.
-- `Tools/TestPlayMode.ps1` — esperado 13/13.
+- `Tools/TestEditMode.ps1` — esperado tudo verde (49).
+- `Tools/TestPlayMode.ps1` — esperado 37/37.
 - `Tools/BuildWindows.ps1` — build `Builds/Windows/Topple.exe`.
 - Não rode `.ps1` com a Unity aberta (lockfile). Feche o Editor antes.
 
@@ -40,9 +52,9 @@ Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub
 - Testes usam botão via `Press*` (Humble Object), nunca clique por coordenada —
   geometria da UI só assenta com viewport real. Hit-test, som real, feel e FPS
   só no playtest humano.
-- `Content/` vazia (dados T5). Fases hoje inline em `TutorialSetup.Phases`
-  (10 artesanais). Constantes em `ToppleRules.cs` (vida 10, 10 comuns base,
-  3 tentativas/fase, 1 dano/sobrevivente). Rede solo usa `LocalSession` (`MirrorSession`
+- `Content/` vazia (dados T5). Fases base inline em `TutorialSetup.Phases`
+  (10 artesanais, recicladas por `PhaseForDepth` na run infinita). Constantes em `ToppleRules.cs` (vida 10, 10 comuns base + 1 fork,
+  3 tentativas/fase, 1 dano/sobrevivente, preços da loja). Rede solo usa `LocalSession` (`MirrorSession`
   é esqueleto T6, Steam AppID 480 só dev).
 
 ## Se algo quebrar

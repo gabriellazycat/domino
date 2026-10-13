@@ -1,11 +1,11 @@
 {
-  "_doc": "TOPPLE economia da loja (espelho de ToppleRules, validado pelo teste Content_MirrorTest; viram dados vivos na T5). Preço da carta = SlotCost x priceMult.",
+  "_doc": "TOPPLE economia da loja (espelho de ToppleRules, validado pelo teste Content_MirrorTest; viram dados vivos na T5). Preço da carta = SlotCost x priceMult. Economia-maior 13/out/2026.",
   "shopEvery": 3,
-  "priceMult": 5,
-  "rerollBase": 10,
-  "rerollStep": 5,
+  "priceMult": 4,
+  "rerollBase": 8,
+  "rerollStep": 4,
   "healLife": 2,
-  "healCost": 15,
-  "attemptCost": 12,
+  "healCost": 12,
+  "attemptCost": 10,
   "maxExtraAttempts": 2
 }

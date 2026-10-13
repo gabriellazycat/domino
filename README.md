@@ -39,7 +39,7 @@ Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub
 
 ## Regenerar / testar (com a Unity FECHADA)
 - `Tools/GenerateAll.ps1` — regenera `Assets/Generated/` (42 arquivos, idempotente).
-- `Tools/TestEditMode.ps1` — esperado tudo verde (55).
+- `Tools/TestEditMode.ps1` — esperado tudo verde (56).
 - `Tools/TestPlayMode.ps1` — esperado 41/41.
 - `Tools/BuildWindows.ps1` — build `Builds/Windows/Topple.exe`.
 - Não rode `.ps1` com a Unity aberta (lockfile). Feche o Editor antes.
@@ -55,7 +55,7 @@ Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub
 - `Content/` com pesos do draft (`reward-weights.json`, fonte de verdade e
   aplicados em runtime via `ContentLoader`) + espelho da loja (`shop.json`,
   validado por teste; viram dados vivos na T5). Fases base inline em `TutorialSetup.Phases`
-  (10 artesanais, recicladas por `PhaseForDepth` na run infinita). Constantes em `ToppleRules.cs` (vida 10, 10 comuns base + 1 fork,
+  (10 artesanais, recicladas por `PhaseForDepth` na run infinita). Constantes em `ToppleRules.cs` (vida 10, 14 comuns base + 1 fork,
   3 tentativas/fase, 1 dano/sobrevivente, preços da loja). Rede solo usa `LocalSession` (`MirrorSession`
   é esqueleto T6, Steam AppID 480 só dev).
 - Stingers de vitória/derrota (`win`/`lose` sintetizados, `GenerateAll` gera os WAVs).

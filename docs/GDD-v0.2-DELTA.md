@@ -428,6 +428,23 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
 - Tampas ±Z com textura 1:1; laterais com tiling 2×2 (wrap Repeat).
 - Exige `Tools/Topple/Generate All` com a Unity fora de Play (compila antes).
 
+## 35. Economia-maior (13/out/2026, pedido do dono)
+- Direção do dono: economia maior (gerador e par apertado intactos). Pacote:
+  deck base 10→14 comuns (P1 par 12 com folga de 3); pack escalado 4+fase →
+  5+fase (f0: 5, f9: 14); packs novos mistos (nunca puro-comum: sem par
+  dominado) "3 Comuns + 2 Pesadas" f2, "3 Pesadas"/"2 Torres" f6,
+  "2 Grandes + 2 Comuns" f8; ouro 10+5★→12+6★ (+bônus 1ª tentativa 5→6);
+  loja ×5→×4, reroll 10+5→8+4, cura 15→12, tentativa 12→10 (teto +2 e loja a
+  cada 3 intactos).
+- Projeção (commons-picker): 15 + Σ(5+i, i=0..9) ≈ 110 cartas na prof. 10
+  (era ~96) + loja ~50% mais forte — gigantes (par 45–81) bancáveis com folga
+  p/ desperdício humano. Qualidade acompanha: pesadas f0/f1 + "3 Pesadas" f6
+  (2–3 pesadões), torres f3 + "2 Torres" f6 (atravessa 2 vãos).
+- Testes: `NewRun_DeckBase14ComunsVida10`, `ShopPrice` (×4), `Gold_StarsFormula`
+  (12+6★), `Reward_AppliesBundle` (relativo à base), `Draft3_DeepPacksUnlock`
+  (fundo desbloqueia, f0 não); espelhos `Content/` atualizados (JSON+Base).
+  Calibragem final no playtest/T5.
+
 ## 30. Solver-harness das geradas (13/out/2026, pedido do dono)
 - O MapGen garante estrutura mas NÃO vencibilidade: harness em
   `GeneratedSolvabilityTests` (prova amostrada, física headless de verdade):

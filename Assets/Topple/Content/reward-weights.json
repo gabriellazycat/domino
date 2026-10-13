@@ -1,14 +1,18 @@
 {
-  "_doc": "TOPPLE pesos do draft (fonte de verdade). Espelho de ContentPack.Base(): mesma ordem, mesmos campos — o teste Content_MirrorTest quebra se derivar. Rampa FORA do draft (pedido do dono). Aplicado em runtime via ContentLoader (Resources/Content/reward-weights.json, sincronizado pelo GenerateAll).",
+  "_doc": "TOPPLE pesos do draft (fonte de verdade). Espelho de ContentPack.Base(): mesma ordem, mesmos campos — o teste Content_MirrorTest quebra se derivar. Rampa FORA do draft (pedido do dono). Economia-maior 13/out/2026: packs de volume f2/f6/f8 p/ gigantes. Aplicado em runtime via ContentLoader (Resources/Content/reward-weights.json, sincronizado pelo GenerateAll).",
   "entries": [
-    {"minPhase": 0, "weight": 35, "label": "Comuns", "scaledCommons": true, "items": [{"piece": "Common", "count": 4}]},
+    {"minPhase": 0, "weight": 35, "label": "Comuns", "scaledCommons": true, "items": [{"piece": "Common", "count": 5}]},
     {"minPhase": 0, "weight": 30, "label": "2 Comuns + 1 Pesada", "scaledCommons": false, "items": [{"piece": "Common", "count": 2}, {"piece": "Heavy", "count": 1}]},
     {"minPhase": 0, "weight": 20, "label": "1 Grande", "scaledCommons": false, "items": [{"piece": "Big", "count": 1}]},
     {"minPhase": 1, "weight": 20, "label": "1 Pesada", "scaledCommons": false, "items": [{"piece": "Heavy", "count": 1}]},
+    {"minPhase": 2, "weight": 16, "label": "3 Comuns + 2 Pesadas", "scaledCommons": false, "items": [{"piece": "Common", "count": 3}, {"piece": "Heavy", "count": 2}]},
     {"minPhase": 2, "weight": 12, "label": "2 Explosivas", "scaledCommons": false, "items": [{"piece": "Blast", "count": 2}]},
     {"minPhase": 3, "weight": 12, "label": "1 Torre", "scaledCommons": false, "items": [{"piece": "Tower", "count": 1}]},
     {"minPhase": 3, "weight": 12, "label": "1 Corrida", "scaledCommons": false, "items": [{"piece": "Runner", "count": 1}]},
     {"minPhase": 2, "weight": 18, "label": "1 Bifurcação + 2 Comuns", "scaledCommons": false, "items": [{"piece": "Fork", "count": 1}, {"piece": "Common", "count": 2}]},
-    {"minPhase": 2, "weight": 14, "label": "2 Bifurcações", "scaledCommons": false, "items": [{"piece": "Fork", "count": 2}]}
+    {"minPhase": 2, "weight": 14, "label": "2 Bifurcações", "scaledCommons": false, "items": [{"piece": "Fork", "count": 2}]},
+    {"minPhase": 6, "weight": 12, "label": "3 Pesadas", "scaledCommons": false, "items": [{"piece": "Heavy", "count": 3}]},
+    {"minPhase": 6, "weight": 10, "label": "2 Torres", "scaledCommons": false, "items": [{"piece": "Tower", "count": 2}]},
+    {"minPhase": 8, "weight": 10, "label": "2 Grandes + 2 Comuns", "scaledCommons": false, "items": [{"piece": "Big", "count": 2}, {"piece": "Common", "count": 2}]}
   ]
 }

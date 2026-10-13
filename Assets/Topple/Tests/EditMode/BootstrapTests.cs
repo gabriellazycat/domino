@@ -21,7 +21,7 @@ namespace Topple.Tests
 
         [Test] public void Gold_StarsFormula()
         {
-            Assert.AreEqual(10 + 5 * 3 + 5, ToppleRules.GoldForPhase(3, true));
+            Assert.AreEqual(12 + 6 * 3 + 6, ToppleRules.GoldForPhase(3, true));
             Assert.AreEqual(3, ToppleRules.StarsForWin(true, true));
         }
 

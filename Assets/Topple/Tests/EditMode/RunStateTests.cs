@@ -16,10 +16,10 @@ namespace Topple.Tests
 
         [Test] public void ShopPrice_ScalesWithSlots()
         {
-            Assert.AreEqual(5, ToppleRules.ShopPrice(PieceId.Common, 1));
-            Assert.AreEqual(20, ToppleRules.ShopPrice(PieceId.Common, 4));
-            Assert.AreEqual(30, ToppleRules.ShopPrice(PieceId.Fork, 2));
-            Assert.AreEqual(15, ToppleRules.ShopPrice(PieceId.Heavy, 1) + ToppleRules.ShopPrice(PieceId.Common, 1));
+            Assert.AreEqual(4, ToppleRules.ShopPrice(PieceId.Common, 1));
+            Assert.AreEqual(16, ToppleRules.ShopPrice(PieceId.Common, 4));
+            Assert.AreEqual(24, ToppleRules.ShopPrice(PieceId.Fork, 2));
+            Assert.AreEqual(12, ToppleRules.ShopPrice(PieceId.Heavy, 1) + ToppleRules.ShopPrice(PieceId.Common, 1));
         }
 
         [Test] public void ShopEvery3_OccasionalNeverEveryPhase()
@@ -36,12 +36,13 @@ namespace Topple.Tests
             for (int i = 0; i < 30; i++)
                 Assert.AreEqual((i + 1) % 3 == 0, ToppleRules.IsShopPhase(i), "fase " + i);
         }
-        [Test] public void NewRun_DeckBase10ComunsVida10()
+        [Test] public void NewRun_DeckBase14ComunsVida10()
         {
             var run = RunState.NewRun(1234);
-            Assert.AreEqual(10, run.DeckCount(PieceId.Common));
+            Assert.AreEqual(ToppleRules.StartingCommons, run.DeckCount(PieceId.Common));
+            Assert.AreEqual(14, run.DeckCount(PieceId.Common));
             Assert.AreEqual(ToppleRules.StartingForks, run.DeckCount(PieceId.Fork));
-            Assert.AreEqual(10 + ToppleRules.StartingForks, run.DeckTotal());
+            Assert.AreEqual(ToppleRules.StartingCommons + ToppleRules.StartingForks, run.DeckTotal());
             Assert.AreEqual(10, run.Life);
             Assert.AreEqual(0, run.PhaseIndex);
             Assert.AreEqual(3, run.AttemptsLeft);
@@ -74,8 +75,8 @@ namespace Topple.Tests
             var run = RunState.NewRun(1);
             run.ApplyReward(new[] { (PieceId.Fork, 2), (PieceId.Common, 5) });
             Assert.AreEqual(2 + ToppleRules.StartingForks, run.DeckCount(PieceId.Fork));
-            Assert.AreEqual(15, run.DeckCount(PieceId.Common));
-            Assert.AreEqual(15 + 2 + ToppleRules.StartingForks, run.DeckTotal());
+            Assert.AreEqual(ToppleRules.StartingCommons + 5, run.DeckCount(PieceId.Common));
+            Assert.AreEqual(ToppleRules.StartingCommons + 5 + 2 + ToppleRules.StartingForks, run.DeckTotal());
         }
 
         [Test] public void Draft3_Sempre3DistintasDeterministico()
@@ -148,6 +149,28 @@ namespace Topple.Tests
                             Assert.AreNotEqual(PieceId.Ramp, it.piece,
                                 $"fase {phase} seed {s}: rampa oferecida no draft");
                 }
+        }
+
+        [Test] public void Draft3_DeepPacksUnlock()
+        {
+            // Economia-maior: packs de volume desbloqueiam fundo (f2/f6/f8) e
+            // aparecem de verdade; antes disso, nunca (f0 continua 3 eixos).
+            string[] deep = { "3 Comuns + 2 Pesadas", "3 Pesadas", "2 Torres", "2 Grandes + 2 Comuns" };
+            foreach (var label in deep)
+            {
+                bool seenLate = false, seenEarly = false;
+                for (uint s = 0; s < 60 && !(seenLate && seenEarly); s++)
+                {
+                    var rLate = new ToppleRng(20000 + s * 131u);
+                    foreach (var o in RewardPool.Draft3(ref rLate, 9))
+                        if (o.Label == label) seenLate = true;
+                    var rEarly = new ToppleRng(20000 + s * 131u);
+                    foreach (var o in RewardPool.Draft3(ref rEarly, 0))
+                        if (o.Label == label) seenEarly = true;
+                }
+                Assert.IsTrue(seenLate, $"'{label}' nunca oferecido até a fase 9");
+                Assert.IsFalse(seenEarly, $"'{label}' oferecido na fase 0");
+            }
         }
     }
 }

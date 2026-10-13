@@ -27,7 +27,7 @@ namespace Topple.Core
         // roleta itera na ordem da tabela — JSON fora de ordem muda os drafts).
         public static ContentPack BasePackForTest() => BasePack;
 
-        static int ScaledCommonsCount(int phaseIndex) => 4 + phaseIndex;
+        static int ScaledCommonsCount(int phaseIndex) => 5 + phaseIndex;
 
         // 3 opções distintas por peso (roleta, sem reposição). Sempre devolve 3:
         // se a tabela não der, completa com pacotes de comuns.

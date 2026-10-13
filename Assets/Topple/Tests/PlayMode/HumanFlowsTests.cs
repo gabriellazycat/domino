@@ -154,7 +154,7 @@ namespace Topple.Tests
                 yield return Click(cam.WorldToScreenPoint(lastWorld));
                 Assert.AreEqual(pathA, setup.Planning.Data.Count, "âncora não coloca peça");
                 Assert.IsTrue(setup.Planning.PathSelecting, "âncora deveria selecionar");
-                // 2º trecho CURTO (deck base 10: pathA=6, mão 4 — 4 pts cabem exato).
+                // 2º trecho CURTO (deck base 14+1: pathA=6, mão folgada — anexa fácil).
                 yield return Click(GroundScreen(cam, 3f, 0f));
                 int pathAB = setup.Planning.Data.Count;
                 Assert.Greater(pathAB, pathA, "2º trecho deveria anexar");

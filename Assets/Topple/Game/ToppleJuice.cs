@@ -2,6 +2,8 @@
 // poeira no knock, pulso do trigger. 100% visual: sem colisor, sem física,
 // sem efeito em lógica ou teste (só embeleza o que já existe).
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace Topple.Game
 {
@@ -83,6 +85,49 @@ namespace Topple.Game
                 shape.shapeType = ParticleSystemShapeType.Sphere;
                 shape.radius = 0.25f;
             }
+            EnsureVolume();
+        }
+
+        // Pós-processamento quente (vela acesa): Volume global com Bloom suave
+        // + vinheta leve. Criado em código (1 por cena) p/ valer no Editor e em
+        // builds sem editar as .unity. Nota: o renderer URP precisa estar com
+        // post-processing ativo p/ o Bloom aparecer (ver playtest).
+        public void EnsureVolume()
+        {
+            var vol = GetComponentInChildren<Volume>(true);
+            if (vol != null && vol.profile != null && vol.profile.Has<Bloom>()) return;
+            if (vol == null)
+            {
+                var go = new GameObject("ToppleVolume");
+                go.transform.SetParent(transform, false);
+                vol = go.AddComponent<Volume>();
+                vol.isGlobal = true;
+            }
+            if (vol.profile == null) vol.profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            if (!vol.profile.Has<Bloom>())
+            {
+                var bloom = vol.profile.Add<Bloom>(false);
+                bloom.threshold.value = 1.0f;
+                bloom.intensity.value = 0.45f;
+                bloom.scatter.value = 0.6f;
+                bloom.tint.value = new Color(1f, 0.75f, 0.5f);
+            }
+            if (!vol.profile.Has<Vignette>())
+            {
+                var vig = vol.profile.Add<Vignette>(false);
+                vig.intensity.value = 0.28f;
+                vig.smoothness.value = 0.6f;
+                vig.color.value = new Color(0.05f, 0.02f, 0.01f);
+            }
+        }
+
+        // Sonda p/ testes (evita ref de URP no assembly de teste): Volume
+        // global presente com Bloom + vinheta?
+        public bool HasPostFX()
+        {
+            var vol = GetComponentInChildren<Volume>(true);
+            return vol != null && vol.isGlobal && vol.profile != null
+                && vol.profile.Has<Bloom>() && vol.profile.Has<Vignette>();
         }
 
         // Material do marcador: shader próprio com fallback p/ Lit.

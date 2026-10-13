@@ -180,6 +180,7 @@ namespace Topple.Game
             var doc = GetComponentInChildren<UIDocument>();
             Hud.Setup(doc);
             Run ??= RunState.NewRun((uint)System.Environment.TickCount);
+            ContentLoader.ApplyFromResources(); // Content/ (pesos) sem recompilar; sem JSON = Base
             Planning.Hud = Hud; // p/ OverUI ignorar cliques nos botões
             Planning.Audio = Audio; // cliques de interface (colocar/remover)
             Hud.OnSelect += Planning.Select;
@@ -795,6 +796,7 @@ namespace Topple.Game
             if (r.Win)
             {
                 if (Juice != null) { Juice.Flash(); Juice.Puff(Sim.LastKnockPoint, true); }
+                if (Audio != null) Audio.Win(); // stinger T4
                 // Pagamento: estrelas por eficiência (par) + 1ª tentativa; ouro pela tabela.
                 bool efficient = _lastLayoutCount <= _current.ParPieces;
                 bool firstTry = Run.AttemptsLeft == ToppleRules.AttemptsPerPhase - 1;
@@ -928,6 +930,7 @@ namespace Topple.Game
         void ShowRunEnd(bool victory)
         {
             _runOver = true;
+            if (!victory && Audio != null) Audio.Lose(); // stinger T4
             Hud.ShowRunEnd(victory, Run.Life);
         }
 
@@ -1074,19 +1077,20 @@ namespace Topple.Game
         static VisualTreeAsset LoadUxml()
         {
 #if UNITY_EDITOR
-            return UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/Topple/UI/PlanningHUD.uxml");
-#else
-            return null;
+            var vta = UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/Topple/UI/PlanningHUD.uxml");
+            if (vta != null) return vta;
 #endif
+            // Builds: cópia sincronizada pelo GenerateAll (Resources/Content).
+            return Resources.Load<VisualTreeAsset>("Content/PlanningHUD");
         }
 
         static StyleSheet LoadUss()
         {
 #if UNITY_EDITOR
-            return UnityEditor.AssetDatabase.LoadAssetAtPath<StyleSheet>("Assets/Topple/UI/PlanningHUD.uss");
-#else
-            return null;
+            var uss = UnityEditor.AssetDatabase.LoadAssetAtPath<StyleSheet>("Assets/Topple/UI/PlanningHUD.uss");
+            if (uss != null) return uss;
 #endif
+            return Resources.Load<StyleSheet>("Content/PlanningHUD");
         }
 
         // Fallback p/ player builds (UXML completo só no Editor até a T4).

@@ -427,3 +427,58 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
   no gerador (exceção se alguma face sair espelhada).
 - Tampas ±Z com textura 1:1; laterais com tiling 2×2 (wrap Repeat).
 - Exige `Tools/Topple/Generate All` com a Unity fora de Play (compila antes).
+
+## 30. Solver-harness das geradas (13/out/2026, pedido do dono)
+- O MapGen garante estrutura mas NÃO vencibilidade: harness em
+  `GeneratedSolvabilityTests` (prova amostrada, física headless de verdade):
+  24 candidatas fixas (prof. 10–11, todos os mecanismos: vão 4+,
+  buraco/pesadão/patrulha 6+) × filtro determinístico de escala humana
+  (≤16 corpos, ≤3 pesadões — deck de prof. 10 banca ~70 cartas) → 6 amostras
+  (inclui patrulhas) × 3 estratégias (outward, cobra, patrulhas-primeiro;
+  pesada no pesadão com overshoot, torre p/ vãos) + minas anti-patrulha
+  (explosiva parada no loop: ele passa e detona — bulldoze não salva).
+- Barra: 3 de cada 4 corpos (≥75%) em toda amostra (stillborn reprova na
+  hora); vitórias integrais no log. Achados documentados no código: perna
+  nova no cone de queda QUEBRA a onda que vencia (só mina/ponta sem perna);
+  explosiva só arma com contato de INIMIGO (ponta parada perto não detona);
+  pesadão mirado (pesada com facing + energia entregue) é tática além do
+  guloso — P4/P8/P10 artesanais provam com 3/3, solver T5. Física tem
+  variância de thread nos casos de borda (mesmo binário, runs distintos).
+- Medição da curva (tabela `[TOPPLE][GEN-SIZE]` no teste
+  `MapGen_FairShareForHarness`): 10/24 justas, 14/24 gigantes (até 23 corpos,
+  par 45–81). Gigantes são injustos na ECONOMIA (deck ~70 não banca 100
+  peças com folga) — decisão pendente do dono; harness não os promete.
+- Verde: 41/41 PlayMode (37 + harness 1 + fluxos Content 3), golden intacto.
+
+## 31. Content/ de verdade (13/out/2026, pedido do dono)
+- `Assets/Topple/Content/reward-weights.json` (pesos do draft, fonte de
+  verdade) + `shop.json` (espelho da economia). `ContentPack` puro (Core) +
+  `RewardPool.UsePack/ResetPack` (override em runtime, Base embutido como
+  fallback) + `ContentLoader` (Game: JsonUtility → pack, `Resources/Content`,
+  valida shop com warning). `TutorialSetup.InitScenario` aplica.
+- `GenerateAll` sincroniza Content/ → `Resources/Content` (builds).
+- Testes: `ContentTests` (espelho exato JSON↔Base incl. ordem, override dirige
+  drafts idênticos, JSON ruim explica o motivo), `Content_JsonDrivesDraftInGame`.
+  Trocar peso = editar JSON + manter espelho (o teste quebra se derivar).
+
+## 32. Volume/Bloom (13/out/2026, pedido do dono)
+- `Topple.Game.asmdef` + `Topple.Tests.PlayMode.asmdef` referenciam
+  `Unity.RenderPipelines.Core.Runtime` + `Universal.Runtime` (era o follow-up
+  "exigia ref de assembly"). `ToppleJuice.EnsureVolume`: Volume global com
+  Bloom (threshold 1,0/intensidade 0,45) + vinheta, criado em código (1 por
+  cena, vale Editor + builds sem editar .unity). Sonda `HasPostFX` p/ testes
+  (sem ref URP no teste). Nota: renderer URP precisa de post-processing ativo
+  p/ o Bloom aparecer — ver playtest humano.
+
+## 33. Tema em builds (13/out/2026, pedido do dono)
+- `LoadUxml/LoadUss` com fallback `Resources/Content/PlanningHUD`
+  (GenerateAll sincroniza uxml+uss de `Topple/UI`). Sem eles, fallback sem
+  tema (como antes). `BuildWindows` inclui Tutorial + Procedural (README já
+  prometia "ambas no build"; código só levava a Tutorial).
+
+## 34. Stingers T4 (13/out/2026, pedido do dono)
+- `AudioSynth.Win` (arpejo maior C5–E5–G5, 0,7 s) + `Lose` (G4–Eb4 + sopro,
+  0,9 s): determinísticos, −3 dBFS, sem clip (prova
+  `Audio_StingersDeterministicAndNormalized`). `GenerateAll` grava
+  `win.wav`/`lose.wav`; `AudioManager.Win/Lose` null-safe; vitória toca Win,
+  fim de run (derrota) toca Lose. Teste `Audio_StingersPlayWithoutError`.

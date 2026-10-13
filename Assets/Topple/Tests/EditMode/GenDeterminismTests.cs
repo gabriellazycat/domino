@@ -84,6 +84,33 @@ namespace Topple.Tests
             Assert.Greater(diff, 0.01f);
         }
 
+        [Test] public void Audio_StingersDeterministicAndNormalized()
+        {
+            // Stingers T4: determinísticos, normalizados em −3 dBFS, sem clip,
+            // comprimentos distintos (win 0,7 s < lose 0,9 s) e diferentes entre si.
+            foreach (var make in new System.Func<float[]>[] { AudioSynth.Win, AudioSynth.Lose })
+            {
+                var a = make();
+                var b = make();
+                Assert.AreEqual(a.Length, b.Length);
+                float peak = 0f;
+                for (int i = 0; i < a.Length; i++)
+                {
+                    Assert.AreEqual(a[i], b[i]);
+                    peak = Mathf.Max(peak, Mathf.Abs(a[i]));
+                }
+                Assert.That(peak, Is.EqualTo(0.70794578f).Within(0.01f)); // −3 dBFS
+                Assert.That(peak, Is.LessThanOrEqualTo(1f)); // sem clip
+            }
+            Assert.AreEqual((int)(AudioSynth.Rate * 0.7f), AudioSynth.Win().Length);
+            Assert.AreEqual((int)(AudioSynth.Rate * 0.9f), AudioSynth.Lose().Length);
+            var w = AudioSynth.Win();
+            var l = AudioSynth.Lose();
+            float diff = 0f;
+            for (int i = 0; i < System.Math.Min(w.Length, l.Length); i++) diff += Mathf.Abs(w[i] - l[i]);
+            Assert.Greater(diff, 1f, "win e lose deveriam soar diferentes");
+        }
+
         [Test] public void Wav_HeaderValid44kMono16()
         {
             var wav = AudioSynth.ToWav(AudioSynth.Fall());

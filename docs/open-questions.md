@@ -51,11 +51,15 @@
 - Previews são evidência (fora do manifesto de idempotência); `Generated/` é o jogo.
 
 ## Deferidos T3 → T4/T5 (HUD mínima não cobre)
-- Cargas de Previsão (F), telas de resultado completas, Loja/Descanso/Evento,
+- Cargas de Previsão (F), telas de resultado completas, Descanso/Evento,
   pausa, Moral — T4 (fluxo) / T5 (roguelite). Draft 1-de-3 pós-fase JÁ pronto
   (deckbuilder 11/out/2026); loja-ocasião a cada 3 fases JÁ pronta
   (13/out/2026, `IsShopPhase`, títulos Recompensa/★ LOJA ★ + Próxima parada);
-  calibragem final de preços em Content/ na T5.
+  pesos do draft em `Content/` JÁ prontos (13/out/2026, JSON + override);
+  stingers vitória/derrota JÁ prontos (13/out/2026); Volume/Bloom JÁ pronto
+  (13/out/2026, ver playtest p/ confirmar post-processing no renderer);
+  tema em builds JÁ pronto (13/out/2026, Resources via GenerateAll).
+  Calibragem final de preços/pesos em Content/ na T5.
 - ToppleCam: slow-motion, cortes e zoom no chefe — T7 (polimento).
 - PanelSettings criado em código avisa "No Theme" (só chrome base; USS próprio
   cobre). Tema final + `tokens.uss` na T4.

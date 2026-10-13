@@ -36,6 +36,9 @@ namespace Topple.Gen
             WriteAudio();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+            SyncResources(); // Content/ + tema da HUD p/ builds (Resources/)
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
             RenderPreviews();
             int broken = ScanBrokenRefs();
             WriteManifest();
@@ -118,6 +121,25 @@ namespace Topple.Gen
             Wav("heavy.wav", AudioSynth.Heavy());
             Wav("fall.wav", AudioSynth.Fall());
             Wav("ui_click.wav", AudioSynth.UiClick());
+            Wav("win.wav", AudioSynth.Win());
+            Wav("lose.wav", AudioSynth.Lose());
+        }
+
+        // Builds não enxergam AssetDatabase: Content/ (pesos+loja) e o tema da
+        // HUD (uxml+uss) vão p/ Assets/Resources/Content (LoadUxml/LoadUss e
+        // ContentLoader leem de lá; sem eles, fallback sem tema). Idempotente.
+        static void SyncResources()
+        {
+            Directory.CreateDirectory("Assets/Resources/Content");
+            void Copy(string src, string dst)
+            {
+                if (!File.Exists(src)) { Debug.LogWarning($"[TOPPLE][GEN] sem fonte: {src}"); return; }
+                GenUtil.WriteIfChanged(dst, File.ReadAllBytes(src));
+            }
+            Copy("Assets/Topple/Content/reward-weights.json", "Assets/Resources/Content/reward-weights.json");
+            Copy("Assets/Topple/Content/shop.json", "Assets/Resources/Content/shop.json");
+            Copy("Assets/Topple/UI/PlanningHUD.uxml", "Assets/Resources/Content/PlanningHUD.uxml");
+            Copy("Assets/Topple/UI/PlanningHUD.uss", "Assets/Resources/Content/PlanningHUD.uss");
         }
 
         static void RenderPreviews()

@@ -1,7 +1,7 @@
 {
     "name": "Topple.Tests.PlayMode",
     "rootNamespace": "Topple.Tests",
-    "references": [ "Topple.Core", "Topple.Sim", "Topple.Game", "Topple.UI", "UnityEngine.TestRunner", "Unity.InputSystem", "Unity.InputSystem.TestFramework" ],
+    "references": [ "Topple.Core", "Topple.Sim", "Topple.Game", "Topple.UI", "UnityEngine.TestRunner", "Unity.InputSystem", "Unity.InputSystem.TestFramework", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime" ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

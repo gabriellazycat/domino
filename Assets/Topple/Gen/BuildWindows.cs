@@ -8,7 +8,8 @@ namespace Topple.Gen
     {
         public static void Build()
         {
-            var scenes = new[] { "Assets/Topple/Game/Tutorial.unity" };
+            // README: ambas jogáveis (Tutorial = 10 fixas, Procedural = gerada).
+            var scenes = new[] { "Assets/Topple/Game/Tutorial.unity", "Assets/Topple/Game/Procedural.unity" };
             var opts = new BuildPlayerOptions
             {
                 scenes = scenes,

@@ -39,8 +39,8 @@ Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub
 
 ## Regenerar / testar (com a Unity FECHADA)
 - `Tools/GenerateAll.ps1` — regenera `Assets/Generated/` (42 arquivos, idempotente).
-- `Tools/TestEditMode.ps1` — esperado tudo verde (49).
-- `Tools/TestPlayMode.ps1` — esperado 37/37.
+- `Tools/TestEditMode.ps1` — esperado tudo verde (55).
+- `Tools/TestPlayMode.ps1` — esperado 41/41.
 - `Tools/BuildWindows.ps1` — build `Builds/Windows/Topple.exe`.
 - Não rode `.ps1` com a Unity aberta (lockfile). Feche o Editor antes.
 
@@ -52,10 +52,17 @@ Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub
 - Testes usam botão via `Press*` (Humble Object), nunca clique por coordenada —
   geometria da UI só assenta com viewport real. Hit-test, som real, feel e FPS
   só no playtest humano.
-- `Content/` vazia (dados T5). Fases base inline em `TutorialSetup.Phases`
+- `Content/` com pesos do draft (`reward-weights.json`, fonte de verdade e
+  aplicados em runtime via `ContentLoader`) + espelho da loja (`shop.json`,
+  validado por teste; viram dados vivos na T5). Fases base inline em `TutorialSetup.Phases`
   (10 artesanais, recicladas por `PhaseForDepth` na run infinita). Constantes em `ToppleRules.cs` (vida 10, 10 comuns base + 1 fork,
   3 tentativas/fase, 1 dano/sobrevivente, preços da loja). Rede solo usa `LocalSession` (`MirrorSession`
   é esqueleto T6, Steam AppID 480 só dev).
+- Stingers de vitória/derrota (`win`/`lose` sintetizados, `GenerateAll` gera os WAVs).
+  Volume global com Bloom + vinheta criado em código pelo `ToppleJuice`
+  (vale no Editor e em builds; renderer URP precisa de post-processing ativo).
+  Tema da HUD (uxml+uss) sincronizado em `Resources/Content` pelo `GenerateAll`
+  (builds); build Windows inclui Tutorial + Procedural.
 
 ## Se algo quebrar
 - Magenta = URP inativo (`UrpSetup.Ensure()` roda no GenerateAll).

@@ -106,6 +106,49 @@ namespace Topple.Gen
             return Normalize(s);
         }
 
+        // Stinger de vitória (T4): arpejo maior ascendente C5–E5–G5, tri+seno,
+        // 0,7 s, um por nota com decaimento. Determinístico, normalizado.
+        public static float[] Win()
+        {
+            float[] notes = { 523.25f, 659.25f, 783.99f };
+            int n = (int)(Rate * 0.7f);
+            var s = new float[n];
+            for (int k = 0; k < notes.Length; k++)
+            {
+                int start = (int)(Rate * 0.16f * k);
+                for (int i = start; i < n; i++)
+                {
+                    float t = (i - start) / (float)Rate;
+                    s[i] += (Tri(notes[k] * t) * 0.5f + Sine(notes[k] * t) * 0.5f)
+                        * Mathf.Exp(-t / 0.18f) * 0.6f;
+                }
+            }
+            return Normalize(s);
+        }
+
+        // Stinger de derrota (T4): duas notas descendentes G4–Eb4, seno grave +
+        // sopro passa-baixa, 0,9 s. Determinístico, normalizado.
+        public static float[] Lose()
+        {
+            uint seed = 777u;
+            float[] notes = { 392.00f, 311.13f };
+            int n = (int)(Rate * 0.9f);
+            var s = new float[n];
+            var lp = Lp(1200f);
+            for (int k = 0; k < notes.Length; k++)
+            {
+                int start = (int)(Rate * 0.30f * k);
+                for (int i = start; i < n; i++)
+                {
+                    float t = (i - start) / (float)Rate;
+                    float tone = Sine(notes[k] * t) * Mathf.Exp(-t / 0.30f);
+                    float breath = lp.Tick(Noise(ref seed)) * Mathf.Exp(-t / 0.10f);
+                    s[i] += tone * 0.7f + breath * 0.25f;
+                }
+            }
+            return Normalize(s);
+        }
+
         public static byte[] ToWav(float[] samples)
         {
             int data = samples.Length * 2;

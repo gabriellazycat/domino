@@ -196,6 +196,38 @@ namespace Topple.Tests
                 }
         }
 
+        [Test] public void MapGen_FairShareForHarness()
+        {
+            // Espelho das candidatas do solver-harness (GeneratedSolvabilityTests):
+            // escala humana = ≤16 corpos e ≤3 pesadões (um deck de prof. 10 banca
+            // ~70 cartas: base 11 + 10 drafts + loja). Tabela no log = documenta
+            // a curva real (prof. 10–11 também cospe gigantes de 20+ — injustos
+            // na economia APERTADA do par, decisão pendente do dono).
+            var cands = new (uint seed, int depth)[]
+            {
+                (1u, 10), (2u, 10), (3u, 10), (4u, 10), (5u, 10), (6u, 10),
+                (7u, 10), (8u, 10), (9u, 10), (10u, 10), (11u, 10), (12u, 10),
+                (1u, 11), (2u, 11), (3u, 11), (4u, 11), (5u, 11), (6u, 11),
+                (7u, 11), (8u, 11), (9u, 11), (10u, 11), (11u, 11), (12u, 11),
+            };
+            int fair = 0;
+            foreach (var (seed, depth) in cands)
+            {
+                var m = Topple.Core.MapGen.Generate(seed, depth);
+                int brutes = 0, patrols = 0;
+                foreach (var sl in m.Soldiers)
+                {
+                    if (sl.Kind == Topple.Core.MapEnemyKind.Brute) brutes++;
+                    if (sl.Kind == Topple.Core.MapEnemyKind.Patroller) patrols++;
+                }
+                bool ok = m.Soldiers.Count <= 16 && brutes <= 3;
+                if (ok) fair++;
+                UnityEngine.Debug.Log($"[TOPPLE][GEN-SIZE] seed={seed} prof={depth}: " +
+                    $"{m.Soldiers.Count} corpos ({brutes}B {patrols}P) par={m.ParPieces} " + (ok ? "JUSTO" : "gigante"));
+            }
+            Assert.GreaterOrEqual(fair, 6, $"só {fair}/24 mapas justos (harness precisa de 6)");
+        }
+
         [Test] public void Grid_SnapNormalIs025()
         {
             Assert.AreEqual(0.05f, PlanningData.Grid);

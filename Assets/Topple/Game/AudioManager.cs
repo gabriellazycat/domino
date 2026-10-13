@@ -1,5 +1,6 @@
 // T3: SFX da simulação — um clique por derrubada (8 variações em ciclo).
-// Clipes carregados do Generated no Editor; Resources em builds finais (T7).
+// T4: stingers de vitória/derrota (win/lose sintetizados). Clipes carregados
+// do Generated no Editor; Resources em builds (sincronizados pelo GenerateAll).
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -9,7 +10,7 @@ namespace Topple.Game
     {
         AudioSource _src;
         readonly List<AudioClip> _clicks = new();
-        AudioClip _ui;
+        AudioClip _ui, _win, _lose;
         int _next;
 
         void Awake()
@@ -22,6 +23,8 @@ namespace Topple.Game
                 if (c != null) _clicks.Add(c);
             }
             _ui = LoadClip("ui_click");
+            _win = LoadClip("win");
+            _lose = LoadClip("lose");
         }
 
         static AudioClip LoadClip(string name)
@@ -46,6 +49,19 @@ namespace Topple.Game
         {
             if (_ui == null || _src == null) return;
             _src.PlayOneShot(_ui);
+        }
+
+        // Stingers T4 (vitória/derrota da run). Null-safe como o resto.
+        public void Win()
+        {
+            if (_win == null || _src == null) return;
+            _src.PlayOneShot(_win);
+        }
+
+        public void Lose()
+        {
+            if (_lose == null || _src == null) return;
+            _src.PlayOneShot(_lose);
         }
     }
 }

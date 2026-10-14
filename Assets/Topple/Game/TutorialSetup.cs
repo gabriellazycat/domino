@@ -1058,7 +1058,9 @@ namespace Topple.Game
             var blocks = new List<ObstacleDef>();
             foreach (var b in _current.Blocks)
                 blocks.Add(new ObstacleDef { Center = b.Center, Size = b.Size, Variant = b.Variant });
-            Sim.StartSim(layout, SoldierSpots, blocks);
+            // Patrulha continua de onde ESTAVA na vitrine (não volta ao waypoint 0).
+            float patrolOffset = PatrolVitrine != null ? PatrolVitrine.Elapsed : 0f;
+            Sim.StartSim(layout, SoldierSpots, blocks, patrolOffset);
             Hud.SetRun(Run.Life, Run.AttemptsLeft, ToppleRules.AttemptsPerPhase, Run.Gold);
             Hud.SetStatus(0, SoldierSpots.Count, "Simulando…");
         }

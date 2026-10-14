@@ -18,6 +18,10 @@ namespace Topple.Game
 
         public int Count => _gos.Count;
 
+        // Segundos desde o (re)início da volta — vira PatrolOffset na sim
+        // (continuidade: nasce onde ESTAVA, não no waypoint 0).
+        public float Elapsed => _running ? Time.time - _t0 : 0f;
+
         // P/ testes: posição atual do preview i (sem expor a lista viva).
         public Vector3 PreviewPos(int i) =>
             (i >= 0 && i < _gos.Count && _gos[i] != null) ? _gos[i].position : Vector3.zero;

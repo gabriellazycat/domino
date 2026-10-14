@@ -646,6 +646,46 @@ namespace Topple.Tests
             finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
             yield return null;
         }
+        // Continuidade vitrine→sim (dono): o patrulheiro nasce onde ESTAVA
+        // (não volta ao waypoint 0). Espera a vitrine andar (~1 m) e dispara.
+        [UnityTest] public IEnumerator Patrol_ContinuesFromVitrineIntoSim()
+        {
+            TutorialSetup setup = null;
+            try
+            {
+                setup = TutorialSetup.Build("HumanPatrolKeep");
+                yield return null;
+                yield return null;
+                setup.LoadPhase(4); // Ronda: 1 patrulheiro (0,5 m/s)
+                yield return null; yield return null;
+                Assert.Greater(setup.PatrolVitrine.Count, 0);
+                var cam = setup.Cam.GetComponent<Camera>();
+                yield return Click(GroundScreen(cam, 0f, 0f));
+                yield return Click(GroundScreen(cam, 1f, 0f));
+                Assert.Greater(setup.Planning.Data.Count, 1);
+                yield return new WaitForSecondsRealtime(2.0f); // vitrine anda ~1 m
+                var p0 = setup.PatrolVitrine.PreviewPos(0);
+                setup.Hud.PressFire(); yield return null; yield return null;
+                Assert.IsTrue(setup.Sim.Running, "sim deveria estar rodando");
+                // FixedUpdate precisa rodar (em batch 2 frames não bastam).
+                yield return new WaitForSecondsRealtime(0.3f);
+                Vector3 live = Vector3.zero;
+                bool found = false;
+                foreach (var en in setup.Sim.Enemies)
+                    if (en != null && en.Kind == Topple.Core.EnemyKind.Patroller)
+                    {
+                        live = en.transform.position;
+                        found = true;
+                        break;
+                    }
+                Assert.IsTrue(found, "patrulheiro da sim ausente");
+                float d = Vector3.Distance(new Vector3(p0.x, 0f, p0.z), new Vector3(live.x, 0f, live.z));
+                Assert.Less(d, 0.35f, $"nasceu longe de onde estava ({d:F2} m) — voltou ao waypoint 0?");
+                Debug.Log("[TOPPLE][HUMAN] patrulha continua da vitrine p/ sim ok");
+            }
+            finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
+            yield return null;
+        }
         // Main menu: abre, settings aplicam volume, Play entra, auto-save por
         // fase grava e Load restaura (deck/ouro/fase). Save de teste isolado.
         [UnityTest] public IEnumerator Menu_PlaySettingsSaveLoad()

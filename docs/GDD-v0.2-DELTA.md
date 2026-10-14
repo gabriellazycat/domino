@@ -581,3 +581,12 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
   dourada (classe `shop` no banner; resultado volta ao âmbar); transições de
   120 ms nos botões. Nomes/APIs intactos (bots). Prova `Beauty_MenuAndShopStyling`.
   Hit-test/som real/feel/FPS seguem no playtest humano.
+
+## 43. Patrulha continua da vitrine p/ sim (14/out/2026, pedido do dono)
+- Antes a sim renascia o patrulheiro no waypoint 0 (planejou contra a fase X,
+  jogou contra a fase 0 — enganoso). Agora nasce onde ESTAVA: `PlanningPatrol`
+  expõe `Elapsed` (relógio de parede) → `StartSim` passa como `patrolOffset` →
+  `SimEnemy.PatrolAdvance` soma ao relógio (mesma fórmula; headless usa 0:
+  determinístico, golden intacto, paridade de mecânica preservada).
+  Provas `Patrol_OffsetContinuesVitrine` (EditMode, mesma matemática) +
+  `Patrol_ContinuesFromVitrineIntoSim` (ao vivo, <0,35 m).

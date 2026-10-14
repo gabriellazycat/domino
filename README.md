@@ -27,7 +27,8 @@ Opções: volume, brilho/vinheta, zoom). Auto-save por fase (checkpoint no
     Câmera: arrastar com botão direito OU do meio = orbitar; roda = zoom (rápido);
     `WASD`/setas = mover. Na sim a HUD enxuta some (bandeja + ações somem;
     ficam objetivo + banner). Clique em botão da HUD não coloca peça no chão.
-    Patrulha = discos+linhas **âmbar** (+ corpo andando no planejamento, vitrine);
+    Patrulha = discos+linhas **âmbar** (+ corpo andando no planejamento, vitrine,
+    que continua de onde estava ao DISPARAR);
     muros = pedra/casa/cerca (só pintura, bloqueiam igual); trigger = verde;
     ponte-vão = disco **azul** (só Grande/Torre atravessa); buraco = sem chão
     (com saia + borda de alerta). Times narrativos (só visual): mal **vermelho**,

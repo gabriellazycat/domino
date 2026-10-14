@@ -1,7 +1,10 @@
 // PatrolPath puro: fecha o loop, velocidade constante, determinístico.
+// Offset da vitrine (SimEnemy.PatrolOffset): mesma fórmula + deslocamento.
 using System.Collections.Generic;
 using NUnit.Framework;
+using UnityEngine;
 using Topple.Core;
+using Topple.Sim;
 
 namespace Topple.Tests
 {
@@ -45,6 +48,25 @@ namespace Topple.Tests
         {
             Assert.AreEqual((0f, 0f), PatrolPath.PosAt(null, 0.5f, 1f));
             Assert.AreEqual((0f, 0f), PatrolPath.PosAt(new List<(float, float)> { (1f, 2f) }, 0.5f, 1f));
+        }
+
+        [Test] public void Patrol_OffsetContinuesVitrine()
+        {
+            // Mesma matemática da vitrine + offset (a sim nasce onde ESTAVA).
+            var go = new GameObject("PatrolOffsetProbe");
+            try
+            {
+                var en = go.AddComponent<SimEnemy>();
+                en.Patrol = new List<Vector3> { new(0f, 0f, 0f), new(4f, 0f, 0f) };
+                en.PatrolSpeed = 1f;
+                en.PatrolOffset = 0f;
+                en.PatrolAdvance(1f);
+                Assert.AreEqual(1f, go.transform.position.x, 1e-4f, "t=1 sem offset");
+                en.PatrolOffset = 2f;
+                en.PatrolAdvance(1f);
+                Assert.AreEqual(3f, go.transform.position.x, 1e-4f, "t=1+offset 2");
+            }
+            finally { Object.DestroyImmediate(go); }
         }
     }
 }

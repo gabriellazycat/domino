@@ -43,6 +43,9 @@ namespace Topple.Game
 
         public int EnemyCount => _enemies.Count;
 
+        // P/ testes (vitrine→sim): inimigos vivos da sim atual.
+        public System.Collections.Generic.IReadOnlyList<SimEnemy> Enemies => _enemies;
+
         readonly List<GameObject> _spawned = new();
         readonly List<SimEnemy> _enemies = new();
         readonly List<Rigidbody> _bodies = new();
@@ -81,7 +84,7 @@ namespace Topple.Game
             return m;
         }
 
-        public void StartSim(List<Placement> layout, List<EnemySpot> spots, List<ObstacleDef> statics = null)
+        public void StartSim(List<Placement> layout, List<EnemySpot> spots, List<ObstacleDef> statics = null, float patrolOffset = 0f)
         {
             SimBuilder.EnsurePhysicsDefaults();
             StopSim();
@@ -155,6 +158,8 @@ namespace Topple.Game
                 if (en == null) en = go.AddComponent<SimEnemy>();
                 en.Kind = s.Kind;
                 en.Team = s.Team;
+                // Continuidade com a vitrine: nasce onde ESTAVA (offset 0 = waypoint 0).
+                if (patrol) en.PatrolOffset = patrolOffset;
                 if (patrol)
                 {
                     en.Patrol = new System.Collections.Generic.List<Vector3>(s.Waypoints);

@@ -33,6 +33,10 @@ namespace Topple.Sim
         // headless e ao vivo). Ao cair, vira corpo dinâmico (isKinematic=false).
         public List<Vector3> Patrol = new List<Vector3>();
         public float PatrolSpeed = 0.3f;
+        // Continuidade com a vitrine (dono): a sim nasce o patrulheiro onde ele
+        // ESTAVA no planejamento, não no waypoint 0. Offset em segundos somado
+        // ao relógio (headless usa 0: determinístico, golden intacto).
+        public float PatrolOffset;
         float _patrolDist;
         // Encostou, derrubou (pedido do dono): qualquer toque de corpo DINÂMICO
         // (peça ou soldado arremessado) derruba, mesmo sem impulso. Chão/mesa/
@@ -197,7 +201,7 @@ namespace Topple.Sim
                 total += d.magnitude;
             }
             if (total < 1e-4f) return false;
-            float target = (now * PatrolSpeed) % total;
+            float target = ((now + PatrolOffset) * PatrolSpeed) % total;
             for (int i = 0; i < Patrol.Count; i++)
             {
                 var a = Patrol[i];

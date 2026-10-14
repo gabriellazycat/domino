@@ -13,11 +13,11 @@ namespace Topple.Game
 
         public static GameObject Piece(PieceId piece) => Load("piece_" + piece.ToString().ToLowerInvariant());
 
-        public static GameObject Soldier()
-            => Load("enemy_soldier");
+        public static GameObject Soldier(Team team = Team.Evil)
+            => Load(team == Team.Good ? "enemy_soldier_good" : "enemy_soldier");
 
-        public static GameObject Brute()
-            => Load("enemy_brute");
+        public static GameObject Brute(Team team = Team.Evil)
+            => Load(team == Team.Good ? "enemy_brute_good" : "enemy_brute");
 
         public static GameObject Table()
             => Load("field_table");

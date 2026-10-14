@@ -3,6 +3,7 @@
 // Usado pela cena Tutorial.unity e pelos testes (construção programática).
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.UIElements;
 using Topple.Core;
 using Topple.Sim;
@@ -18,6 +19,8 @@ namespace Topple.Game
         public CameraController Cam;
         public AudioManager Audio;
         public ToppleJuice Juice;
+        public PlanningPatrol PatrolVitrine; // patrulha anda no planejamento (vitrine)
+        public MainMenu Menu; // main menu na cena (play/settings/load auto-save)
         public List<EnemySpot> SoldierSpots = new();
         public SimResult? LastResult { get; private set; }
         // Run deckbuilder (não serializa: reconstrói no InitScenario).
@@ -25,6 +28,8 @@ namespace Topple.Game
         // Cena Procedural liga: fases geradas desde a 1 (Tutorial = 10 fixas + 10+ geradas).
         public bool ProceduralFromStart;
         bool _runOver;
+        bool _phaseLoaded; // fase carregada nesta sessão (Continuar do menu)
+        SettingsData _settings;
 
         GameObject _previews;
         bool _inited;
@@ -107,9 +112,11 @@ namespace Topple.Game
             setup.Audio = root.AddComponent<AudioManager>();
             setup.Juice = root.AddComponent<ToppleJuice>();
             setup.Juice.EnsureMood(camComp);
+            setup.PatrolVitrine = root.AddComponent<PlanningPatrol>();
             var toppleCam = root.AddComponent<ToppleCamBasic>();
             toppleCam.Sim = setup.Sim;
             toppleCam.Cam = setup.Cam;
+            BuildBackdropHills(root.transform); // colinas de fundo (vitrine fixa)
 
             // HUD (UI Toolkit).
             var uiGo = new GameObject("HUD");
@@ -125,8 +132,9 @@ namespace Topple.Game
             }
             else BuildFallbackUI(doc);
             setup.Hud = uiGo.AddComponent<PlanningHUD>();
+            setup.Menu = uiGo.AddComponent<MainMenu>();
 
-            setup.InitScenario();
+            setup.InitScenario(showMenu: false); // Build/teste: entra direto (menu é da cena salva)
             return setup;
         }
 
@@ -135,10 +143,11 @@ namespace Topple.Game
             // Estado de MonoBehaviour (mão, trigger, assinaturas) NÃO é serializado:
             // ao abrir a cena salva, reconstrói tudo aqui. No Build, InitScenario
             // já rodou e a guarda impede duplicar.
-            if (!_inited) InitScenario();
+            // Cena salva abre no MENU (dono); Build/teste entra direto na fase.
+            if (!_inited) InitScenario(showMenu: true);
         }
 
-        void InitScenario()
+        void InitScenario(bool showMenu)
         {
             if (_inited) return;
             _inited = true;
@@ -148,6 +157,12 @@ namespace Topple.Game
             if (Audio == null) Audio = GetComponent<AudioManager>();
             if (Juice == null) Juice = GetComponent<ToppleJuice>();
             if (Juice == null) Juice = gameObject.AddComponent<ToppleJuice>();
+            // Vitrine da patrulha (cenas salvas antes dela não têm o componente).
+            if (PatrolVitrine == null) PatrolVitrine = GetComponent<PlanningPatrol>();
+            if (PatrolVitrine == null) PatrolVitrine = gameObject.AddComponent<PlanningPatrol>();
+            // Main menu (cenas salvas antes dele não têm o componente).
+            if (Menu == null) Menu = GetComponentInChildren<MainMenu>();
+            if (Menu == null) Menu = gameObject.AddComponent<MainMenu>();
             if (Cam == null) Cam = GetComponentInChildren<CameraController>();
             if (Hud == null) Hud = GetComponentInChildren<PlanningHUD>();
             // Ouvinte de áudio (cenas salvas antes do fix não têm; cenas poluídas têm 2).
@@ -175,10 +190,15 @@ namespace Topple.Game
             if (oldGrassT != null) Destroy(oldGrassT.gameObject);
             _previews = null;
             _blockPreviews = null;
+            // Colinas de fundo (cenas salvas antes delas não têm).
+            if (transform.Find("BackdropHills") == null) BuildBackdropHills(transform);
 
             // HUD (re-assina: delegates não serializam).
             var doc = GetComponentInChildren<UIDocument>();
             Hud.Setup(doc);
+            Menu.Setup(doc);
+            _settings = RunStore.LoadSettings();
+            ApplySettings(_settings);
             Run ??= RunState.NewRun((uint)System.Environment.TickCount);
             ContentLoader.ApplyFromResources(); // Content/ (pesos) sem recompilar; sem JSON = Base
             Planning.Hud = Hud; // p/ OverUI ignorar cliques nos botões
@@ -191,13 +211,36 @@ namespace Topple.Game
             Hud.OnNext += OpenDraft; // próxima = draft antes (vitória ou derrota-avançada)
             Hud.OnSkip += SkipPhase; // cheat de teste (dono): pula sem dano/draft
             Hud.OnAgain += () => { if (_runOver) RestartRun(); else BackToPlanning(); };
+            // Main menu: Novo run / Continuar / Carregar auto-save / ≡ / settings ao vivo.
+            Menu.OnPlay += () => { Run = RunState.NewRun((uint)System.Environment.TickCount); HideMenu(); LoadPhase(0); };
+            Menu.OnContinue += () => { HideMenu(); if (!_phaseLoaded) LoadPhase(Run.PhaseIndex); };
+            Menu.OnLoad += () =>
+            {
+                if (RunStore.TryLoadAuto(out var sv) && sv != null)
+                {
+                    var r = RunState.NewRun(sv.seed);
+                    sv.ApplyTo(r);
+                    Run = r;
+                    HideMenu();
+                    LoadPhase(r.PhaseIndex);
+                }
+            };
+            Menu.OnOpen += () => ShowMenu();
+            Menu.OnSettingsChanged += s => { _settings = s; ApplySettings(s); RunStore.SaveSettings(s); };
 
-            LoadPhase(0);
+            if (showMenu)
+            {
+                // Cena salva: fase 0 carregada + menu por cima (testes de cena
+                // salva assumem fase jogável no Start; menu é só overlay).
+                LoadPhase(0);
+                ShowMenu();
+            }
+            else LoadPhase(0);
         }
 
         // Fases artesanais (solver e ~20 arquétipos entram na T5).
         [System.Serializable]
-        public struct BlockDef { public Vector3 Center; public Vector3 Size; }
+        public struct BlockDef { public Vector3 Center; public Vector3 Size; public BlockVariant Variant; }
 
         // Ponte-vão: disco sem construção (a queda atravessa com peça longa).
         [System.Serializable]
@@ -229,7 +272,7 @@ namespace Topple.Game
                 Soldiers = new() { EnemySpot.Soldier(3.55f, 0f), EnemySpot.Soldier(4.10f, 0f), EnemySpot.Soldier(4.65f, 0f) },
                 // Bloco-aula ao norte (fora da linha do bot z=0): ensina contorno
                 // sem quebrar o tutorial — rota do bot passa a 1,2 m (fora do raio 0,6).
-                Blocks = new() { new BlockDef { Center = new(1.5f, 0.5f, 1.2f), Size = new(0.8f, 1.0f, 0.8f) } },
+                Blocks = new() { new BlockDef { Center = new(1.5f, 0.5f, 1.2f), Size = new(0.8f, 1.0f, 0.8f), Variant = BlockVariant.Stone } },
             },
             new PhaseDef { // 2. Curva do Muro (4; muro em L veta o norte, curva sul forçada)
                 Name = "Curva do Muro",
@@ -237,9 +280,9 @@ namespace Topple.Game
                 ParPieces = 12,
                 Soldiers = new() { EnemySpot.Soldier(3.7f, -0.7f), EnemySpot.Soldier(4.25f, -0.65f), EnemySpot.Soldier(3.95f, -0.15f), EnemySpot.Soldier(4.6f, -0.1f) },
                 Blocks = new() {
-                    new BlockDef { Center = new(2.2f, 0.5f, 0.9f), Size = new(1.2f, 1.0f, 1.2f) },
-                    new BlockDef { Center = new(3.3f, 0.5f, 1.1f), Size = new(1.0f, 1.0f, 1.0f) },
-                    new BlockDef { Center = new(2.2f, 0.5f, 2.0f), Size = new(1.0f, 1.0f, 1.0f) },
+                    new BlockDef { Center = new(2.2f, 0.5f, 0.9f), Size = new(1.2f, 1.0f, 1.2f), Variant = BlockVariant.House },
+                    new BlockDef { Center = new(3.3f, 0.5f, 1.1f), Size = new(1.0f, 1.0f, 1.0f), Variant = BlockVariant.Stone },
+                    new BlockDef { Center = new(2.2f, 0.5f, 2.0f), Size = new(1.0f, 1.0f, 1.0f), Variant = BlockVariant.Fence },
                 },
             },
             new PhaseDef { // 3. Peso Pesado (5; fileira longa)
@@ -277,7 +320,7 @@ namespace Topple.Game
                     EnemySpot.Soldier(3.8f, -0.9f), EnemySpot.Soldier(4.35f, -0.9f), EnemySpot.Soldier(4.9f, -0.9f),
                     EnemySpot.Soldier(3.8f, 1.6f), EnemySpot.Soldier(4.35f, 1.7f), EnemySpot.Soldier(4.9f, 1.6f),
                     EnemySpot.Soldier(3.8f, 0.9f), EnemySpot.Soldier(4.35f, 0.9f), EnemySpot.Soldier(4.9f, 0.9f) },
-                Blocks = new() { new BlockDef { Center = new(2.5f, 0.5f, 0f), Size = new(1.0f, 1.0f, 1.0f) } },
+                Blocks = new() { new BlockDef { Center = new(2.5f, 0.5f, 0f), Size = new(1.0f, 1.0f, 1.0f), Variant = BlockVariant.Stone } },
             },
             new PhaseDef { // 7. Avenida (15: fileira longa, corrida brilha)
                 Name = "Avenida",
@@ -327,6 +370,22 @@ namespace Topple.Game
             },
         };
 
+        // Times artesanais (dono): P1–P3 100% Evil (abertura lê 1 cor); P4+
+        // segunda metade da lista Good (listas são ordenadas por fileira).
+        static TutorialSetup()
+        {
+            for (int i = 3; i < Phases.Count; i++)
+            {
+                var list = Phases[i].Soldiers;
+                for (int j = list.Count / 2; j < list.Count; j++)
+                {
+                    var e = list[j];
+                    e.Team = Team.Good;
+                    list[j] = e;
+                }
+            }
+        }
+
         public int PhaseIndex { get; private set; }
         PhaseDef _current; // fase resolvida (base ou escalada) — vale p/ profundidade infinita
         int _lastLayoutCount; // peças no último DISPARAR (eficiência do par)
@@ -349,19 +408,22 @@ namespace Topple.Game
             var soldiers = new List<EnemySpot>();
             foreach (var s in m.Soldiers)
             {
+                EnemySpot spot;
                 if (s.Kind == Topple.Core.MapEnemyKind.Brute)
-                    soldiers.Add(EnemySpot.Brute(s.X, s.Z));
+                    spot = EnemySpot.Brute(s.X, s.Z);
                 else if (s.Kind == Topple.Core.MapEnemyKind.Patroller && s.Loop != null && s.Loop.Count >= 2)
                 {
                     var loop = new Vector3[s.Loop.Count];
                     for (int i = 0; i < loop.Length; i++) loop[i] = new Vector3(s.Loop[i].X, 0f, s.Loop[i].Z);
-                    soldiers.Add(EnemySpot.Patroller(s.Speed, loop));
+                    spot = EnemySpot.Patroller(s.Speed, loop);
                 }
-                else soldiers.Add(EnemySpot.Soldier(s.X, s.Z));
+                else spot = EnemySpot.Soldier(s.X, s.Z);
+                spot.Team = s.Team;
+                soldiers.Add(spot);
             }
             var blocks = new List<BlockDef>();
             foreach (var b in m.Blocks)
-                blocks.Add(new BlockDef { Center = new Vector3(b.CX, 0.5f, b.CZ), Size = new Vector3(b.SX, 1.0f, b.SZ) });
+                blocks.Add(new BlockDef { Center = new Vector3(b.CX, 0.5f, b.CZ), Size = new Vector3(b.SX, 1.0f, b.SZ), Variant = b.Variant });
             var gaps = new List<GapDef>();
             foreach (var g in m.Gaps)
                 gaps.Add(new GapDef { Center = new Vector3(g.X, 0f, g.Z), R = g.RadiusCells * 0.05f, NeedReach = g.NeedReach });
@@ -436,6 +498,12 @@ namespace Topple.Game
             }
             SpawnSoldierPreviews();
             SpawnBlockPreviews();
+            // Terreno fake da fase (saias de buraco + sujidade): artesanal usa
+            // semente da fase (estável entre runs); gerada deriva da run.
+            uint seedEff = (ProceduralFromStart || PhaseIndex >= Phases.Count) && Run != null
+                ? Run.Seed ^ (uint)(PhaseIndex * 7919 + 1)
+                : (uint)(PhaseIndex * 1000 + 7);
+            SpawnGroundDressing(seedEff);
             EnsureZone();
             _zone.SetActive(true);
             // Câmera enquadra soldados + trigger (o marcador verde precisa nascer visível).
@@ -461,6 +529,8 @@ namespace Topple.Game
             Hud.RefreshTray(Planning.Selected, Planning.Data.HandCount);
             Hud.SetStatus(0, SoldierSpots.Count);
             Debug.Log($"[TOPPLE][GAME] fase {PhaseIndex + 1}: {ph.Name}");
+            _phaseLoaded = true;
+            AutoSave(); // checkpoint por fase (load continua daqui)
         }
 
         public void NextPhase()
@@ -493,6 +563,49 @@ namespace Topple.Game
             LoadPhase(0);
         }
 
+        // ---- Main menu (play/settings/load) ----
+        public void ShowMenu()
+        {
+            if (Menu == null) return;
+            Menu.Show(_phaseLoaded && Run != null && !Run.IsDead, SaveInfo(), _settings);
+        }
+
+        void HideMenu()
+        {
+            if (Menu != null) Menu.Hide();
+        }
+
+        string SaveInfo()
+        {
+            if (RunStore.TryLoadAuto(out var sv) && sv != null) return "Auto-save: " + sv.Info();
+            return null;
+        }
+
+        void ApplySettings(SettingsData s)
+        {
+            if (s == null) return;
+            AudioListener.volume = Mathf.Clamp01(s.volume);
+            if (Juice != null)
+            {
+                var vol = Juice.GetComponentInChildren<Volume>(true);
+                if (vol != null) vol.enabled = s.postFX;
+            }
+            CameraController.ZoomStep = Mathf.Clamp(s.zoomSpeed, 0.01f, 0.10f);
+        }
+
+        // Checkpoint por fase (nunca mid-sim): falha de IO só avisa.
+        // Em batch (CI/test-runner) não salva sem override — não suja o save real.
+        void AutoSave()
+        {
+            try
+            {
+                if (Run == null) return;
+                if (Application.isBatchMode && RunStore.FileOverride == null) return;
+                RunStore.SaveAuto(Run);
+            }
+            catch (System.Exception e) { Debug.LogWarning($"[TOPPLE][SAVE] auto-save falhou: {e.Message}"); }
+        }
+
         // Primeira carta com saldo no deck (padrão: comum).
         PieceId FirstAvailable()
         {
@@ -521,15 +634,30 @@ namespace Topple.Game
             _previews.transform.SetParent(transform, false);
             var soldierPrefab = PrefabRegistry.Soldier();
             var brutePrefab = PrefabRegistry.Brute();
-            if (soldierPrefab == null) return;
+            var soldierGoodPrefab = PrefabRegistry.Soldier(Team.Good);
+            var bruteGoodPrefab = PrefabRegistry.Brute(Team.Good);
+            if (soldierPrefab == null)
+            {
+                if (PatrolVitrine != null) PatrolVitrine.Clear();
+                return;
+            }
+            var vitrine = new List<(Transform go, List<Vector3> loop, float speed)>();
             foreach (var s in SoldierSpots)
             {
-                var prefab = s.Kind == EnemyKind.Brute && brutePrefab != null ? brutePrefab : soldierPrefab;
+                bool brute = s.Kind == EnemyKind.Brute;
+                var prefab = brute
+                    ? (s.Team == Team.Good && bruteGoodPrefab != null ? bruteGoodPrefab : brutePrefab)
+                    : (s.Team == Team.Good && soldierGoodPrefab != null ? soldierGoodPrefab : soldierPrefab);
+                if (prefab == null) continue;
                 var go = Instantiate(prefab, _previews.transform);
                 go.transform.SetPositionAndRotation(s.Pos, Quaternion.identity);
                 var rb = go.GetComponent<Rigidbody>();
                 if (rb != null) rb.isKinematic = true;
+                // Vitrine: patrulheiro anda no loop durante o planejamento.
+                if (s.Kind == EnemyKind.Patroller && s.Waypoints != null && s.Waypoints.Count >= 2)
+                    vitrine.Add((go.transform, s.Waypoints, s.Speed));
             }
+            if (PatrolVitrine != null) PatrolVitrine.Rebuild(vitrine);
             SpawnPatrolMarkers();
             SpawnTriggerMarker();
         }
@@ -689,6 +817,153 @@ namespace Topple.Game
 
         Transform FindOrNull(string name) => transform.Find(name);
 
+        // ---- Terreno fake (dono, gameplay > visual): SÓ visual, física plana.
+        // Saias/borda de buraco, sujidade do feltro (vales) e colinas de fundo.
+        // Sem collider, sem Rigidbody, sem efeito em validade ou simulação.
+        static Material _voidSkirtMat, _voidRimMat, _dirtPatchMat, _stonePatchMat;
+
+        static Material DressMat(ref Material slot, Color c)
+        {
+            if (slot == null)
+            {
+                slot = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                slot.color = c;
+            }
+            return slot;
+        }
+
+        static int AddDressBox(Transform parent, string name, Vector3 pos, Vector3 scale, Material mat)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = name;
+            go.transform.SetParent(parent, false);
+            go.transform.position = pos;
+            go.transform.localScale = scale;
+            go.GetComponent<Renderer>().sharedMaterial = mat;
+            Object.Destroy(go.GetComponent<Collider>());
+            return 1;
+        }
+
+        // Saias internas + filete de alerta do buraco (abismo aberto: sem fundo,
+        // a peça cai no escuro e some no KillY=-5). Estático p/ teste PlayMode.
+        public static int BuildVoidDressing(Transform parent, List<VoidDef> voids)
+        {
+            int n = 0;
+            if (parent == null || voids == null) return 0;
+            var skirt = DressMat(ref _voidSkirtMat, new Color(0.23f, 0.15f, 0.10f));
+            var rim = DressMat(ref _voidRimMat, new Color(0.55f, 0.16f, 0.12f));
+            foreach (var v in voids)
+            {
+                float x0 = v.Center.x - v.Size.x * 0.5f, x1 = v.Center.x + v.Size.x * 0.5f;
+                float z0 = v.Center.z - v.Size.z * 0.5f, z1 = v.Center.z + v.Size.z * 0.5f;
+                float sx = x1 - x0, sz = z1 - z0, mx = (x0 + x1) * 0.5f, mz = (z0 + z1) * 0.5f;
+                n += AddDressBox(parent, "VoidSkirt", new Vector3(mx, -0.75f, z0), new Vector3(sx, 1.5f, 0.06f), skirt);
+                n += AddDressBox(parent, "VoidSkirt", new Vector3(mx, -0.75f, z1), new Vector3(sx, 1.5f, 0.06f), skirt);
+                n += AddDressBox(parent, "VoidSkirt", new Vector3(x0, -0.75f, mz), new Vector3(0.06f, 1.5f, sz), skirt);
+                n += AddDressBox(parent, "VoidSkirt", new Vector3(x1, -0.75f, mz), new Vector3(0.06f, 1.5f, sz), skirt);
+                n += AddDressBox(parent, "VoidRim", new Vector3(mx, 0.02f, z0), new Vector3(sx + 0.12f, 0.02f, 0.12f), rim);
+                n += AddDressBox(parent, "VoidRim", new Vector3(mx, 0.02f, z1), new Vector3(sx + 0.12f, 0.02f, 0.12f), rim);
+                n += AddDressBox(parent, "VoidRim", new Vector3(x0, 0.02f, mz), new Vector3(0.12f, 0.02f, sz + 0.12f), rim);
+                n += AddDressBox(parent, "VoidRim", new Vector3(x1, 0.02f, mz), new Vector3(0.12f, 0.02f, sz + 0.12f), rim);
+            }
+            return n;
+        }
+
+        // Sujidade do feltro (vales fake, só pintura): quads 4mm acima da grama,
+        // longe de trigger/soldados/blocos/vãos/buracos. Semente própria —
+        // nunca consome o Run.Rng dos drafts.
+        void SpawnGroundDressing(uint seedEff)
+        {
+            var old = transform.Find("GroundDressing");
+            if (old != null) Destroy(old.gameObject);
+            var oldV = transform.Find("VoidDressing");
+            if (oldV != null) Destroy(oldV.gameObject);
+            var dress = new GameObject("GroundDressing");
+            dress.transform.SetParent(transform, false);
+            var vdress = new GameObject("VoidDressing");
+            vdress.transform.SetParent(transform, false);
+            if (_current.Voids != null) BuildVoidDressing(vdress.transform, _current.Voids);
+
+            var rng = new ToppleRng(seedEff ^ 0xD1CEu);
+            var spots = new List<(float x, float z, float r)>();
+            var dirt = DressMat(ref _dirtPatchMat, new Color(0.35f, 0.25f, 0.16f));
+            var stone = DressMat(ref _stonePatchMat, new Color(0.25f, 0.28f, 0.20f));
+            int placed = 0;
+            for (int attempt = 0; attempt < 60 && placed < 8; attempt++)
+            {
+                float x = (rng.NextFloat() * 2f - 1f) * 11f;
+                float z = (rng.NextFloat() * 2f - 1f) * 7f;
+                float r = 0.5f + rng.NextFloat() * 0.75f;
+                if (!DecalSpotOk(x, z, r, spots)) continue;
+                spots.Add((x, z, r));
+                AddDressBox(dress.transform, "GroundPatch",
+                    new Vector3(x, 0f, z), new Vector3(r * 2f, 0.008f, r * 2f),
+                    placed % 2 == 0 ? dirt : stone);
+                placed++;
+            }
+        }
+
+        bool DecalSpotOk(float x, float z, float r, List<(float x, float z, float r)> spots)
+        {
+            float dx = x - Planning.TriggerPos.x, dz = z - Planning.TriggerPos.y;
+            if (dx * dx + dz * dz < (r + 1.2f) * (r + 1.2f)) return false;
+            foreach (var s in SoldierSpots)
+            {
+                dx = x - s.Pos.x; dz = z - s.Pos.z;
+                if (dx * dx + dz * dz < (r + 1.0f) * (r + 1.0f)) return false;
+            }
+            foreach (var b in _current.Blocks)
+            {
+                float h = Mathf.Max(b.Size.x, b.Size.z) * 0.5f;
+                dx = x - b.Center.x; dz = z - b.Center.z;
+                if (dx * dx + dz * dz < (r + h + 0.5f) * (r + h + 0.5f)) return false;
+            }
+            if (_current.Gaps != null)
+                foreach (var g in _current.Gaps)
+                {
+                    dx = x - g.Center.x; dz = z - g.Center.z;
+                    if (dx * dx + dz * dz < (r + g.R + 0.3f) * (r + g.R + 0.3f)) return false;
+                }
+            if (_current.Voids != null)
+                foreach (var v in _current.Voids)
+                {
+                    float h = Mathf.Max(v.Size.x, v.Size.z) * 0.5f;
+                    dx = x - v.Center.x; dz = z - v.Center.z;
+                    if (dx * dx + dz * dz < (r + h + 0.3f) * (r + h + 0.3f)) return false;
+                }
+            foreach (var p in spots)
+            {
+                dx = x - p.x; dz = z - p.z;
+                if (dx * dx + dz * dz < (r + p.r + 1.0f) * (r + p.r + 1.0f)) return false;
+            }
+            return true;
+        }
+
+        // Colinas de fundo (só vitrine): anel fixo fora do campo 24×16,
+        // sem collider/física. Construído 1x (Build ou primeira cena salva).
+        static void BuildBackdropHills(Transform parent)
+        {
+            var go = new GameObject("BackdropHills");
+            go.transform.SetParent(parent, false);
+            var rng = new ToppleRng(0xB17Fu);
+            var mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            mat.color = new Color(0.10f, 0.16f, 0.11f);
+            for (int i = 0; i < 10; i++)
+            {
+                float a = (i / 10f) * Mathf.PI * 2f + rng.NextFloat() * 0.3f;
+                float x = Mathf.Cos(a) * (14f + rng.NextFloat() * 3f);
+                float z = Mathf.Sin(a) * (10f + rng.NextFloat() * 2f);
+                float w = 3f + rng.NextFloat() * 2f, h = 1f + rng.NextFloat() * 2f;
+                var hill = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                hill.name = "BackdropHill";
+                hill.transform.SetParent(go.transform, false);
+                hill.transform.position = new Vector3(x, -h * 0.35f, z);
+                hill.transform.localScale = new Vector3(w, h, w);
+                hill.GetComponent<Renderer>().sharedMaterial = mat;
+                Object.Destroy(hill.GetComponent<Collider>());
+            }
+        }
+
         void SpawnBlockPreviews()
         {
             if (_blockPreviews == null)
@@ -706,7 +981,7 @@ namespace Topple.Game
                 go.transform.SetParent(_blockPreviews.transform, false);
                 go.transform.SetPositionAndRotation(b.Center, Quaternion.identity);
                 go.transform.localScale = b.Size;
-                go.GetComponent<Renderer>().sharedMaterial = SimulationController.ObstacleMat();
+                go.GetComponent<Renderer>().sharedMaterial = SimulationController.ObstacleMat(b.Variant);
                 var rb = go.GetComponent<Rigidbody>();
                 if (rb == null) rb = go.AddComponent<Rigidbody>();
                 rb.isKinematic = true;
@@ -779,9 +1054,10 @@ namespace Topple.Game
             if (_blockPreviews != null) _blockPreviews.SetActive(false);
             if (_zone != null) _zone.SetActive(false);
             Planning.SetVisualsActive(false); // as peças da sim nascem separadas
+            if (Cam != null) Cam.StopFollow(); // sai do modo seguir p/ câmera livre
             var blocks = new List<ObstacleDef>();
             foreach (var b in _current.Blocks)
-                blocks.Add(new ObstacleDef { Center = b.Center, Size = b.Size });
+                blocks.Add(new ObstacleDef { Center = b.Center, Size = b.Size, Variant = b.Variant });
             Sim.StartSim(layout, SoldierSpots, blocks);
             Hud.SetRun(Run.Life, Run.AttemptsLeft, ToppleRules.AttemptsPerPhase, Run.Gold);
             Hud.SetStatus(0, SoldierSpots.Count, "Simulando…");
@@ -946,17 +1222,25 @@ namespace Topple.Game
             Planning.Active = true;
             Planning.ArmPathDefault(); // trilha sempre ligada, inclusive no retry
             Hud.HideResult();
+            Hud.SetSimDim(false); // volta a HUD cheia (saiu da sim)
             Hud.SetStatus(0, SoldierSpots.Count);
         }
 
         void Update()
         {
-            if (Hud != null && Planning != null && Planning.Active) Hud.PollShortcuts();
+            // Menu aberto: HUD de jogo some, câmera parada, input bloqueado.
+            bool inMenu = Menu != null && Menu.IsVisible;
+            if (Hud != null) Hud.SetMenuMode(inMenu);
+            if (Cam != null) Cam.enabled = !inMenu;
+            if (Planning != null) Planning.InputBlocked = inMenu;
+            if (Hud != null && Planning != null && Planning.Active && !inMenu) Hud.PollShortcuts();
             if (Hud != null && Planning != null && Sim != null)
             {
                 if (Sim.Running)
                 {
-                    Cam.FollowAllowed = false;
+                    // Câmera livre na sim (dono, opção B): sem auto-follow, C morto.
+                    Cam.FollowAllowed = true;
+                    Cam.FollowToggleEnabled = false;
                     int k = Sim.KnockedSoFar;
                     if (Audio != null)
                         while (_knocksHeard < k) { Audio.Knock(); _knocksHeard++; }
@@ -968,6 +1252,7 @@ namespace Topple.Game
                 else if (Planning.Active)
                 {
                     Cam.FollowAllowed = true;
+                    Cam.FollowToggleEnabled = true;
                     Cam.FollowPoint = Planning.GhostWorldPos;
                     var (fx, fz) = PlanningData.FacingOf(Planning.RotDeg);
                     Cam.FollowDir = new Vector3(fx, 0f, fz);

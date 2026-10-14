@@ -78,13 +78,14 @@ namespace Topple.Sim
             var pos = spot.Pos;
             pos.x += Jitter(0.002f); pos.z += Jitter(0.002f);
             var go = spot.Kind == Topple.Core.EnemyKind.Brute
-                ? SimBuilder.BuildBrute() : SimBuilder.BuildSoldier();
+                ? SimBuilder.BuildBrute(spot.Team) : SimBuilder.BuildSoldier(spot.Team);
             go.transform.SetPositionAndRotation(pos, Quaternion.Euler(0, Jitter(180f), 0));
             SceneManager.MoveGameObjectToScene(go, _scene);
             var id = _nextId++;
             var en = go.AddComponent<SimEnemy>();
             en.Id = id;
             en.Kind = spot.Kind;
+            en.Team = spot.Team;
             if (spot.Kind == Topple.Core.EnemyKind.Patroller && spot.Waypoints.Count >= 2)
             {
                 en.Patrol = new System.Collections.Generic.List<Vector3>(spot.Waypoints);

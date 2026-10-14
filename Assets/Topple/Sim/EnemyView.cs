@@ -8,5 +8,6 @@ namespace Topple.Sim
     {
         public string VisualId = "enemy.soldier";
         public string EnemyId = "soldier";
+        public Topple.Core.Team Team; // time narrativo (só visual)
     }
 }

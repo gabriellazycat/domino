@@ -71,6 +71,14 @@ namespace Topple.Core
     // patrulheiro (loop cinemático lento). Puro (sem UnityEngine).
     public enum EnemyKind { Soldier, Brute, Patroller }
 
+    // Times narrativos (dono): mal (vermelho) x bem (ciano). SÓ visual —
+    // física, knock, splash e bulldoze ignoram o time (trava de prova).
+    public enum Team { Evil, Good }
+
+    // Variante visual de muro (dono): só pintura, mesmo BoxCollider e mesma
+    // validade (gameplay > visual: sem telhado, sem saliência).
+    public enum BlockVariant { Stone, House, Fence }
+
     // RNG com seed — GDD §4.2/§15.7: nenhuma aleatoriedade fora de RNG com seed.
     public struct ToppleRng
     {
@@ -82,5 +90,8 @@ namespace Topple.Core
             return _state;
         }
         public float NextFloat() => (Next() >> 8) / 16777216f;
+        // Estado exato p/ auto-save (mesma run, mesmos mapas/drafts após o load).
+        public uint State => _state;
+        public void SetState(uint s) { _state = s == 0 ? 0x9E3779B9u : s; }
     }
 }

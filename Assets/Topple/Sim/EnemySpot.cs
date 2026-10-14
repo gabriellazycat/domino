@@ -13,6 +13,7 @@ namespace Topple.Sim
         public Vector3 Pos;
         public List<Vector3> Waypoints;
         public float Speed; // patrulheiro: m/s no loop (padrão 0,3)
+        public Team Team; // time narrativo (só visual; default Evil = visual atual)
 
         public EnemySpot(EnemyKind kind, Vector3 pos)
         {
@@ -20,6 +21,7 @@ namespace Topple.Sim
             Pos = pos;
             Waypoints = new List<Vector3>();
             Speed = 0.3f;
+            Team = Team.Evil; // lang 9: todo campo no construtor (default = mal)
         }
 
         // Atalho p/ soldado parado (fase authoring enxuta).

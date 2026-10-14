@@ -17,11 +17,12 @@ namespace Topple.Game
         public float Elapsed;
     }
 
-    public struct ObstacleDef
-    {
-        public Vector3 Center;
-        public Vector3 Size;
-    }
+        public struct ObstacleDef
+        {
+            public Vector3 Center;
+            public Vector3 Size;
+            public Topple.Core.BlockVariant Variant; // só pintura (Stone default)
+        }
 
     public sealed class SimulationController : MonoBehaviour
     {
@@ -50,16 +51,34 @@ namespace Topple.Game
         float _stillTime;
         bool _finished;
 
-        static Material _obstacleMatShared;
+        static Material _obsStone, _obsHouse, _obsFence;
 
-        public static Material ObstacleMat()
+        public static Material ObstacleMat() => ObstacleMat(Topple.Core.BlockVariant.Stone);
+
+        // Muros por variante (dono): só pintura, mesmo collider e validade.
+        // Pedra cinza atual; casa tijolo (sem telhado: visibilidade);
+        // cerca madeira baixa (bloqueia igual muro).
+        public static Material ObstacleMat(Topple.Core.BlockVariant v)
         {
-            if (_obstacleMatShared == null)
+            switch (v)
             {
-                _obstacleMatShared = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-                _obstacleMatShared.color = new Color(0.55f, 0.55f, 0.60f); // pedra (ArtBible na T5)
+                case Topple.Core.BlockVariant.House:
+                    if (_obsHouse == null) _obsHouse = MakeObstacle(new Color(0.58f, 0.36f, 0.26f));
+                    return _obsHouse;
+                case Topple.Core.BlockVariant.Fence:
+                    if (_obsFence == null) _obsFence = MakeObstacle(new Color(0.45f, 0.31f, 0.18f));
+                    return _obsFence;
+                default:
+                    if (_obsStone == null) _obsStone = MakeObstacle(new Color(0.55f, 0.55f, 0.60f));
+                    return _obsStone;
             }
-            return _obstacleMatShared;
+        }
+
+        static Material MakeObstacle(Color c)
+        {
+            var m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            m.color = c; // pedra/tijolo/madeira (ArtBible na T5)
+            return m;
         }
 
         public void StartSim(List<Placement> layout, List<EnemySpot> spots, List<ObstacleDef> statics = null)
@@ -79,7 +98,7 @@ namespace Topple.Game
                     box.transform.SetParent(_container.transform, false);
                     box.transform.SetPositionAndRotation(o.Center, Quaternion.identity);
                     box.transform.localScale = o.Size;
-                    box.GetComponent<Renderer>().sharedMaterial = ObstacleMat();
+                    box.GetComponent<Renderer>().sharedMaterial = ObstacleMat(o.Variant);
                     var orb = box.GetComponent<Rigidbody>();
                     if (orb == null) orb = box.AddComponent<Rigidbody>();
                     orb.isKinematic = true;
@@ -115,11 +134,16 @@ namespace Topple.Game
             }
             var soldierPrefab = PrefabRegistry.Soldier();
             var brutePrefab = PrefabRegistry.Brute();
+            var soldierGoodPrefab = PrefabRegistry.Soldier(Team.Good);
+            var bruteGoodPrefab = PrefabRegistry.Brute(Team.Good);
             foreach (var s in spots)
             {
                 bool brute = s.Kind == Topple.Core.EnemyKind.Brute;
                 bool patrol = s.Kind == Topple.Core.EnemyKind.Patroller && s.Waypoints.Count >= 2;
-                var prefab = brute ? brutePrefab : soldierPrefab;
+                // Time só troca o prefab (fallback p/ Evil se o Good faltar).
+                var prefab = brute
+                    ? (s.Team == Team.Good && bruteGoodPrefab != null ? bruteGoodPrefab : brutePrefab)
+                    : (s.Team == Team.Good && soldierGoodPrefab != null ? soldierGoodPrefab : soldierPrefab);
                 if (prefab == null) continue;
                 var go = Instantiate(prefab, _container.transform);
                 go.transform.SetPositionAndRotation(s.Pos, Quaternion.identity);
@@ -130,6 +154,7 @@ namespace Topple.Game
                 var en = go.GetComponent<SimEnemy>();
                 if (en == null) en = go.AddComponent<SimEnemy>();
                 en.Kind = s.Kind;
+                en.Team = s.Team;
                 if (patrol)
                 {
                     en.Patrol = new System.Collections.Generic.List<Vector3>(s.Waypoints);

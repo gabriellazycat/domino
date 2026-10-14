@@ -137,10 +137,13 @@ namespace Topple.Sim
             };
         }
 
-        public static GameObject BuildSoldier()
+        public static GameObject BuildSoldier(Topple.Core.Team team = Topple.Core.Team.Evil)
         {
             // GDD 13.3: base 0,50x0,06 + corpo capsula 0,30x0,70 + cabeca esfera 0,22 - 1,0 kg, 1,10 m.
+            // Time só muda a cor do corpo (bem = ciano, mal = vermelho atual).
             EnsurePhysicsDefaults();
+            var bodyColor = team == Topple.Core.Team.Good
+                ? new Color(0.15f, 0.65f, 0.85f) : new Color(0.75f, 0.20f, 0.20f);
             var go = new GameObject("Soldier");
             var baseCol = go.AddComponent<BoxCollider>(); // base aproximada por caixa fina (cilindro real na T2)
             baseCol.size = new Vector3(0.50f, 0.06f, 0.50f); baseCol.center = new Vector3(0, 0.03f, 0);
@@ -150,7 +153,7 @@ namespace Topple.Sim
             body.transform.localPosition = new Vector3(0, 0.41f, 0);
             var cap = body.AddComponent<CapsuleCollider>();
             cap.radius = 0.15f; cap.height = 0.70f; cap.material = _wood;
-            AddPrimitiveVisual(body, "Capsule.fbx", new Vector3(0.30f, 0.70f, 0.30f), Vector3.zero, new Color(0.75f, 0.20f, 0.20f));
+            AddPrimitiveVisual(body, "Capsule.fbx", new Vector3(0.30f, 0.70f, 0.30f), Vector3.zero, bodyColor);
             var head = new GameObject("Head");
             head.transform.SetParent(go.transform, false);
             head.transform.localPosition = new Vector3(0, 0.99f, 0);
@@ -165,11 +168,14 @@ namespace Topple.Sim
             return go;
         }
 
-        public static GameObject BuildBrute()
+        public static GameObject BuildBrute(Topple.Core.Team team = Topple.Core.Team.Evil)
         {
             // Pesadao headless: base 0,70x0,06 + corpo capsula 0,40x0,90 + cabeca
             // esfera 0,28 - 3,0 kg. Mesmas medidas do prefab (PrefabGen.Brute).
+            // Time só muda a cor do detalhe (bem = ciano, mal = laranja atual).
             EnsurePhysicsDefaults();
+            var trimColor = team == Topple.Core.Team.Good
+                ? new Color(0.15f, 0.65f, 0.85f) : new Color(0.85f, 0.30f, 0.10f);
             var go = new GameObject("Brute");
             var baseCol = go.AddComponent<BoxCollider>();
             baseCol.size = new Vector3(0.70f, 0.06f, 0.70f); baseCol.center = new Vector3(0, 0.03f, 0);
@@ -185,7 +191,7 @@ namespace Topple.Sim
             head.transform.localPosition = new Vector3(0, 1.25f, 0);
             var sph = head.AddComponent<SphereCollider>();
             sph.radius = 0.14f; sph.material = _wood;
-            AddPrimitiveVisual(head, "Sphere.fbx", new Vector3(0.28f, 0.28f, 0.28f), Vector3.zero, new Color(0.85f, 0.30f, 0.10f));
+            AddPrimitiveVisual(head, "Sphere.fbx", new Vector3(0.28f, 0.28f, 0.28f), Vector3.zero, trimColor);
             var rb = go.AddComponent<Rigidbody>();
             rb.mass = 3.0f;
             rb.sleepThreshold = 0.005f;

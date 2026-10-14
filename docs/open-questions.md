@@ -93,3 +93,23 @@
 - KeepLeanersAwake (opt-in, default off p/ preservar o golden T1).
 - Previews herméticos (cena vazia): a cena aberta contaminava o render.
 - Peças: 2 submeshes (tampas com textura / laterais cor sólida).
+
+## Lições do pacote 14/out (menu/camera/terreno/procedural)
+- Struct lang 9: todo campo novo precisa entrar no construtor (`EnemySpot.Team`)
+  ou só existir via inicializador (`MapSoldier/MapBlock/BlockDef`, sem ctor).
+  `Team Team;` (campo homônimo do tipo) compila, mas prefira nome distinto.
+- Local com nome de parâmetro não recompila (`body` no `SoldierVariant`).
+- Em batch os frames voam: `Time.time` quase não anda em 30 frames — testes de
+  movimento usam `WaitForSecondsRealtime`, não contagem de frames.
+- `Object.Destroy` de collider só vale no fim do frame: assert de "sem física"
+  exige `yield return null` antes.
+- Cena salva abre com overlay (menu): `Build()` entra direto, `Start()` mostra
+  o menu — testes de cena salva não quebram e o jogo ganha menu sem editar .unity.
+- Teste PlayMode que escreve save usa `FileOverride` + apaga no finally; o
+  auto-save pula batch sem override (não suja o save real no CI).
+- `Floor`/`Ceiling` em fração estouram medida (vão 3 m numa spec 1–2 m):
+  cortar o lado longe preserva a grade.
+- Harness mede solver, não gerador: mapa bom em forma de fork (cobertura total,
+  tamanho justo) reprova no greedy sem-fork (4/11) e VENCE no fork-split
+  (11/11). Cobertura de grupos pura (`SolverLegsTests`, sem física) distingue
+  "mapa selado" de "morte física" sem variância de thread.

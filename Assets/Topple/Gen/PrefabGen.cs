@@ -163,8 +163,19 @@ namespace Topple.Gen
         public static void Soldier(ArtBible bible)
         {
             var shader = Shader.Find("Universal Render Pipeline/Lit");
-            var bodyMat = MatLib.GetOrCreate($"{GenRoot}/Materials/enemy_soldier_body.mat", shader);
-            MatLib.SetLit(bodyMat, bible.Get("enemy.soldier.body", new Color(0.69f, 0.19f, 0.19f)), bible.MatteSmoothness, 0f, null);
+            // Mal = vermelho atual; bem = ciano (dono). Mesma geometria/física.
+            SoldierVariant(bible, shader, Topple.Core.Team.Evil,
+                bible.Get("enemy.soldier.body", new Color(0.69f, 0.19f, 0.19f)), "", "enemy_soldier");
+            SoldierVariant(bible, shader, Topple.Core.Team.Good,
+                bible.Get("enemy.soldier.body.good", new Color(0.15f, 0.65f, 0.85f)), "_good", "enemy_soldier_good");
+
+            Brute(bible, shader);
+        }
+
+        static void SoldierVariant(ArtBible bible, Shader shader, Topple.Core.Team team, Color bodyColor, string matSuffix, string prefab)
+        {
+            var bodyMat = MatLib.GetOrCreate($"{GenRoot}/Materials/enemy_soldier_body{matSuffix}.mat", shader);
+            MatLib.SetLit(bodyMat, bodyColor, bible.MatteSmoothness, 0f, null);
             var skinMat = MatLib.GetOrCreate($"{GenRoot}/Materials/enemy_soldier_skin.mat", shader);
             MatLib.SetLit(skinMat, bible.Get("enemy.soldier.skin", new Color(0.91f, 0.76f, 0.60f)), bible.MatteSmoothness, 0f, null);
 
@@ -184,20 +195,28 @@ namespace Topple.Gen
             go.GetComponent<Rigidbody>().centerOfMass = new Vector3(0, 0.25f, 0);
             ApplyWood(go);
             var view = go.AddComponent<Topple.Sim.EnemyView>();
-            view.VisualId = "enemy.soldier"; view.EnemyId = "soldier";
-            SavePrefab(go, $"{GenRoot}/Prefabs/enemy_soldier.prefab");
-
-            Brute(bible, shader);
+            view.VisualId = "enemy.soldier"; view.EnemyId = "soldier"; view.Team = team;
+            SavePrefab(go, $"{GenRoot}/Prefabs/{prefab}.prefab");
         }
 
         // Pesadão: outra cor (decisão do dono, sem modelagem nova) — base Ø0,70,
         // corpo Ø0,40×0,90, blindado escuro. Só pesada/explosão/queda derrubam.
+        // Time só troca o detalhe (mal = laranja atual, bem = ciano).
         public static void Brute(ArtBible bible, Shader shader)
         {
+            BruteVariant(bible, Topple.Core.Team.Evil,
+                new Color(0.85f, 0.30f, 0.10f), "", "enemy_brute");
+            BruteVariant(bible, Topple.Core.Team.Good,
+                bible.Get("enemy.brute.trim.good", new Color(0.15f, 0.65f, 0.85f)), "_good", "enemy_brute_good");
+        }
+
+        static void BruteVariant(ArtBible bible, Topple.Core.Team team, Color trim, string matSuffix, string prefab)
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
             var armorMat = MatLib.GetOrCreate($"{GenRoot}/Materials/enemy_brute_body.mat", shader);
             MatLib.SetLit(armorMat, new Color(0.16f, 0.16f, 0.20f), bible.MetalSmoothness, bible.MetalMetallic, null);
-            var trimMat = MatLib.GetOrCreate($"{GenRoot}/Materials/enemy_brute_trim.mat", shader);
-            MatLib.SetLit(trimMat, new Color(0.85f, 0.30f, 0.10f), bible.MatteSmoothness, 0f, null);
+            var trimMat = MatLib.GetOrCreate($"{GenRoot}/Materials/enemy_brute_trim{matSuffix}.mat", shader);
+            MatLib.SetLit(trimMat, trim, bible.MatteSmoothness, 0f, null);
             var go = new GameObject("brute");
             Part(go, "Base", PrimMesh(PrimitiveType.Cylinder), armorMat, new Vector3(0.70f, 0.06f, 0.70f), new Vector3(0, 0.03f, 0));
             var bcol = go.AddComponent<BoxCollider>();
@@ -213,8 +232,8 @@ namespace Topple.Gen
             go.GetComponent<Rigidbody>().centerOfMass = new Vector3(0, 0.30f, 0);
             ApplyWood(go);
             var view = go.AddComponent<Topple.Sim.EnemyView>();
-            view.VisualId = "enemy.brute"; view.EnemyId = "brute";
-            SavePrefab(go, $"{GenRoot}/Prefabs/enemy_brute.prefab");
+            view.VisualId = "enemy.brute"; view.EnemyId = "brute"; view.Team = team;
+            SavePrefab(go, $"{GenRoot}/Prefabs/{prefab}.prefab");
         }
 
         // Malha built-in garantida via CreatePrimitive (nomes de GetBuiltinResource

@@ -1,6 +1,7 @@
 // T0: teste EditMode de exemplo — precisa passar. GDD §15.4.
 using NUnit.Framework;
 using Topple.Core;
+using Topple.Game;
 
 namespace Topple.Tests
 {
@@ -30,6 +31,22 @@ namespace Topple.Tests
             var a = new ToppleRng(12345); var b = new ToppleRng(12345);
             Assert.AreEqual(a.Next(), b.Next());
             Assert.AreEqual(a.NextFloat(), b.NextFloat());
+        }
+
+        [Test] public void Zoom_ClampZoomFasterAndBounded()
+        {
+            float keep = CameraController.ZoomStep;
+            try
+            {
+                CameraController.ZoomStep = 0.05f;
+                // Roda +100 aproxima 5 m (era 2 m no 0,02: zoom mais rápido).
+                Assert.AreEqual(17f, CameraController.ClampZoom(22f, 100f, 8f, 40f), 1e-6f);
+                // Trava nos limites (livre 8–40, follow 3–40).
+                Assert.AreEqual(8f, CameraController.ClampZoom(8f, 100f, 8f, 40f), 1e-6f);
+                Assert.AreEqual(40f, CameraController.ClampZoom(40f, -100f, 8f, 40f), 1e-6f);
+                Assert.AreEqual(3f, CameraController.ClampZoom(3f, 100f, 3f, 40f), 1e-6f);
+            }
+            finally { CameraController.ZoomStep = keep; }
         }
     }
 }

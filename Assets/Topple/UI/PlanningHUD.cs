@@ -22,7 +22,7 @@ namespace Topple.UI
         UIDocument _doc;
         Button _btnFire, _btnUndo, _btnRedo, _btnLast, _btnAgain, _btnNext, _btnSkip;
         ScrollView _tray;
-        VisualElement _bottomBar;
+        VisualElement _bottomBar, _topLeft;
         readonly System.Collections.Generic.Dictionary<PieceId, Button> _trayBtns = new();
         Label _lblObjective, _lblMsg, _lblResult, _lblCoach;
         VisualElement _banner;
@@ -47,6 +47,7 @@ namespace Topple.UI
             var root = doc.rootVisualElement;
             _tray = root.Q<ScrollView>("tray");
             _bottomBar = root.Q<VisualElement>("bottom-bar");
+            _topLeft = root.Q<VisualElement>("top-left"); // null no fallback (só bottom-bar)
             _btnFire = root.Q<Button>("btn-fire");
             _btnUndo = root.Q<Button>("btn-undo");
             _btnRedo = root.Q<Button>("btn-redo");
@@ -147,10 +148,38 @@ namespace Topple.UI
         }
 
         // Esmaece a barra inferior na sim (banner continua clicável).
+        // Dono (HUD enxuta total): além de esmaecer, ESCONDE bandeja e botões
+        // de planejamento até acabar a simulação (objetivo + banner ficam).
         public void SetSimDim(bool dim)
         {
             if (_bottomBar == null) return;
             _bottomBar.style.opacity = dim ? 0.4f : 1f;
+            SetSimMode(dim);
+        }
+
+        // HUD enxuta total na sim: some o que não é útil (tray + ações +
+        // coach); ficam objetivo, msg e banner. Press* seguem funcionando
+        // escondidos (Humble Object: testes não quebram).
+        public void SetSimMode(bool sim)        {
+            var show = sim ? DisplayStyle.None : DisplayStyle.Flex;
+            if (_tray != null) _tray.style.display = show;
+            if (_btnFire != null) _btnFire.style.display = show;
+            if (_btnUndo != null) _btnUndo.style.display = show;
+            if (_btnRedo != null) _btnRedo.style.display = show;
+            if (_btnLast != null) _btnLast.style.display = show;
+            // Pular fase é cheat debug: some na sim; volta só em build debug.
+            if (_btnSkip != null) _btnSkip.style.display = sim ? DisplayStyle.None
+                : (Debug.isDebugBuild ? DisplayStyle.Flex : DisplayStyle.None);
+            if (_lblCoach != null && sim) _lblCoach.style.display = DisplayStyle.None;
+        }
+
+        // Menu aberto: esconde a HUD de jogo inteira (menu tem a sua).
+        // Fallback só tem bottom-bar (top-left null — sem problema).
+        public void SetMenuMode(bool menu)
+        {
+            var show = menu ? DisplayStyle.None : DisplayStyle.Flex;
+            if (_bottomBar != null) _bottomBar.style.display = show;
+            if (_topLeft != null) _topLeft.style.display = show;
         }
 
         public void SetStatus(int knocked, int total, string msg = "", int pieces = -1, int par = 0)
@@ -230,6 +259,7 @@ namespace Topple.UI
 
         void RestoreBannerButtons()
         {
+            if (_banner != null) _banner.RemoveFromClassList("shop");
             if (_btnAgain != null && !string.IsNullOrEmpty(_againText)) _btnAgain.text = _againText;
             if (_btnNext != null && !string.IsNullOrEmpty(_nextText)) _btnNext.text = _nextText;
             // Volta ao default visível; cada Show* decide se esconde (evita
@@ -380,6 +410,7 @@ namespace Topple.UI
             if (_lblResult != null) _lblResult.text = $"★ LOJA ★ — ◉{gold} ouro";
             _btnAgain.style.display = DisplayStyle.None;
             _btnNext.style.display = DisplayStyle.None;
+            _banner.AddToClassList("shop"); // borda dourada (F7)
             _banner.RemoveFromClassList("hidden");
         }
 

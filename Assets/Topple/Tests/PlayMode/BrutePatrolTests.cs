@@ -151,5 +151,28 @@ namespace Topple.Tests
             Assert.IsFalse(en.Rb.isKinematic, "derrubado vira corpo dinâmico");
             yield break;
         }
+
+        [UnityTest] public IEnumerator Teams_SamePhysicsOnlyNarrative()
+        {
+            // Times (dono): bem ciano x mal vermelho, SÓ visual — mesma física.
+            _world = SimWorld.Create(41007);
+            _world.SpawnGround(new Vector2(24, 16));
+            var evil = _world.SpawnEnemy(new EnemySpot(EnemyKind.Soldier, new Vector3(2f, 0f, 0f)) { Team = Team.Evil });
+            var good = _world.SpawnEnemy(new EnemySpot(EnemyKind.Soldier, new Vector3(4f, 0f, 0f)) { Team = Team.Good });
+            Assert.AreEqual(Team.Evil, evil.Team, "time preservado no spawn");
+            Assert.AreEqual(Team.Good, good.Team, "time preservado no spawn");
+            Assert.AreEqual(evil.Rb.mass, good.Rb.mass, "mesma massa");
+            Assert.AreEqual(evil.KnockImpulse, good.KnockImpulse, "mesmo limiar");
+            var c1 = _world.SpawnPiece(PieceId.Common, new Vector3(1.1f, 0f, 0f), 90f);
+            var c2 = _world.SpawnPiece(PieceId.Common, new Vector3(3.1f, 0f, 0f), 90f);
+            ToppleOnto(c1); ToppleOnto(c2);
+            _world.Finish();
+            Assert.IsTrue(evil.Knocked && good.Knocked, "os dois times caem igual (só narrativa)");
+            // Prefab do bem existe (GenerateAll) com o time assado.
+            var prefab = PrefabRegistry.Soldier(Team.Good);
+            Assert.IsNotNull(prefab, "prefab do bem deveria existir (GenerateAll)");
+            Assert.AreEqual(Team.Good, prefab.GetComponent<EnemyView>().Team);
+            yield break;
+        }
     }
 }

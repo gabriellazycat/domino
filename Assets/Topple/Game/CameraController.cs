@@ -14,10 +14,22 @@ namespace Topple.Game
         // Follow por trás (tecla C, só com FollowAllowed): câmera atrás do ponto,
         // olhando ao longo da direção — "visão por trás das peças".
         public bool FollowAllowed = true;
+        // Dono (opção B): C morto na sim — câmera 100% manual. TutorialSetup
+        // desliga este toggle no StartSim e religa no planejamento.
+        public bool FollowToggleEnabled = true;
         public bool FollowBehind { get; private set; }
         public Vector3 FollowPoint;
         public Vector3 FollowDir = Vector3.right;
         float _yawOffset;
+
+        // Velocidade do zoom (roda): 0,05 ≈ 2,5x o antigo 0,02. Settings ajusta.
+        public static float ZoomStep = 0.05f;
+
+        // Matemática pura do zoom (p/ teste EditMode, sem Input System).
+        public static float ClampZoom(float dist, float wheel, float min, float max) =>
+            Mathf.Clamp(dist - wheel * ZoomStep, min, max);
+
+        public void StopFollow() { FollowBehind = false; _yawOffset = 0f; }
 
         PlanningInput _in;
         Camera _cam;
@@ -40,7 +52,7 @@ namespace Topple.Game
         void Update()
         {
             var kb = UnityEngine.InputSystem.Keyboard.current;
-            if (kb != null && kb.cKey.wasPressedThisFrame && FollowAllowed)
+            if (kb != null && kb.cKey.wasPressedThisFrame && FollowAllowed && FollowToggleEnabled)
             {
                 FollowBehind = !FollowBehind;
                 _yawOffset = 0f;
@@ -64,7 +76,7 @@ namespace Topple.Game
                     Pitch = Mathf.Clamp(Pitch - d.y * 0.3f, 10f, 70f);
                 }
                 float wz = _in.Wheel;
-                if (Mathf.Abs(wz) > 0.01f) Distance = Mathf.Clamp(Distance - wz * 0.02f, 3f, 40f);
+                if (Mathf.Abs(wz) > 0.01f) Distance = ClampZoom(Distance, wz, 3f, 40f);
                 var dir = FollowDir;
                 dir.y = 0;
                 if (dir.sqrMagnitude < 1e-6f) dir = Vector3.right;
@@ -98,7 +110,7 @@ namespace Topple.Game
                 if (mouse.rightButton.wasReleasedThisFrame) _rDown = false;
             }
             float w = _in.Wheel;
-            if (Mathf.Abs(w) > 0.01f) Distance = Mathf.Clamp(Distance - w * 0.02f, 8f, 40f);
+            if (Mathf.Abs(w) > 0.01f) Distance = ClampZoom(Distance, w, 8f, 40f);
             var move = Vector2.zero;
             if (kb != null)
             {

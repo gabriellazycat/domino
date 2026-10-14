@@ -156,6 +156,8 @@ namespace Topple.Gen
                 $"{GenRoot}/Prefabs/piece_tower.prefab",
                 $"{GenRoot}/Prefabs/enemy_soldier.prefab",
                 $"{GenRoot}/Prefabs/enemy_brute.prefab",
+                $"{GenRoot}/Prefabs/enemy_soldier_good.prefab",
+                $"{GenRoot}/Prefabs/enemy_brute_good.prefab",
                 $"{GenRoot}/Prefabs/field_table.prefab",
             }, GenUtil.ProjectRoot().Replace('\\', '/') + "/Artifacts/previews");
         }

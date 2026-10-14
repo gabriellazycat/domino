@@ -561,5 +561,222 @@ namespace Topple.Tests
             finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
             yield return null;
         }
+        // Câmera/HUD da sim (dono, opção B + enxuta total): na sim some bandeja
+        // e ações (ficam objetivo + banner), câmera 100% manual (ToppleCam não
+        // sobrescreve o Target, C morto); no retry a HUD cheia volta.
+        [UnityTest] public IEnumerator Sim_HidesPlanningUIAndFreesCamera()
+        {
+            TutorialSetup setup = null;
+            try
+            {
+                setup = TutorialSetup.Build("HumanSimCam");
+                yield return null;
+                yield return null;
+                var doc = HudDoc(setup);
+                var cam = setup.Cam.GetComponent<Camera>();
+                yield return Click(GroundScreen(cam, 0f, 0f));
+                yield return Click(GroundScreen(cam, 1f, 0f));
+                Assert.Greater(setup.Planning.Data.Count, 1, "trilha curta deveria colocar peças");
+                Time.timeScale = 6f;
+                setup.Hud.PressFire(); yield return null; yield return null;
+                Assert.IsTrue(setup.Sim.Running, "sim deveria estar rodando");
+                var root = doc.rootVisualElement;
+                Assert.AreEqual(DisplayStyle.None, root.Q<ScrollView>("tray").style.display.value,
+                    "bandeja some na sim");
+                foreach (var n in new[] { "btn-fire", "btn-undo", "btn-redo", "btn-last" })
+                    Assert.AreEqual(DisplayStyle.None, root.Q<Button>(n).style.display.value,
+                        "botao some na sim: " + n);
+                Assert.IsNotNull(root.Q<Label>("lbl-objective"), "objetivo fica na sim");
+                // Câmera livre: ToppleCam não toca o Target; C morto na sim.
+                setup.Cam.Target = new Vector3(-4f, 0f, 3f);
+                yield return null; yield return null;
+                Assert.AreEqual(new Vector3(-4f, 0f, 3f), setup.Cam.Target,
+                    "ToppleCam não deveria sobrescrever o Target na sim");
+                Assert.IsFalse(setup.Cam.FollowToggleEnabled, "C morto na sim");
+                Assert.IsFalse(setup.Cam.FollowBehind);
+                // Espera o fim; retry devolve a HUD cheia.
+                float t = 0f;
+                while (setup.LastResult == null && t < 40f)
+                {
+                    yield return new WaitForSecondsRealtime(0.25f);
+                    t += 0.25f;
+                }
+                Assert.IsNotNull(setup.LastResult, "sim deveria terminar");
+                setup.Hud.PressAgain(); yield return null; yield return null;
+                Assert.IsTrue(setup.Planning.Active, "retry volta ao planejamento");
+                Assert.AreEqual(DisplayStyle.Flex, root.Q<ScrollView>("tray").style.display.value,
+                    "bandeja volta no retry");
+                Assert.AreEqual(DisplayStyle.Flex, root.Q<Button>("btn-fire").style.display.value,
+                    "DISPARAR volta no retry");
+                Assert.IsTrue(setup.Cam.FollowToggleEnabled, "C volta no planejamento");
+                Debug.Log("[TOPPLE][HUMAN] sim enxuta + câmera livre ok");
+            }
+            finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
+            yield return null;
+        }
+        // Vitrine da patrulha (dono): anda no planejamento, sem interagir —
+        // spots, mão e sim intactos.
+        [UnityTest] public IEnumerator Patrol_VitrineWalksWithoutTouching()
+        {
+            TutorialSetup setup = null;
+            try
+            {
+                setup = TutorialSetup.Build("HumanVitrine");
+                yield return null;
+                yield return null;
+                setup.LoadPhase(4); // Ronda: tem patrulheiro
+                yield return null; yield return null;
+                Assert.IsNotNull(setup.PatrolVitrine, "vitrine deveria existir");
+                Assert.Greater(setup.PatrolVitrine.Count, 0, "Ronda deveria ter patrulha na vitrine");
+                Assert.IsFalse(setup.Sim.Running);
+                int n0 = setup.Planning.Data.Count;
+                var spots = new List<Vector3>();
+                foreach (var s in setup.SoldierSpots) spots.Add(s.Pos);
+                var p0 = setup.PatrolVitrine.PreviewPos(0);
+                // Relógio de parede (em batch os frames voam: 30 frames ≈ 30 ms).
+                yield return new WaitForSecondsRealtime(0.6f);
+                var p1 = setup.PatrolVitrine.PreviewPos(0);
+                Assert.Greater(Vector3.Distance(p0, p1), 0.03f, "vitrine deveria andar no loop");
+                Assert.AreEqual(spots.Count, setup.SoldierSpots.Count);
+                for (int i = 0; i < spots.Count; i++)
+                    Assert.AreEqual(spots[i], setup.SoldierSpots[i].Pos, "spots intactos (sem interação)");
+                Assert.AreEqual(n0, setup.Planning.Data.Count, "mão intacta (sem interação)");
+                Debug.Log("[TOPPLE][HUMAN] vitrine da patrulha ok (anda, sem tocar)");
+            }
+            finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
+            yield return null;
+        }
+        // Main menu: abre, settings aplicam volume, Play entra, auto-save por
+        // fase grava e Load restaura (deck/ouro/fase). Save de teste isolado.
+        [UnityTest] public IEnumerator Menu_PlaySettingsSaveLoad()
+        {
+            TutorialSetup setup = null;
+            string testFile = System.IO.Path.Combine(Application.persistentDataPath, "test_menu_autosave.json");
+            float vol0 = AudioListener.volume;
+            try
+            {
+                Topple.Game.RunStore.FileOverride = testFile;
+                if (System.IO.File.Exists(testFile)) System.IO.File.Delete(testFile);
+                setup = TutorialSetup.Build("HumanMenu");
+                yield return null;
+                yield return null;
+                Assert.IsNotNull(setup.Menu, "menu deveria existir");
+                setup.ShowMenu(); yield return null;
+                Assert.IsTrue(setup.Menu.IsVisible, "menu deveria abrir");
+                Assert.IsTrue(setup.Planning.InputBlocked, "menu bloqueia o input");
+                // Settings aplicam ao vivo.
+                setup.Menu.SetVolumeUI(0.5f); yield return null;
+                Assert.AreEqual(0.5f, AudioListener.volume, 1e-3f, "volume deveria aplicar");
+                // Play entra na fase 0 e salva o checkpoint.
+                setup.Menu.PressPlay(); yield return null; yield return null;
+                Assert.IsFalse(setup.Menu.IsVisible, "Play fecha o menu");
+                Assert.IsTrue(setup.Planning.Active, "Play entra no planejamento");
+                Assert.AreEqual(0, setup.PhaseIndex);
+                Assert.IsTrue(System.IO.File.Exists(testFile), "LoadPhase deveria auto-salvar");
+                // Avança p/ fase 3 com ouro, depois p/ 5 (saves 3 e 5).
+                setup.Run.Gold = 42;
+                setup.LoadPhase(3); yield return null;
+                int deck3 = setup.Run.DeckTotal();
+                setup.LoadPhase(5); yield return null;
+                Assert.AreEqual(5, setup.PhaseIndex);
+                // Load restaura o checkpoint da fase 5 (último save).
+                setup.ShowMenu(); yield return null;
+                setup.Menu.PressLoad(); yield return null; yield return null;
+                Assert.IsFalse(setup.Menu.IsVisible, "Load fecha o menu");
+                Assert.AreEqual(5, setup.PhaseIndex, "load restaura a fase salva");
+                Assert.AreEqual(42, setup.Run.Gold, "load restaura o ouro");
+                Assert.AreEqual(deck3, setup.Run.DeckTotal(), "load restaura o deck");
+                Assert.IsTrue(setup.Planning.Active);
+                Debug.Log("[TOPPLE][HUMAN] menu play/settings/save/load ok");
+            }
+            finally
+            {
+                Time.timeScale = 1f;
+                AudioListener.volume = vol0;
+                Topple.Game.RunStore.FileOverride = null;
+                try { if (System.IO.File.Exists(testFile)) System.IO.File.Delete(testFile); } catch { }
+                if (setup != null) Object.Destroy(setup.gameObject);
+            }
+            yield return null;
+        }
+        // Terreno fake (dono, gameplay > visual): P2 com 3 pinturas de muro,
+        // saias do buraco sem collider, sujidade e colinas presentes.
+        [UnityTest] public IEnumerator Terrain_WallVariantsVoidDressingHills()
+        {
+            TutorialSetup setup = null;
+            GameObject holder = null;
+            try
+            {
+                setup = TutorialSetup.Build("HumanTerrain");
+                yield return null;
+                yield return null;
+                setup.LoadPhase(1); // Curva do Muro: House + Stone + Fence
+                yield return null;
+                var previews = setup.transform.Find("BlockPreviews");
+                Assert.IsNotNull(previews, "previews de muro ausentes");
+                var colors = new System.Collections.Generic.HashSet<Color>();
+                foreach (Transform c in previews)
+                {
+                    var r = c.GetComponent<Renderer>();
+                    if (r != null && r.sharedMaterial != null) colors.Add(r.sharedMaterial.color);
+                }
+                Assert.AreEqual(3, colors.Count, "1 pintura por variante (sem telhado)");
+                // Saias do buraco: 1 buraco 2×2 → 4 saias + 4 filetes, sem colliders.
+                holder = new GameObject("VoidTestHolder");
+                var voids = new System.Collections.Generic.List<TutorialSetup.VoidDef>
+                {
+                    new TutorialSetup.VoidDef { Center = new Vector3(0f, 0f, 0f), Size = new Vector3(2f, 0.5f, 2f) },
+                };
+                int n = TutorialSetup.BuildVoidDressing(holder.transform, voids);
+                Assert.AreEqual(8, n, "4 saias + 4 filetes por buraco");
+                Assert.AreEqual(8, holder.transform.childCount);
+                yield return null; // Destroy de collider é fim-de-frame
+                Assert.AreEqual(0, holder.GetComponentsInChildren<Collider>().Length, "vitrine sem física");
+                // Fase com sujidade + fundo: grupos presentes e feltro manchado.
+                Assert.IsNotNull(setup.transform.Find("GroundDressing"), "sujidade ausente");
+                Assert.IsNotNull(setup.transform.Find("VoidDressing"), "grupo do buraco ausente");
+                Assert.IsNotNull(setup.transform.Find("BackdropHills"), "colinas ausentes");
+                Assert.AreEqual(10, setup.transform.Find("BackdropHills").childCount, "anel de 10 colinas");
+                Assert.Greater(setup.transform.Find("GroundDressing").childCount, 0, "feltro com sujidade");
+                Debug.Log("[TOPPLE][HUMAN] terreno fake ok (muros/buraco/colinas)");
+            }
+            finally
+            {
+                Time.timeScale = 1f;
+                if (holder != null) Object.Destroy(holder);
+                if (setup != null) Object.Destroy(setup.gameObject);
+            }
+            yield return null;
+        }
+        // Beleza F7: menu montado com as classes do tema; loja vira carta
+        // dourada e o resultado volta ao âmbar.
+        [UnityTest] public IEnumerator Beauty_MenuAndShopStyling()
+        {
+            TutorialSetup setup = null;
+            try
+            {
+                setup = TutorialSetup.Build("HumanBeauty");
+                yield return null;
+                yield return null;
+                var root = HudDoc(setup).rootVisualElement;
+                Assert.IsNotNull(root.Q<VisualElement>("menu-root"), "menu-root ausente");
+                Assert.IsNotNull(root.Q<VisualElement>("menu-panel"), "menu-panel ausente");
+                Assert.IsNotNull(root.Q<Button>("btn-menu-play"), "play ausente");
+                Assert.IsNotNull(root.Q<Button>("btn-menu-open"), "botao ≡ ausente");
+                Assert.IsNotNull(root.Q<Slider>("slider-menu-volume"), "volume ausente");
+                Assert.IsNotNull(root.Q<Toggle>("toggle-menu-postfx"), "pos ausente");
+                var offers = new System.Collections.Generic.List<Topple.Core.RewardOption>
+                {
+                    new Topple.Core.RewardOption { Label = "5 Comuns", Items = new[] { (PieceId.Common, 5) } },
+                };
+                setup.Hud.ShowShop(20, offers, i => { }, null, 8, null, null, () => { });
+                Assert.IsTrue(root.Q<VisualElement>("banner-result").ClassListContains("shop"), "loja dourada");
+                setup.Hud.HideResult();
+                Assert.IsFalse(root.Q<VisualElement>("banner-result").ClassListContains("shop"), "resultado sem dourado");
+                Debug.Log("[TOPPLE][HUMAN] beleza menu/loja ok");
+            }
+            finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
+            yield return null;
+        }
     }
 }

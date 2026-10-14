@@ -506,3 +506,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: Topple.Sim::Topple.Sim.EnemyView
   VisualId: enemy.brute
   EnemyId: brute
+  Team: 0

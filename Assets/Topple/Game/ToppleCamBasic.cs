@@ -8,12 +8,16 @@ namespace Topple.Game
     {
         public SimulationController Sim;
         public CameraController Cam;
+        // Dono (opção B): câmera 100% manual na sim — auto-follow desligado.
+        // T7 (slow-motion/cortes) religa pontualmente.
+        public bool AutoFollow = false;
         Vector3 _fallback;
         bool _hasFallback;
 
         void LateUpdate()
         {
             if (Sim == null || Cam == null || !Sim.Running) return;
+            if (!AutoFollow) return;
             if (Sim.LastKnockPoint != Vector3.zero)
             {
                 _fallback = Sim.LastKnockPoint;

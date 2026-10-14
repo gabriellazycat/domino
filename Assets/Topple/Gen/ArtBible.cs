@@ -35,6 +35,8 @@ namespace Topple.Gen
             new PaletteEntry { Key = "piece.ramp.arrow", Hex = "#FFFFFF" },
             new PaletteEntry { Key = "enemy.soldier.body", Hex = "#B03030" },
             new PaletteEntry { Key = "enemy.soldier.skin", Hex = "#E8C39A" },
+            new PaletteEntry { Key = "enemy.soldier.body.good", Hex = "#26A6D9" },
+            new PaletteEntry { Key = "enemy.brute.trim.good", Hex = "#26A6D9" },
         };
 
         [Header("Materiais URP/Lit")]

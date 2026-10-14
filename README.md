@@ -1,6 +1,9 @@
 # TOPPLE — como testar no Editor (solo)
 
 Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub.
+Cena salva abre no **menu** (Novo run / Continuar / Carregar auto-save /
+Opções: volume, brilho/vinheta, zoom). Auto-save por fase (checkpoint no
+`LoadPhase`, nunca mid-sim).
 
 ## Entrada certa
 - Cena jogável: `Assets/Topple/Game/Tutorial.unity` (10 fixas) ou
@@ -9,26 +12,33 @@ Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub
 - `Bootstrap.unity` é vazia (só câmera+luz T0). Não dê Play nela.
 
 ## Jogar (humano)
-1. Abra `Tutorial.unity` > aperte Play. O tabuleiro começa VAZIO.
+1. Abra `Procedural.unity` (ou `Tutorial.unity`) > aperte Play > menu >
+   Novo run. O tabuleiro começa VAZIO.
 2. **Trilha** (sempre ligada): **comece no marcador VERDE, chão vazio = reta,
    clique numa peça = continua** dela (posição + ângulo, sem custo). 2 cliques =
    1 trecho — ou aperte, arraste desenhando e solte. 2 cliques no mesmo lugar =
    1 peça avulsa. `1-8` troca a peça (bandeja mostra o que você tem) |
-   `Q/E` gira (só avulsa) | botão direito remove | `X` remove a última |
-   `Ctrl+Z` desfaz por trecho | `Ctrl+Y` ou botão Recarregar = fase toda do zero |
-   `C` follow | `Enter` ou botão DISPARAR | banner: `Enter` = De novo/Próxima.
-   `Esc` desfaz a seleção atual. Linha desativada. `Pular fase` só aparece em
-   build de debug (cheat de teste, fora da release).
-   Câmera: arrastar com botão direito OU do meio = orbitar; roda = zoom;
-   `WASD`/setas = mover. Clique em botão da HUD não coloca peça no chão.
-   Patrulha = discos+linhas **âmbar**; muros = cinza; trigger = verde;
-   ponte-vão = disco **azul** (só Grande/Torre atravessa); buraco = sem chão.
-   Pode construir NO caminho da patrulha (o hint avisa) — mas ela EMPURRA peça
+    `Q/E` gira (só avulsa) | botão direito remove | `X` remove a última |
+    `Ctrl+Z` desfaz por trecho | `Ctrl+Y` ou botão Recarregar = fase toda do zero |
+    `C` follow (planejamento; na sim a câmera é 100% livre e o `C` não faz nada) |
+    `Enter` ou botão DISPARAR | banner: `Enter` = De novo/Próxima.
+    `Esc` desfaz a seleção atual. Linha desativada. `Pular fase` só aparece em
+    build de debug (cheat de teste, fora da release).
+    Câmera: arrastar com botão direito OU do meio = orbitar; roda = zoom (rápido);
+    `WASD`/setas = mover. Na sim a HUD enxuta some (bandeja + ações somem;
+    ficam objetivo + banner). Clique em botão da HUD não coloca peça no chão.
+    Patrulha = discos+linhas **âmbar** (+ corpo andando no planejamento, vitrine);
+    muros = pedra/casa/cerca (só pintura, bloqueiam igual); trigger = verde;
+    ponte-vão = disco **azul** (só Grande/Torre atravessa); buraco = sem chão
+    (com saia + borda de alerta). Times narrativos (só visual): mal **vermelho**,
+    bem **ciano** (P1–P3 tudo mal).
+    Pode construir NO caminho da patrulha (o hint avisa) — mas ela EMPURRA peça
    em pé e estraga o caminho; só peça CAINDO mata patrulheiro. No buraco não
    constrói (`Buraco: contorne!`).
 3. A 1ª peça que VOCÊ colocar recebe o impulso e cai primeiro (dominó = peça).
-   Run deckbuilder INFINITA: templates reciclados com escala mista por ciclo,
-   deck base 10 comuns + 1 bifurcação,
+    Run deckbuilder INFINITA: procedural (`MapGen`, mesma run = mesmos mapas;
+    teto de corpos pelo deck, pelotões opostos pedindo bifurcação),
+    deck base 14 comuns + 1 bifurcação,
    3 DISPARAR por fase (planejar/Recarregar livres), vida 10 (1 de dano por
    sobrevivente). Vitória paga ouro por estrelas (par + 1ª tentativa);
     derrota-avançada paga metade. Draft 1-de-3 (grátis, sempre) + ★ LOJA ★
@@ -38,14 +48,14 @@ Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub
    Encostou, derrubou. Testar é grátis dentro das tentativas: DISPARAR não apaga nada.
 
 ## Regenerar / testar (com a Unity FECHADA)
-- `Tools/GenerateAll.ps1` — regenera `Assets/Generated/` (42 arquivos, idempotente).
-- `Tools/TestEditMode.ps1` — esperado tudo verde (56).
-- `Tools/TestPlayMode.ps1` — esperado 41/41.
+- `Tools/GenerateAll.ps1` — regenera `Assets/Generated/` (66 arquivos, idempotente).
+- `Tools/TestEditMode.ps1` — esperado tudo verde (69).
+- `Tools/TestPlayMode.ps1` — esperado 47/47.
 - `Tools/BuildWindows.ps1` — build `Builds/Windows/Topple.exe`.
 - Não rode `.ps1` com a Unity aberta (lockfile). Feche o Editor antes.
 
 ## Regras que valem para humano e bot
-- Atrito madeira 0,75 (headless e ao vivo iguais), `sleepThreshold` 0,01,
+- Atrito madeira 0,75 (headless e ao vivo iguais), `sleepThreshold` 0,005,
   knock Soldado 0,25 N·s **ou qualquer encosto** (tombo no lugar),
   fim de sim 0,08 m/s por 2 s.
 - Exatamente 1 `AudioListener` ativo (na Main Camera). Sem ele o jogo sai mudo.

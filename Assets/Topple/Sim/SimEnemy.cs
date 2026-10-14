@@ -10,6 +10,7 @@ namespace Topple.Sim
     {
         public int Id;
         public Topple.Core.EnemyKind Kind;
+        public Topple.Core.Team Team; // time narrativo (só visual; lógica ignora)
         public Rigidbody Rb { get; private set; }
 
         // GDD §6: tombado (>50°) por mais de 0,5 s, ou caído da plataforma, ou energia acima do limiar.

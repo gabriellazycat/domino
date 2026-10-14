@@ -498,4 +498,85 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
   0,9 s): determinísticos, −3 dBFS, sem clip (prova
   `Audio_StingersDeterministicAndNormalized`). `GenerateAll` grava
   `win.wav`/`lose.wav`; `AudioManager.Win/Lose` null-safe; vitória toca Win,
-  fim de run (derrota) toca Lose. Teste `Audio_StingersPlayWithoutError`.
+   fim de run (derrota) toca Lose. Teste `Audio_StingersPlayWithoutError`.
+
+## 36. Câmera livre na sim + HUD enxuta (14/out/2026, pedido do dono)
+- Zoom 2,5x mais rápido (`CameraController.ZoomStep` 0,02→0,05, 1 constante
+  ajustável; clamps intactos; prova pura `Zoom_ClampZoomFasterAndBounded`).
+- DISPARAR = câmera 100% manual: `ToppleCamBasic.AutoFollow` default off
+  (sem auto-perseguição; T7 religa), `C` morto na sim (`FollowToggleEnabled`,
+  opção B do dono), `StopFollow()` no `StartSim`.
+- HUD enxuta total na sim (`SetSimMode`): somem bandeja + DISPARAR/desfazer/
+  recarregar/última/pular + coach; ficam objetivo + "Simulando…" + banner.
+  `Press*` funcionam escondidos (Humble Object). Volta no retry (`BackToPlanning`).
+  Prova `Sim_HidesPlanningUIAndFreesCamera`.
+
+## 37. Patrulha vitrine no planejamento (14/out/2026, pedido do dono)
+- Patrulheiro anda no loop durante o planejamento, SEM interagir (sem
+  bulldoze/kill/física — peças são fantasmas). `Core/PatrolPath.PosAt` puro
+  (mesma matemática do `SimEnemy.PatrolAdvance`) + `Game/PlanningPatrol`
+  (move só transforms dos previews; `SoldierSpots`/mão intactos; t=0 no
+  waypoint 0, onde já está o disco maior). Provas `PatrolPathTests` (fecha o
+  loop, velocidade constante, determinismo) + `Patrol_VitrineWalksWithoutTouching`.
+
+## 38. Main menu + auto-save + settings (14/out/2026, pedido do dono)
+- Menu na cena (overlay em código, sem editar .unity): Novo run / Continuar /
+  Carregar (auto-save) / ≡ + settings essencial (volume→`AudioListener.volume`,
+  pós on/off→`Volume`, zoom→`ZoomStep`). Cena salva abre com menu sobre a
+  fase 0 (testes de cena salva intactos); `Build`/testes entram direto.
+  Menu bloqueia input (`Planning.InputBlocked`, `Cam.enabled`, `PollShortcuts`;
+  mouse já era filtrado pelo `OverUI`).
+- Auto-save 1 slot (`autosave.json`, checkpoint em todo `LoadPhase`, nunca
+  mid-sim): DTO puro `Core/RunSave` (deck/vida/ouro/fase/seed/**estado do RNG** —
+  sem ele drafts/mapas pós-load divergiam) + `Game/RunStore` (IO com try/catch;
+  `FileOverride` p/ testes; sem save em batch sem override). `ToppleRng`
+  expõe `State/SetState`. Provas `RunSaveTests` (round-trip + draws iguais) +
+  `Menu_PlaySettingsSaveLoad`.
+
+## 39. Times narrativos bem x mal (14/out/2026, pedido do dono)
+- Mal vermelho x bem ciano, por pelotão, todos os tipos (soldado/pesadão/
+  patrulheiro), SÓ visual (massa/limiar/knock idênticos, trava de prova).
+  Bem = ciano (não colide com o azul translúcido do vão). P1–P3 100% Evil;
+  P4+ metade Good; geradas: hash(seed,depth,pelotão) sem consumir o rng
+  (layout intacto) + prof 0–2 Evil. `Team` único no Core (`EnemySpot`/
+  `SimEnemy`/`EnemyView`/`MapSoldier`); prefabs `enemy_*_good` no `GenerateAll`
+  (fallback p/ Evil se faltar); `SimBuilder` com cor por time.
+  Provas `Teams_*` ( abertura Evil, determinismo, convert) +
+  `Teams_SamePhysicsOnlyNarrative` (mesma física, caem igual).
+
+## 40. Terreno fake sem telhado (14/out/2026, pedido do dono)
+- Gameplay > visual: física plana inviolável, zero collider novo.
+- Buraco com fundo fake: 4 saias internas (y 0→−1,5, sem fundo — peça some
+  no `KillY=-5`) + filete de alerta no topo (`BuildVoidDressing`, 8 peças/buraco).
+- Muros em 3 pinturas, mesmo BoxCollider e validade (P1 pedra; P2 casa+pedra+
+  cerca; geradas por hash de posição): pedra cinza atual, casa tijolo SEM
+  TELHADO (visibilidade), cerca madeira baixa (bloqueia igual). `BlockVariant`
+  no Core (`MapBlock`/`BlockDef`/`ObstacleDef`); `ObstacleMat(variante)`.
+- Vales fake = sujidade determinística do feltro (8 quads 4 mm, longe de
+  trigger/soldados/blocos, semente própria — nunca o `Run.Rng`); colinas =
+  anel fixo de 10 esferas fora do campo. Provas `Walls_*` + `Terrain_*`.
+- Bug latente achado no caminho: `TryVoid` podia gerar vão de 3 m
+  (Floor/Ceiling em fração; spec é 1–2 m) — corta o lado longe, grade intacta.
+
+## 41. Procedural-legal: teto duro + fork-útil (14/out/2026, pedido do dono)
+- Teto DURO de corpos (`MaxBodiesForDepth` = min(3+depth,16); `DeckForDepth`
+  = 15+Σ(5+i)): remove pelotões inteiros do fim (mín. 1 pelotão/3 corpos, par
+  −2/corpo). 24/24 candidatas justas (antes 10/24 + 14 gigantes).
+- Gradiente p/ ramos longos (0–3 intactos, provas preservadas): prof 4–5 com
+  3 pelotões + pernas 3–4 + len 60+; 6+ idem com cap 5; lados alternados
+  (pelotões opostos forçam o split); 2º pelotão nasce perto do 1º (tronco
+  compartilhável); vetos 0,7→0,8 na prof 6+. `ClusterCenters` exposto.
+- Fork-split no harness (4ª estratégia): 1 fork no trigger (2 cabeças
+  provadas) + metade angular p/ cada ramo. Seed=4/prof=10: greedy 4/11 →
+  **fork-split VENCEU 11/11** — o mapa estava certo, o solver estava atrás.
+- Cobertura de grupos pura (`SolverLegsTests`, sem física/variância): perna a
+  ≤1,5 m de cada centro (≥85%; minas cobrem patrulhas). Barra do harness
+  intacta (≥75%/amostra).
+- Provas `DeckCap_*`, `ForkPair_*` (par p/ fork em 4–11), harness 47/47.
+
+## 42. Beleza Inscryption+Balatro (14/out/2026, pedido do dono)
+- `tokens.uss` na prática: menu (véu 0,72 + carta 480 px borda âmbar, título,
+  botões, sliders/toggles legíveis) com os mesmos tokens; loja vira carta
+  dourada (classe `shop` no banner; resultado volta ao âmbar); transições de
+  120 ms nos botões. Nomes/APIs intactos (bots). Prova `Beauty_MenuAndShopStyling`.
+  Hit-test/som real/feel/FPS seguem no playtest humano.

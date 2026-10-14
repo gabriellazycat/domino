@@ -2,11 +2,14 @@
 // O MapGen garante estrutura (rota, espaçamentos, vetos), mas NÃO garante que
 // cada mapa é vencível: este harness prova por construção amostrada que o
 // gerador cospe fases vencíveis EM ESCALA HUMANA (≤16 corpos e ≤3 pesadões:
-// um deck de prof. 10 banca ~70 cartas) — 3 estratégias de solver (outward,
-// cobra, patrulhas-primeiro; pesada no pesadão com overshoot, torre p/ vãos)
-// + minas anti-patrulha, física headless de verdade (SimWorld). Barra: 3 de
-// cada 4 corpos (≥75%) em toda amostra; vitórias integrais no log. Pesadão
-// mirado é tática além do guloso (P4/P8/P10 provam com 3/3; solver T5).
+// um deck de prof. 10 banca ~70 cartas) — 4 estratégias de solver (outward,
+// cobra, patrulhas-primeiro, fork-split; pesada no pesadão com overshoot,
+// torre p/ vãos) + minas anti-patrulha, física headless de verdade (SimWorld).
+// Barra: 3 de cada 4 corpos (≥75%) em toda amostra; vitórias integrais no log.
+// Pesadão mirado é tática além do guloso (P4/P8/P10 provam com 3/3; solver T5).
+// Fork-split: o gerador separa pelotões em lados opostos (fork-útil, F6) —
+// cadeia única não cobre 2 direções; o split planta 1 fork no trigger
+// (2 cabeças provadas) e leva 1 ramo p/ cada lado (metade angular).
 // Amostras: profundidades 10–11 (ponte-vão 4+, buraco/pesadão/patrulha 6+:
 // todos os mecanismos ativos) × seeds fixas, FILTRADAS por escala (geração é
 // determinística: o filtro escolhe sempre as mesmas). Mapas gigantes (20+
@@ -264,6 +267,48 @@ namespace Topple.Tests
             return (knocked == total, data, fell, knocked, total, AliveDesc(alive), alive);
         }
 
+        // Fork-split: 1 bifurcação no trigger (2 corpos, 2 cabeças provadas) +
+        // metade angular dos vivos p/ cada ramo. Cadeia única não cobre 2
+        // direções (pelotões opostos do fork-útil); o split leva 1 onda p/ lado.
+        // Devolve como as demais (para o round de minas e a catraca).
+        static (bool win, PlanningData data, HashSet<int> fell, int knocked, int total, string aliveDesc, List<EnemySpot> alive) TryForkSplit(
+            TutorialSetup.PhaseDef ph, uint simSeed)
+        {
+            var data = new PlanningData();
+            data.SetHand(PieceId.Common, 300);
+            data.SetHand(PieceId.Heavy, 40);
+            data.SetHand(PieceId.Tower, 60);
+            data.SetHand(PieceId.Blast, 48);
+            data.SetHand(PieceId.Fork, 6);
+            float tx = PlanningData.ToWorld(ph.TriggerGx), tz = PlanningData.ToWorld(ph.TriggerGz);
+            var byAngle = new List<EnemySpot>(ph.Soldiers);
+            byAngle.Sort((a, b) =>
+                System.Math.Atan2(a.Pos.x - tx, a.Pos.z - tz).CompareTo(
+                    System.Math.Atan2(b.Pos.x - tx, b.Pos.z - tz)));
+            var sideA = byAngle.GetRange(0, byAngle.Count / 2);
+            var sideB = byAngle.GetRange(byAngle.Count / 2, byAngle.Count - byAngle.Count / 2);
+            int before = data.Count;
+            data.TryPlaceFork(ph.TriggerGx, ph.TriggerGz, ph.TriggerDeg);
+            if (data.Count < before + 2)
+            {
+                Debug.Log($"[TOPPLE][GEN-SOLVE] '{ph.Name}' fork-split: fork não plantou no trigger");
+                var (k0, t0, alive0, fell0) = RunSim(ph, data, simSeed);
+                return (false, data, fell0, k0, t0, AliveDesc(alive0), alive0);
+            }
+            int headA = data.Items[data.Count - 2].InstanceId;
+            int headB = data.Items[data.Count - 1].InstanceId;
+            int parentA = headA, parentB = headB;
+            int sax = data.Items[data.Count - 2].Gx, saz = data.Items[data.Count - 2].Gz;
+            int sbx = data.Items[data.Count - 1].Gx, sbz = data.Items[data.Count - 1].Gz;
+            float sdeg = ph.TriggerDeg;
+            foreach (var s in sideA) PlaceLegTo(data, ph, ref parentA, ref sax, ref saz, ref sdeg, s);
+            foreach (var s in sideB) PlaceLegTo(data, ph, ref parentB, ref sbx, ref sbz, ref sdeg, s);
+            var (knocked, total, alive, fell) = RunSim(ph, data, simSeed);
+            Debug.Log($"[TOPPLE][GEN-SOLVE] '{ph.Name}' fork-split peças={data.Count} knocked={knocked}/{total} " +
+                $"caidas={fell.Count} vivas=[{AliveDesc(alive)}]");
+            return (knocked == total, data, fell, knocked, total, AliveDesc(alive), alive);
+        }
+
         // Mina anti-patrulha: explosiva PARADA no caminho do loop. Patrulheiro
         // que passa encosta nela (pós-armado) e ela detona nele + vizinhança
         // 1,5 m. Se ele a empurrar antes (bulldoze), o contato detona do mesmo
@@ -311,10 +356,13 @@ namespace Topple.Tests
             if (r2.win) return (true, r2.data.Count, r2.knocked, r2.total);
             var r3 = TryStrategy(ph, simSeed, OrderPatrolsFirst(ph), "patrols-first");
             if (r3.win) return (true, r3.data.Count, r3.knocked, r3.total);
+            var r4 = TryForkSplit(ph, simSeed);
+            if (r4.win) return (true, r4.data.Count, r4.knocked, r4.total);
             // Melhor tentativa + minas anti-patrulha (auto-suficientes).
             // Catraca: vale o MELHOR entre base e minas (nunca regressão).
             var best = r1.knocked >= r2.knocked ? r1 : r2;
             if (r3.knocked > best.knocked) best = r3;
+            if (r4.knocked > best.knocked) best = r4;
             int baseKnocked = best.knocked;
             foreach (var s in best.alive)
                 if (s.Kind == Topple.Core.EnemyKind.Patroller)

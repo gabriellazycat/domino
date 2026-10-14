@@ -199,10 +199,9 @@ namespace Topple.Tests
         [Test] public void MapGen_FairShareForHarness()
         {
             // Espelho das candidatas do solver-harness (GeneratedSolvabilityTests):
-            // escala humana = ≤16 corpos e ≤3 pesadões (um deck de prof. 10 banca
-            // ~70 cartas: base 11 + 10 drafts + loja). Tabela no log = documenta
-            // a curva real (prof. 10–11 também cospe gigantes de 20+ — injustos
-            // na economia APERTADA do par, decisão pendente do dono).
+            // escala humana = ≤16 corpos e ≤3 pesadões. Teto DURO (dono):
+            // MaxBodiesForDepth corta gigantes por construção (prof 10–11 saem
+            // ≤13–14) — a tabela no log documenta a curva real.
             var cands = new (uint seed, int depth)[]
             {
                 (1u, 10), (2u, 10), (3u, 10), (4u, 10), (5u, 10), (6u, 10),
@@ -448,6 +447,134 @@ namespace Topple.Tests
             Assert.AreEqual(1, e.TryPlacePath(PieceId.Common, new System.Collections.Generic.List<(int gx, int gz, float deg)> { (0, 5, 90f) }));
             Assert.AreEqual(0, e.TryPlaceFork(0, 0, 90f));
             Assert.AreEqual(1, e.HandCount(PieceId.Fork), "falha não consome carta");
+        }
+
+        [Test] public void Teams_EarlyDepthsAllEvil()
+        {
+            // Abertura lê 1 cor: prof 0-2 (geradas) e P1-P3 (artesanais) 100% Evil.
+            for (uint s = 0; s < 10; s++)
+                for (int d = 0; d <= 2; d++)
+                    foreach (var sl in Topple.Core.MapGen.Generate(s, d).Soldiers)
+                        Assert.AreEqual(Team.Evil, sl.Team, $"seed {s} prof {d}: abertura Evil");
+            for (int i = 0; i <= 2; i++)
+                foreach (var sp in TutorialSetup.Phases[i].Soldiers)
+                    Assert.AreEqual(Team.Evil, sp.Team, $"P{i + 1} deveria ser Evil");
+        }
+
+        [Test] public void Teams_DeterministicAndMixedLater()
+        {
+            // Mesmo seed+depth = mesmos times (hash, sem consumir o rng).
+            for (uint s = 100; s < 105; s++)
+                for (int d = 5; d < 12; d++)
+                {
+                    var a = Topple.Core.MapGen.Generate(s, d);
+                    var b = Topple.Core.MapGen.Generate(s, d);
+                    Assert.AreEqual(a.Soldiers.Count, b.Soldiers.Count);
+                    for (int i = 0; i < a.Soldiers.Count; i++)
+                        Assert.AreEqual(a.Soldiers[i].Team, b.Soldiers[i].Team, $"seed {s} prof {d}");
+                }
+            // Prof 5+: os dois times aparecem (pelotões de cores distintas).
+            int good = 0, evil = 0;
+            for (uint s = 0; s < 20; s++)
+                foreach (var sl in Topple.Core.MapGen.Generate(s, 8).Soldiers)
+                    if (sl.Team == Team.Good) good++; else evil++;
+            Assert.Greater(good, 0, "bem deveria aparecer na prof 8");
+            Assert.Greater(evil, 0, "mal deveria aparecer na prof 8");
+        }
+
+        [Test] public void Teams_ConvertPreservesAndArtisanalMixed()
+        {
+            // ConvertMap carrega o time; P4+ artesanais têm os dois times.
+            var m = Topple.Core.MapGen.Generate(4242, 9);
+            var ph = TutorialSetup.ConvertMap(m);
+            Assert.AreEqual(m.Soldiers.Count, ph.Soldiers.Count);
+            for (int i = 0; i < m.Soldiers.Count; i++)
+                Assert.AreEqual(m.Soldiers[i].Team, ph.Soldiers[i].Team, $"soldado {i}");
+            for (int i = 3; i < TutorialSetup.Phases.Count; i++)
+            {
+                bool good = false, evil = false;
+                foreach (var sp in TutorialSetup.Phases[i].Soldiers)
+                    if (sp.Team == Team.Good) good = true; else evil = true;
+                Assert.IsTrue(good && evil, $"P{i + 1} artesanal deveria ter os 2 times");
+            }
+        }
+
+        [Test] public void Walls_VariantDeterministicAndConvertPreserves()
+        {
+            // Variante por posição: determinística, cobre as 3, sem rng.
+            Assert.AreEqual(Topple.Core.MapGen.VariantFor(1.5f, 2.5f), Topple.Core.MapGen.VariantFor(1.5f, 2.5f));
+            bool stone = false, house = false, fence = false;
+            for (int ix = -10; ix <= 10; ix++)
+                for (int iz = -7; iz <= 7; iz++)
+                {
+                    var v = Topple.Core.MapGen.VariantFor(ix + 0.3f, iz + 0.7f);
+                    if (v == BlockVariant.Stone) stone = true;
+                    else if (v == BlockVariant.House) house = true;
+                    else fence = true;
+                }
+            Assert.IsTrue(stone && house && fence, "as 3 variantes deveriam sair no campo");
+            // Artesanais à mostra: P1 pedra, P2 uma de cada (sem telhado).
+            Assert.AreEqual(BlockVariant.Stone, TutorialSetup.Phases[0].Blocks[0].Variant);
+            var p2 = TutorialSetup.Phases[1].Blocks;
+            Assert.AreEqual(BlockVariant.House, p2[0].Variant);
+            Assert.AreEqual(BlockVariant.Stone, p2[1].Variant);
+            Assert.AreEqual(BlockVariant.Fence, p2[2].Variant);
+            // Convert carrega a variante (geometria intacta p/ as provas).
+            var g = Topple.Core.MapGen.Generate(31337, 7);
+            var ph = TutorialSetup.ConvertMap(g);
+            Assert.AreEqual(g.Blocks.Count, ph.Blocks.Count);
+            for (int i = 0; i < g.Blocks.Count; i++)
+            {
+                Assert.AreEqual(g.Blocks[i].Variant, ph.Blocks[i].Variant, $"muro {i}");
+                Assert.AreEqual(g.Blocks[i].SX, ph.Blocks[i].Size.x, 1e-6f, "variante não mexe na geometria");
+            }
+        }
+
+        [Test] public void DeckCap_ValuesAndHardCapRespected()
+        {
+            // Curva da economia-maior: base 15 + Σ(5+i).
+            Assert.AreEqual(15, Topple.Core.MapGen.DeckForDepth(0));
+            Assert.AreEqual(20, Topple.Core.MapGen.DeckForDepth(1));
+            Assert.AreEqual(110, Topple.Core.MapGen.DeckForDepth(10));
+            Assert.AreEqual(3, Topple.Core.MapGen.MaxBodiesForDepth(0));
+            Assert.AreEqual(5, Topple.Core.MapGen.MaxBodiesForDepth(2));
+            Assert.AreEqual(13, Topple.Core.MapGen.MaxBodiesForDepth(10));
+            Assert.AreEqual(16, Topple.Core.MapGen.MaxBodiesForDepth(20));
+            // Teto DURO em toda a run infinita (gigantes não nascem).
+            for (uint s = 0; s < 12; s++)
+                for (int d = 0; d < 30; d++)
+                {
+                    var m = Topple.Core.MapGen.Generate(s, d);
+                    int cap = Topple.Core.MapGen.MaxBodiesForDepth(d);
+                    Assert.LessOrEqual(m.Soldiers.Count, cap, $"seed {s} prof {d}: gigante acima do teto");
+                    Assert.GreaterOrEqual(m.Soldiers.Count, 2, $"seed {s} prof {d}: fase vazia");
+                }
+        }
+
+        [Test] public void ForkPair_GeometryFromDepth4()
+        {
+            // Pressão de fork (prof 4+): existe par de pelotões no mesmo
+            // quarteirão (1,0–8,0 m: separados mas com tronco compartilhável).
+            for (int d = 4; d <= 11; d++)
+            {
+                int ok = 0;
+                for (uint s = 0; s < 24; s++)
+                {
+                    var m = Topple.Core.MapGen.Generate(s, d);
+                    if (m.ClusterCenters.Count < 2) continue;
+                    bool pair = false;
+                    for (int i = 0; i < m.ClusterCenters.Count && !pair; i++)
+                        for (int j = i + 1; j < m.ClusterCenters.Count && !pair; j++)
+                        {
+                            float dx = m.ClusterCenters[i].X - m.ClusterCenters[j].X;
+                            float dz = m.ClusterCenters[i].Z - m.ClusterCenters[j].Z;
+                            float dist = (float)System.Math.Sqrt(dx * dx + dz * dz);
+                            if (dist >= 1.0f && dist <= 8.0f) pair = true;
+                        }
+                    if (pair) ok++;
+                }
+                Assert.GreaterOrEqual(ok, 18, $"prof {d}: só {ok}/24 mapas com par p/ fork");
+            }
         }
     }
 }

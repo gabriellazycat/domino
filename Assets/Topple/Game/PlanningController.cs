@@ -138,6 +138,9 @@ namespace Topple.Game
         public Topple.UI.PlanningHUD Hud;
         // Som de interface (colocar/remover/desfazer). Opcional (null-safe).
         public AudioManager Audio;
+        // Menu aberto bloqueia todo input de planejamento (teclado não é
+        // filtrado pelo OverUI; mouse já é). Setado pelo TutorialSetup.
+        public bool InputBlocked;
 
         // Raiz obrigatória no trigger (corrente obrigatória, pedido do dono):
         // com tabuleiro vazio a 1ª trilha SÓ nasce no trigger fixo da fase.
@@ -696,6 +699,7 @@ namespace Topple.Game
 
         void Update()
         {
+            if (InputBlocked) return; // menu aberto: nada de input (nem Enter do banner)
             if (!Active)
             {
                 // Fora do planejamento o Enter confirma o banner (via evento;

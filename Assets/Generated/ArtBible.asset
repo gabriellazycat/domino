@@ -48,6 +48,10 @@ MonoBehaviour:
     Hex: '#B03030'
   - Key: enemy.soldier.skin
     Hex: '#E8C39A'
+  - Key: enemy.soldier.body.good
+    Hex: '#26A6D9'
+  - Key: enemy.brute.trim.good
+    Hex: '#26A6D9'
   WoodSmoothness: 0.45
   MetalSmoothness: 0.7
   MetalMetallic: 0.85

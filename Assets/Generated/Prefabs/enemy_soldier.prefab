@@ -506,3 +506,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: Topple.Sim::Topple.Sim.EnemyView
   VisualId: enemy.soldier
   EnemyId: soldier
+  Team: 0

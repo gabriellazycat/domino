@@ -128,9 +128,12 @@ namespace Topple.Gen
         // Builds não enxergam AssetDatabase: Content/ (pesos+loja) e o tema da
         // HUD (uxml+uss) vão p/ Assets/Resources/Content (LoadUxml/LoadUss e
         // ContentLoader leem de lá; sem eles, fallback sem tema). Idempotente.
+        // Times (F4): prefabs do bem vão p/ Resources/Generated (o Registry
+        // já cai p/ lá; sem eles o build usa o fallback Evil — sem crash).
         static void SyncResources()
         {
             Directory.CreateDirectory("Assets/Resources/Content");
+            Directory.CreateDirectory("Assets/Resources/Generated");
             void Copy(string src, string dst)
             {
                 if (!File.Exists(src)) { Debug.LogWarning($"[TOPPLE][GEN] sem fonte: {src}"); return; }
@@ -140,6 +143,8 @@ namespace Topple.Gen
             Copy("Assets/Topple/Content/shop.json", "Assets/Resources/Content/shop.json");
             Copy("Assets/Topple/UI/PlanningHUD.uxml", "Assets/Resources/Content/PlanningHUD.uxml");
             Copy("Assets/Topple/UI/PlanningHUD.uss", "Assets/Resources/Content/PlanningHUD.uss");
+            Copy($"{GenRoot}/Prefabs/enemy_soldier_good.prefab", "Assets/Resources/Generated/enemy_soldier_good.prefab");
+            Copy($"{GenRoot}/Prefabs/enemy_brute_good.prefab", "Assets/Resources/Generated/enemy_brute_good.prefab");
         }
 
         static void RenderPreviews()

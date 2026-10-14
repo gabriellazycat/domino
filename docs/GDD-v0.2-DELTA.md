@@ -540,7 +540,8 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
   P4+ metade Good; geradas: hash(seed,depth,pelotão) sem consumir o rng
   (layout intacto) + prof 0–2 Evil. `Team` único no Core (`EnemySpot`/
   `SimEnemy`/`EnemyView`/`MapSoldier`); prefabs `enemy_*_good` no `GenerateAll`
-  (fallback p/ Evil se faltar); `SimBuilder` com cor por time.
+  (fallback p/ Evil se faltar); `SimBuilder` com cor por time. Builds levam os
+  2 prefabs do bem via `Resources/Generated` (resto da publicação segue T7).
   Provas `Teams_*` ( abertura Evil, determinismo, convert) +
   `Teams_SamePhysicsOnlyNarrative` (mesma física, caem igual).
 

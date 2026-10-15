@@ -7,20 +7,21 @@ import { audio } from './audio';
 import { Sim, SimEnemy, Cause } from './sim';
 import { UI } from '../ui/ui';
 import { generatePhase, PhaseSpec, ENEMY_HP } from '../core/mapgen';
-import { Layout, Stroke, FAIL_TEXT, Fail } from '../core/layout';
+import { Layout, FAIL_TEXT, Fail } from '../core/layout';
 import { PIECES, PieceId, PIECE_ORDER, emptyDeck } from '../core/pieces';
 import { RunState, newRun, saveRun, loadRun, clearSave, runRng, saveRng, addItems, damage } from '../core/run';
 import { RULES, starsFor, goldFor, shopPrice } from '../core/rules';
 import { draft3, RewardOption } from '../core/rewards';
 import { autoPlan } from '../core/bot';
 import { solve } from './solver';
+import { Hand } from './hand';
 
-type Mode = 'menu' | 'planning' | 'sim' | 'result' | 'screen';
+type Mode = 'menu' | 'planning' | 'sim' | 'result' | 'screen' | 'transition';
 
-interface Settings { master: number; music: number; sfx: number; shake: number; post: boolean; tilt: boolean }
+interface Settings { master: number; music: number; sfx: number; shake: number; post: boolean; tilt: boolean; crt: boolean }
 const SETTINGS_KEY = 'topple.settings.v1';
 
-const ENEMY_COLORS: Record<string, string> = { soldier: '#e5493a', brute: '#9a9ca6', patroller: '#f2a93a', general: '#f2c14e' };
+const ENEMY_COLORS: Record<string, string> = { soldier: '#8a2a24', brute: '#5a5c64', patroller: '#8a6a32', general: '#7a2a3a' };
 
 export class Game {
   world: World;
@@ -28,6 +29,7 @@ export class Game {
   board: Board;
   fx: Fx;
   ui: UI;
+  hand: Hand;
   mode: Mode = 'menu';
   run: RunState | null = null;
   spec!: PhaseSpec;
@@ -43,8 +45,8 @@ export class Game {
   hitstop = 0;
   simEndAt = -1;
   paused = false;
-  settings: Settings = { master: 0.8, music: 0.5, sfx: 0.9, shake: 1, post: true, tilt: true };
-  private stroke: Stroke | null = null;
+  settings: Settings = { master: 0.8, music: 0.5, sfx: 0.9, shake: 1, post: true, tilt: false, crt: true };
+  private trailAnchor: { x: number; z: number } | null = null; // trilha fantasma ativa (clicou no começo/ponta)
   private lastFailT = 0;
   private lastFail: Fail | null = null;
   private realT = 0;
@@ -58,12 +60,14 @@ export class Game {
   private alarmed = new Set<number>();
   private coachStep = 0;
   private shopState: { offers: { opt: RewardOption; price: number; sold: boolean }[]; rerolls: number } | null = null;
+  private handDt = -1;
 
   constructor(canvas: HTMLCanvasElement) {
     this.loadSettings();
     this.world = new World(canvas);
     this.rig = new CameraRig(this.world.camera, canvas);
     this.board = new Board(this.world.scene);
+    this.hand = new Hand(this.world.scene);
     this.fx = new Fx(this.world.scene, this.world.camera, document.getElementById('fx-layer')!);
     this.ui = new UI({
       select: (id) => this.select(id),
@@ -74,14 +78,18 @@ export class Game {
       deck: () => this.openDeck(),
       speed: () => this.toggleSpeed(),
       skipSim: () => this.skipSim(),
+      fireHover: (on) => { if (this.mode === 'planning') this.board.mood = on ? 'nervous' : 'calm'; },
     });
     this.applySettings();
     this.bindInput(canvas);
     this.enterMenu();
     let last = performance.now();
     const loop = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
+      const raw = (now - last) / 1000;
+      const dt = Math.min(0.05, raw);
       last = now;
+      // a cena da mão e o "surgir" da fase andam em tempo real (máquina lenta não arrasta a transição)
+      this.handDt = Math.min(0.5, raw);
       this.update(dt);
       requestAnimationFrame(loop);
     };
@@ -100,6 +108,7 @@ export class Game {
     this.rig.shakeScale = this.settings.shake;
     this.world.postFx = this.settings.post;
     this.world.setTiltShift(this.settings.tilt);
+    this.world.setCrt(this.settings.crt);
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.settings)); } catch { /* ok */ }
   }
 
@@ -108,29 +117,35 @@ export class Game {
     canvas.addEventListener('pointerdown', (e) => {
       audio.unlock();
       this.setPointer(e);
+      if (this.mode === 'transition') { this.hand.skip(); return; }
       if (e.button === 2) { this.rightDown = { x: e.clientX, y: e.clientY }; return; }
       if (e.button !== 0 || this.mode !== 'planning' || this.paused) return;
-      canvas.setPointerCapture(e.pointerId);
-      this.beginStroke();
+      this.clickTrail();
     });
     canvas.addEventListener('pointermove', (e) => {
       this.setPointer(e);
-      if (this.stroke) this.extendStroke();
+      if (this.trailAnchor) this.previewTrail();
     });
     canvas.addEventListener('pointerup', (e) => {
       if (e.button === 2 && this.rightDown) {
-        if (Math.hypot(e.clientX - this.rightDown.x, e.clientY - this.rightDown.y) < 6 && this.mode === 'planning') this.removeAtPointer();
+        if (Math.hypot(e.clientX - this.rightDown.x, e.clientY - this.rightDown.y) < 6 && this.mode === 'planning') {
+          if (this.trailAnchor) this.cancelTrail();
+          else this.removeAtPointer();
+        }
         this.rightDown = null;
       }
-      if (e.button === 0 && this.stroke) this.endStroke();
     });
     canvas.addEventListener('pointerleave', () => { this.pointer.inside = false; });
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       const k = e.key.toLowerCase();
+      if (this.mode === 'transition') {
+        if (k === 'escape' || k === ' ' || k === 'enter') { e.preventDefault(); this.hand.skip(); }
+        return;
+      }
       if (k === 'escape') {
         if (this.paused || (this.mode === 'screen' && this.ui.hasScreen())) { this.closeOverlay(); return; }
-        if (this.mode === 'planning' && this.stroke) { this.endStroke(); return; }
+        if (this.mode === 'planning' && this.trailAnchor) { this.cancelTrail(); return; }
         if (this.mode === 'planning' || this.mode === 'sim') this.openPause();
         return;
       }
@@ -176,36 +191,46 @@ export class Game {
     if (next) this.selected = next;
   }
 
-  private beginStroke() {
+  // Traço em duas etapas: clicar no começo (ou numa ponta) abre uma trilha FANTASMA que segue o mouse;
+  // o clique no chão coloca de uma vez tudo que a trilha mostra e encerra o traço (volta a clicar na ponta).
+  private clickTrail() {
     const g = this.groundPoint();
     if (!g) return;
     this.ensureSelection();
-    const r = this.layout.begin(g.x, g.z, this.selected);
-    if (r.fail) { this.failFeedback(r.fail, null); return; }
-    this.stroke = r.stroke!;
-    if (r.placed) this.onPlaced(r.placed);
-    this.extendStroke();
+    if (this.trailAnchor) {
+      const r = this.layout.trail(null, this.trailAnchor, g, this.selected);
+      if (r.placed.length) this.onPlaced(r.placed);
+      if (r.fail) this.failFeedback(r.fail, r.ghost ?? null);
+      // o clique coloca a trilha e encerra o traço: para continuar, clica-se de novo na ponta
+      this.cancelTrail();
+      if (r.stroke?.done && this.selected === 'fork') {
+        this.ui.toast('Bifurcou! Continue de cada ponta brilhante', true);
+        this.ensureSelection();
+      }
+      return;
+    }
+    // primeiro clique: só marca de onde a trilha sai (nada é colocado ainda)
+    const r = this.layout.preview(null, g, g, this.selected);
+    if (r.fail && (r.fail === 'trigger' || r.fail === 'nohead' || r.fail === 'empty')) { this.failFeedback(r.fail, null); return; }
+    this.trailAnchor = { x: g.x, z: g.z };
+    this.previewTrail();
+    this.refreshHud();
   }
 
-  private extendStroke() {
-    if (!this.stroke) return;
+  /** Recalcula a trilha fantasma até o cursor (não coloca nada). */
+  private previewTrail() {
     const g = this.groundPoint();
-    if (!g) return;
+    if (!this.trailAnchor || !g) return;
     this.ensureSelection();
-    const r = this.layout.extend(this.stroke, g.x, g.z, this.selected);
-    if (r.placed.length) this.onPlaced(r.placed);
+    const r = this.layout.preview(null, this.trailAnchor, g, this.selected);
+    this.board.setTrail(r.placed);
     if (r.fail) this.failFeedback(r.fail, r.ghost ?? null);
     else this.board.showGhost(null);
-    if (this.stroke.done && this.selected === 'fork') {
-      this.ui.toast('Bifurcou! Continue de cada ponta brilhante', true);
-      this.stroke = null;
-      this.ensureSelection();
-      this.refreshHud();
-    }
   }
 
-  private endStroke() {
-    this.stroke = null;
+  private cancelTrail() {
+    this.trailAnchor = null;
+    this.board.setTrail([]);
     this.board.showGhost(null);
     this.refreshHud();
   }
@@ -243,6 +268,7 @@ export class Game {
 
   undo() {
     if (this.mode !== 'planning') return;
+    this.cancelTrail();
     const ids = this.layout.undoStroke();
     for (const id of ids) this.board.removePiece(id);
     if (ids.length) audio.ui('click');
@@ -251,6 +277,7 @@ export class Game {
 
   clearLayout() {
     if (this.mode !== 'planning' || !this.layout.pieces.length) return;
+    this.cancelTrail();
     this.layout.clear();
     this.board.clearPieces();
     audio.whoosh();
@@ -271,8 +298,8 @@ export class Game {
     if (!this.run || this.mode !== 'planning') return;
     if (this.run.depth === 0) {
       const n = this.layout.pieces.length;
-      if (n === 0) this.ui.coach('① Segure o botão esquerdo no marcador VERDE e arraste até os soldados.');
-      else if (n < 9) this.ui.coach('② Solte e continue arrastando da ponta brilhante. Botão direito numa ponta remove.');
+      if (n === 0) this.ui.coach(this.trailAnchor ? '① Clique no chão para colocar a trilha até os soldados.' : '① Clique no marcador VERDE e mova o mouse: a trilha fantasma aparece.');
+      else if (n < 9) this.ui.coach('② Clique no chão para colocar. Continue de uma ponta brilhante. Botão direito numa ponta remove.');
       else this.ui.coach('③ Chegou perto? Aperte DISPARAR! (Espaço)');
     } else if (this.coachStep === 0 && this.spec.hint) {
       this.ui.coach(this.spec.hint);
@@ -283,7 +310,7 @@ export class Game {
   newRun(seed = (Math.random() * 2 ** 32) >>> 0) {
     this.stopDemo();
     this.run = newRun(seed);
-    this.startPhase();
+    this.startPhase(true);
   }
 
   continueRun() {
@@ -291,14 +318,16 @@ export class Game {
     if (!r) return this.newRun();
     this.stopDemo();
     this.run = r;
-    this.startPhase();
+    this.startPhase(true);
   }
 
-  startPhase() {
+  /** `animate`: a fase surge peça por peça; `glide`: a câmera desliza até ela (em vez de cortar). */
+  startPhase(animate = false, glide = false) {
     const run = this.run!;
     saveRun(run);
     this.disposeSim();
     this.ui.closeScreen();
+    this.ui.setSkipHint(false);
     this.fx.clear();
     this.spec = generatePhase(run.seed, run.depth, run.deck);
     this.layout = new Layout(this.spec, run.deck);
@@ -311,15 +340,27 @@ export class Game {
     this.selected = 'common';
     this.ensureSelection();
     this.board.build(this.spec);
+    this.board.mood = 'calm';
+    this.setEyeAvoid();
     this.mode = 'planning';
     this.ui.setVisible(true);
     this.ui.setSimMode(false);
     this.ui.setPhase(this.spec);
     this.frameBoard();
-    this.rig.snap();
+    if (animate) this.board.spawnIn();
+    if (!glide) this.rig.snap();
     this.refreshHud();
     audio.setMusic(true, 0);
     if (this.spec.hint && run.depth > 0) setTimeout(() => { if (this.mode === 'planning') { this.coachStep = 1; this.ui.coach(null); } }, 9000);
+  }
+
+  /** Os olhos do fundo nunca tapam inimigos (nem o caminho dos patrulheiros) nem o gatilho. */
+  private setEyeAvoid() {
+    const s = this.spec;
+    this.world.backdrop.avoid = [
+      new THREE.Vector3(s.trigger.x, 0.3, s.trigger.z),
+      ...s.enemies.flatMap((e) => (e.patrol ? e.patrol.pts : [e]).map((p) => new THREE.Vector3(p.x, 0.5, p.z))),
+    ];
   }
 
   /** Enquadra o conteúdo da fase (gatilho, inimigos, muros, lava) com folga para a HUD. */
@@ -339,10 +380,11 @@ export class Game {
   fire() {
     if (this.mode !== 'planning' || this.paused) return;
     if (!this.layout.pieces.length) { this.ui.toast('Desenhe uma corrente primeiro!'); audio.ui('deny'); return; }
-    if (this.stroke) this.endStroke();
+    if (this.trailAnchor) this.cancelTrail();
     this.attemptsLeft--;
     this.attemptsUsed++;
     this.mode = 'sim';
+    this.board.mood = 'calm';
     this.phaseKnocked = 0;
     this.alarmed.clear();
     this.board.hideHeads();
@@ -390,6 +432,8 @@ export class Game {
         this.hitstop = Math.max(this.hitstop, 0.09);
         this.world.lamp.position.set(x, 1.5, z);
         this.world.lamp.intensity = 60;
+        this.world.backdrop.startle(1);
+        this.world.flicker(0.3);
       },
       bulldoze: (x, z) => { if (this.mode === 'sim') { this.fx.text(x, 1, z, 'EMPURRÃO!', 'small'); audio.ui('deny'); } },
       runner: () => audio.whoosh(),
@@ -418,6 +462,7 @@ export class Game {
     this.fx.text(p.x, p.y + 0.9, p.z, word, big ? 'gold' : 'red', big ? 1.3 : 1);
     if (combo >= 2) {
       this.ui.combo(combo);
+      if (combo >= 4) this.world.backdrop.startle(0.35);
       if (combo % 5 === 0) this.fx.text(p.x, p.y + 1.6, p.z, `COMBO ×${combo}!`, 'gold', 1.2);
     }
   }
@@ -446,6 +491,7 @@ export class Game {
     run.stats.explosions += sim.explosions;
     run.stats.knocked += sim.enemies.filter((e) => !e.alive).length;
     this.mode = 'result';
+    this.board.mood = sim.win ? 'happy' : 'sad';
     if (sim.win) {
       const used = this.layout.cardsUsed();
       const efficient = used <= this.spec.par;
@@ -516,6 +562,7 @@ export class Game {
     this.fx.clear();
     this.board.resetPieces();
     this.board.resetEnemies(this.patrolT);
+    this.board.mood = 'calm';
     this.mode = 'planning';
     this.ui.setSimMode(false);
     this.ui.resetEnemyIcons();
@@ -596,7 +643,35 @@ export class Game {
 
   private nextPhase() {
     this.run!.depth++;
-    this.startPhase();
+    this.startTransition(() => this.startPhase(true, true));
+  }
+
+  /** A mão sai do escuro, varre o tabuleiro e some; `after` monta a fase seguinte. */
+  private startTransition(after: () => void) {
+    this.mode = 'transition';
+    this.paused = false;
+    this.trailAnchor = null;
+    this.disposeSim();
+    this.fx.clear();
+    this.ui.closeScreen();
+    this.ui.setVisible(false);
+    this.ui.coach(null);
+    this.ui.setSkipHint(true);
+    this.board.mood = 'calm';
+    this.rig.frame(new THREE.Vector3(0, 0, 0.6), 19.5, 0, 0.92);
+    this.world.flicker(0.9);
+    this.world.backdrop.wakeAll();
+    this.world.backdrop.startle(0.8);
+    audio.whoosh();
+    this.hand.onLand = () => {
+      audio.thud();
+      this.rig.addTrauma(0.4);
+      this.world.flicker(0.25);
+      this.fx.dust(this.hand.palm.x + 0.5, 1, 2.5);
+      this.fx.dust(this.hand.palm.x + 0.5, -2.5, 2.5);
+    };
+    this.hand.onSweep = () => audio.scrape(1.1);
+    this.hand.start(this.board.sweepTargets(), after);
   }
 
   private gameOver() {
@@ -628,6 +703,8 @@ export class Game {
 
   // ================= menus =================
   enterMenu() {
+    this.hand.cancel();
+    this.ui.setSkipHint(false);
     this.disposeSim();
     this.run = null;
     this.mode = 'menu';
@@ -702,6 +779,7 @@ export class Game {
       d.seed += 31;
     }
     this.board.build(this.spec);
+    this.board.mood = 'calm';
     for (const p of this.layout.pieces) this.board.addPiece(p, false);
     this.board.setHeads([], false);
     this.sim = null;
@@ -723,7 +801,7 @@ export class Game {
       d.endAt = -1;
     }
     if (this.sim?.done) {
-      if (d.endAt < 0) d.endAt = this.realT;
+      if (d.endAt < 0) { d.endAt = this.realT; this.board.mood = this.sim.win ? 'happy' : 'sad'; }
       else if (this.realT - d.endAt > 2.5) {
         d.loops++;
         d.seed += 17;
@@ -767,7 +845,7 @@ export class Game {
       }
     }
     // hover
-    if (planning && !this.stroke && this.pointer.inside) {
+    if (planning && !this.trailAnchor && this.pointer.inside) {
       const g = this.groundPoint();
       let target: { x: number; z: number } | null = null;
       if (g) {
@@ -784,13 +862,37 @@ export class Game {
       this.world.canvas.style.cursor = target ? 'pointer' : 'default';
     } else {
       this.board.hoverRing.visible = false;
-      this.world.canvas.style.cursor = this.stroke ? 'crosshair' : 'default';
+      this.world.canvas.style.cursor = this.trailAnchor ? 'crosshair' : 'default';
     }
+    const realDt = this.handDt >= 0 ? this.handDt : dt;
+    this.handDt = -1;
+    this.hand.update(realDt);
+    this.board.updateSpawn(realDt);
     this.board.update(dt, planning || (this.mode === 'menu' && !this.sim), this.patrolT);
     this.fx.update(dt);
     this.world.lamp.intensity *= Math.exp(-dt * 6);
-    this.rig.update(dt, !this.paused && this.mode !== 'menu' && !this.ui.hasScreen());
+    this.rig.update(dt, !this.paused && this.mode !== 'menu' && this.mode !== 'transition' && !this.ui.hasScreen());
+    this.updateGaze(dt);
+    this.world.impact = Math.min(1, this.rig.trauma * this.rig.trauma * (0.4 + 0.6 * this.settings.shake));
     this.world.render(dt, this.fx.flash);
+  }
+
+  /** Para onde os olhos do fundo olham: cursor no planejamento, a cascata na simulação. */
+  private gazeGoal = new THREE.Vector3();
+  private updateGaze(dt: number) {
+    const sim = this.sim;
+    if (this.hand.active) {
+      this.gazeGoal.copy(this.hand.palm);
+    } else if (sim && sim.recentFalls.length) {
+      const f = sim.recentFalls[sim.recentFalls.length - 1];
+      this.gazeGoal.set(f.x, 0.4, f.z);
+    } else if (this.mode === 'planning' && this.pointer.inside) {
+      const g = this.groundPoint();
+      if (g) this.gazeGoal.copy(g);
+    } else {
+      this.gazeGoal.set(Math.sin(this.realT * 0.3) * 4, 0, Math.cos(this.realT * 0.21) * 2);
+    }
+    this.world.backdrop.target.lerp(this.gazeGoal, 1 - Math.exp(-dt * 4));
   }
 
   /** Inimigo vê a onda chegando: '!' + pulinho (antecipação antes do impacto). */
@@ -826,6 +928,8 @@ export class Game {
     return {
       game: this,
       newRun: (seed: number) => this.newRun(seed),
+      /** repete a cena da mão varrendo a fase atual (e remonta a mesma fase) */
+      transition: () => { if (this.run) this.startTransition(() => this.startPhase(true, true)); },
       autoPlan: () => { const r = autoPlan(this.layout); this.board.clearPieces(); for (const p of this.layout.pieces) this.board.addPiece(p, false); this.refreshHud(); return r; },
       state: () => ({ mode: this.mode, depth: this.run?.depth, life: this.run?.life, gold: this.run?.gold, pieces: this.layout?.pieces.length, alive: this.sim?.alive, win: this.sim?.win, attemptsLeft: this.attemptsLeft }),
     };

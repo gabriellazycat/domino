@@ -28,8 +28,8 @@ Outros comandos:
 
 ## Como jogar
 
-1. **Arraste** a partir da bandeira verde para desenhar a corrente de dominós.
-   Para continuar, arraste a partir de uma ponta (anel brilhante). Curvas fechadas demais não valem.
+1. **Clique** na bandeira verde e mova o mouse: uma trilha fantasma mostra onde as peças vão.
+   **Clique no chão** para colocar a trilha de uma vez. Para continuar, clique numa ponta (anel brilhante) e repita. Curvas fechadas demais não valem.
 2. **DISPARAR!** (ou `Enter`) — o primeiro dominó cai e a onda corre pela corrente.
 3. Derrube todos os soldadinhos. Cada sobrevivente tira 1 de vida. Você tem 3 tentativas por fase,
    e planejar é de graça.
@@ -64,9 +64,12 @@ src/
   game/      tudo que aparece na tela
     sim.ts       simulação física (Rapier)
     solver.ts    roda simulações sem tela para achar um plano que vence
-    world.ts     renderer, luzes, mesa, pós-processamento
-    models.ts    dominós, soldadinhos, muros, lava (tudo procedural)
-    fx.ts        partículas, textos "POW!", confete, explosões
+    world.ts     renderer, lâmpada pendurada, velas, mesa, pós-processamento (bloom + CRT)
+    backdrop.ts  redemoinho de tinta no fundo + olhos flutuantes no breu
+    models.ts    dominós, soldadinhos assombrados, muros, lava (tudo procedural)
+    faces.ts     rostos 2D dos dominós e suas reações (medo, grito, tontura…)
+    hand.ts      a mão que varre o tabuleiro entre as fases
+    fx.ts        partículas, textos "POW!", brasas, explosões
     audio.ts     efeitos e música sintetizados (WebAudio)
     camera.ts    câmera orbital + tremida
     game.ts      controlador: planejamento, disparo, resultado, draft, loja

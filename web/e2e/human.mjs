@@ -17,6 +17,12 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 const assert = (c, msg) => { if (!c) throw new Error('ASSERT: ' + msg); console.log('ok -', msg); };
+// começa a trilha clicando em `a` e leva o mouse até `b` (só fantasma, nada colocado ainda)
+const trace = async (a, b, steps) => {
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.click(a.x, a.y);
+  for (let i = 1; i <= steps; i++) await page.mouse.move(a.x + (b.x - a.x) * i / steps, a.y + (b.y - a.y) * i / steps);
+};
 const toScreen = (x, z) => page.evaluate(([x, z]) => {
   const g = window.__topple.game;
   const v = new (g.world.camera.position.constructor)(x, 0, z).project(g.world.camera);
@@ -36,12 +42,11 @@ try {
   const ex = spec.e.reduce((a, b) => a + b[0], 0) / spec.e.length, ez = spec.e.reduce((a, b) => a + b[1], 0) / spec.e.length;
   const a = await toScreen(spec.t.x, spec.t.z);
   const b = await toScreen(ex - 0.5, ez);
-  await page.mouse.move(a.x, a.y);
-  await page.mouse.down();
-  for (let i = 1; i <= 40; i++) await page.mouse.move(a.x + (b.x - a.x) * i / 40, a.y + (b.y - a.y) * i / 40);
-  await page.mouse.up();
+  await trace(a, b, 40);
+  assert((await page.evaluate(() => window.__topple.game.layout.pieces.length)) === 0, 'mover o mouse não coloca peças (só fantasma)');
+  await page.mouse.click(b.x, b.y);
   let n = await page.evaluate(() => window.__topple.game.layout.pieces.length);
-  assert(n >= 8, `arrasto colocou ${n} peças`);
+  assert(n >= 8, `clique no chão colocou ${n} peças`);
   await page.screenshot({ path: path.join(out, 'h1-drawn.png') });
   // botão direito numa ponta remove 1
   const head = await page.evaluate(() => { const h = window.__topple.game.layout.heads()[0]; return [h.x, h.z]; });
@@ -53,18 +58,14 @@ try {
   await page.keyboard.press('Control+z');
   const n3 = await page.evaluate(() => window.__topple.game.layout.pieces.length);
   assert(n3 === 0, `Ctrl+Z desfez o traço (${n3})`);
-  await page.mouse.move(a.x, a.y);
-  await page.mouse.down();
-  for (let i = 1; i <= 40; i++) await page.mouse.move(a.x + (b.x - a.x) * i / 40, a.y + (b.y - a.y) * i / 40);
-  await page.mouse.up();
+  await trace(a, b, 40);
+  await page.mouse.click(b.x, b.y);
   // estende da ponta até encostar
   const h2 = await page.evaluate(() => { const h = window.__topple.game.layout.heads()[0]; return [h.x, h.z]; });
   const p2 = await toScreen(h2[0], h2[1]);
   const c = await toScreen(ex, ez);
-  await page.mouse.move(p2.x, p2.y);
-  await page.mouse.down();
-  for (let i = 1; i <= 15; i++) await page.mouse.move(p2.x + (c.x - p2.x) * i / 15, p2.y + (c.y - p2.y) * i / 15);
-  await page.mouse.up();
+  await trace(p2, c, 15);
+  await page.mouse.click(c.x, c.y);
   n = await page.evaluate(() => window.__topple.game.layout.pieces.length);
   console.log('peças:', n);
   await page.screenshot({ path: path.join(out, 'h2-ready.png') });
@@ -76,7 +77,11 @@ try {
   await page.waitForTimeout(1500);
   await page.getByRole('button', { name: /recompensa/i }).click();
   await page.waitForSelector('.offer');
-  await page.locator('.offer').first().click();
+  // as cartas balançam sem parar (animação idle) e nunca ficam "estáveis" para o Playwright:
+  // espera a animação de entrada e clica no centro da carta com o mouse, como uma pessoa
+  await page.waitForTimeout(900);
+  const card = await page.locator('.offer').first().boundingBox();
+  await page.mouse.click(card.x + card.width / 2, card.y + card.height / 2);
   await page.waitForFunction(() => window.__topple.state().mode === 'planning' && window.__topple.state().depth === 1, null, { timeout: 10000 });
   assert(true, 'escolheu recompensa e foi para a fase 2');
   await page.waitForTimeout(1500);

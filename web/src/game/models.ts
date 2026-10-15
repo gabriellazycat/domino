@@ -24,9 +24,9 @@ function faceQuad(w: number, h: number, y0: number, z: number, cell: number, fli
   return g;
 }
 
-/** Geometria do dominó com 2 grupos: 0 = corpo, 1 = pips. Cacheada por (tipo, a, b). */
-export function dominoGeometry(type: PieceId, a: number, b: number): THREE.BufferGeometry {
-  const key = `${type}:${a}:${b}`;
+/** Geometria do dominó com 2 grupos: 0 = corpo, 1 = pips (só na metade de baixo; em cima vai o rosto). Cacheada por (tipo, b). */
+export function dominoGeometry(type: PieceId, _a: number, b: number): THREE.BufferGeometry {
+  const key = `${type}:${b}`;
   const hit = geoCache.get(key);
   if (hit) return hit;
   const d = PIECES[type];
@@ -36,10 +36,7 @@ export function dominoGeometry(type: PieceId, a: number, b: number): THREE.Buffe
   const fw = d.w * 0.86, fh = (d.h * 0.92) / 2;
   const z = d.t / 2 + 0.0015;
   const quads: THREE.BufferGeometry[] = [];
-  for (const flip of [false, true]) {
-    quads.push(faceQuad(fw, fh, fh / 2, flip ? -z : z, a, flip).toNonIndexed());
-    quads.push(faceQuad(fw, fh, -fh / 2, flip ? -z : z, b, flip).toNonIndexed());
-  }
+  for (const flip of [false, true]) quads.push(faceQuad(fw, fh, -fh / 2, flip ? -z : z, b, flip).toNonIndexed());
   const decal = mergeGeometries(quads, false)!;
   const merged = mergeGeometries([body, decal], true)!;
   merged.computeBoundingSphere();
@@ -53,12 +50,13 @@ export function dominoMaterials(type: PieceId, ghost = false): THREE.Material[] 
   if (hit) return hit as THREE.Material[];
   const d = PIECES[type];
   const metal = type === 'heavy';
+  // marfim/tinta velhos: um pouco mais escuros e foscos que as cores do catálogo
   const body = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(d.color),
-    roughness: metal ? 0.38 : 0.32,
+    color: new THREE.Color(d.color).multiplyScalar(0.78),
+    roughness: metal ? 0.42 : 0.5,
     metalness: metal ? 0.65 : 0.0,
-    clearcoat: metal ? 0.3 : 0.75,
-    clearcoatRoughness: 0.25,
+    clearcoat: metal ? 0.25 : 0.35,
+    clearcoatRoughness: 0.4,
     transparent: ghost, opacity: ghost ? 0.38 : 1, depthWrite: !ghost,
   });
   if (type === 'blast') { body.emissive = new THREE.Color('#ff2a10'); body.emissiveIntensity = 0.18; }
@@ -136,12 +134,13 @@ export function glow(color: string, intensity = 3): THREE.MeshBasicMaterial {
   return m;
 }
 
-// ---------- inimigos: soldadinhos de brinquedo ----------
-const PALETTE: Record<EnemyKind, { coat: string; pants: string; hat: string; skin: string; trim: string }> = {
-  soldier: { coat: '#c8322b', pants: '#253a6e', hat: '#1b1b22', skin: '#f2c9a0', trim: '#f4d36b' },
-  patroller: { coat: '#e09a2a', pants: '#3b2b1a', hat: '#5a3517', skin: '#f2c9a0', trim: '#fff1c2' },
-  brute: { coat: '#6d6f78', pants: '#3a2a26', hat: '#4b4d55', skin: '#89b765', trim: '#c9a24a' },
-  general: { coat: '#7a1f3d', pants: '#1f1f2b', hat: '#f2c14e', skin: '#f2c9a0', trim: '#f2c14e' },
+// ---------- inimigos: soldadinhos de brinquedo (versão assombrada) ----------
+// Mesmas pessoinhas, com cores desbotadas, pele pálida, olhos ocos com um ponto de luz e roupa rasgada.
+const PALETTE: Record<EnemyKind, { coat: string; pants: string; hat: string; skin: string; trim: string; glint: string }> = {
+  soldier: { coat: '#6a1f1b', pants: '#1c2232', hat: '#0d0d10', skin: '#b8b3a3', trim: '#7d6b3c', glint: '#ffe6b0' },
+  patroller: { coat: '#6a4a22', pants: '#211910', hat: '#2a1a0c', skin: '#aaa594', trim: '#8a7a5a', glint: '#ffe6b0' },
+  brute: { coat: '#34363c', pants: '#1e1614', hat: '#25272c', skin: '#6c8556', trim: '#6a5a3a', glint: '#ff4a2a' },
+  general: { coat: '#3e0f20', pants: '#121218', hat: '#8a6a2a', skin: '#c4bdac', trim: '#8a6a2a', glint: '#ff2a2a' },
 };
 
 function part(geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D): THREE.Mesh {
@@ -163,17 +162,26 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
   pivot.add(g);
   const s = kind === 'brute' ? 1.32 : kind === 'general' ? 1.5 : 1;
   const wide = kind === 'brute' ? 1.25 : 1;
-  const coat = std(pal.coat, 0.45), pants = std(pal.pants, 0.6), skin = std(pal.skin, 0.55);
-  const hat = std(pal.hat, kind === 'general' ? 0.25 : 0.5, kind === 'general' ? 0.8 : 0);
-  const trim = std(pal.trim, 0.3, 0.6);
+  const coat = std(pal.coat, 0.7), pants = std(pal.pants, 0.75), skin = std(pal.skin, 0.8);
+  const hat = std(pal.hat, kind === 'general' ? 0.45 : 0.7, kind === 'general' ? 0.7 : 0);
+  const trim = std(pal.trim, 0.55, 0.5);
+  const hollow = std('#020202', 0.95);
   // base
-  part(new THREE.CylinderGeometry(0.2 * s * wide, 0.22 * s * wide, 0.05, 20), std('#2e3b2c', 0.7), 0, 0.025, 0, g);
+  part(new THREE.CylinderGeometry(0.2 * s * wide, 0.22 * s * wide, 0.05, 20), std('#17130f', 0.8), 0, 0.025, 0, g);
   // pernas
   part(new THREE.CylinderGeometry(0.11 * s * wide, 0.12 * s * wide, 0.28 * s, 14), pants, 0, 0.05 + 0.14 * s, 0, g);
   // corpo
   const bodyY = 0.05 + 0.28 * s + 0.16 * s;
   part(new THREE.CylinderGeometry(0.13 * s * wide, 0.155 * s * wide, 0.34 * s, 16), coat, 0, bodyY, 0, g);
   part(new THREE.CylinderGeometry(0.158 * s * wide, 0.158 * s * wide, 0.04 * s, 16), trim, 0, bodyY - 0.1 * s, 0, g);
+  // barra rasgada do casaco (tiras penduradas)
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + 0.3;
+    const len = (0.05 + ((i * 5) % 4) * 0.025) * s;
+    const strip = part(new THREE.BoxGeometry(0.05 * s, len, 0.012 * s), coat, Math.sin(a) * 0.15 * s * wide, bodyY - 0.17 * s - len / 2, Math.cos(a) * 0.15 * s * wide, g);
+    strip.rotation.y = a;
+    strip.rotation.x = 0.15;
+  }
   // botões
   for (let i = 0; i < 2; i++) part(new THREE.SphereGeometry(0.018 * s, 6, 4), trim, 0, bodyY + 0.02 * s + i * 0.08 * s, 0.142 * s * wide, g);
   // braços
@@ -185,23 +193,34 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
   // cabeça
   const headY = bodyY + 0.17 * s + 0.1 * s;
   part(new THREE.SphereGeometry(0.105 * s, 18, 14), skin, 0, headY, 0, g);
-  for (const sx of [-1, 1]) part(new THREE.SphereGeometry(0.016 * s, 6, 4), std('#111', 0.3), sx * 0.04 * s, headY + 0.015 * s, 0.095 * s, g);
+  // olhos ocos (órbitas pretas fundas) com um pontinho de luz no fundo
+  for (const sx of [-1, 1]) {
+    const socket = part(new THREE.SphereGeometry(0.03 * s, 10, 8), hollow, sx * 0.042 * s, headY + 0.012 * s, 0.084 * s, g);
+    socket.scale.set(1, 1.25, 0.55);
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.008 * s, 6, 4), glow(pal.glint, kind === 'brute' || kind === 'general' ? 6 : 4));
+    dot.position.set(sx * 0.042 * s, headY + 0.008 * s, 0.1 * s);
+    g.add(dot);
+  }
+  // boca: fenda costurada
+  const mouth = part(new THREE.BoxGeometry(0.06 * s, 0.008 * s, 0.01 * s), hollow, 0, headY - 0.05 * s, 0.098 * s, g);
+  mouth.rotation.x = -0.4;
+  for (let i = 0; i < 3; i++) part(new THREE.BoxGeometry(0.004 * s, 0.022 * s, 0.006 * s), hollow, (i - 1) * 0.02 * s, headY - 0.05 * s, 0.101 * s, g).rotation.x = -0.4;
   // chapéus
   if (kind === 'soldier') {
     part(new THREE.CylinderGeometry(0.085, 0.095, 0.17, 16), hat, 0, headY + 0.13, 0, g);
     part(new THREE.CylinderGeometry(0.03, 0.03, 0.035, 10), trim, 0, headY + 0.13, 0.088, g).rotation.x = Math.PI / 2;
-    part(new THREE.SphereGeometry(0.035, 8, 6), std('#e8e2d0', 0.6), 0, headY + 0.235, 0, g);
+    part(new THREE.SphereGeometry(0.035, 8, 6), std('#5a5348', 0.8), 0, headY + 0.235, 0, g);
   } else if (kind === 'patroller') {
     part(new THREE.CylinderGeometry(0.15, 0.15, 0.02, 18), hat, 0, headY + 0.07, 0, g);
     part(new THREE.CylinderGeometry(0.07, 0.085, 0.09, 14), hat, 0, headY + 0.12, 0, g);
     // lanterna
-    const pole = part(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 6), std('#4a3420', 0.7), 0.2, bodyY + 0.05, 0.08, g);
+    const pole = part(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 6), std('#2a1d12', 0.8), 0.2, bodyY + 0.05, 0.08, g);
     pole.rotation.x = 0.2;
-    part(new THREE.SphereGeometry(0.045, 10, 8), glow('#ffcf6b', 5), 0.2, bodyY + 0.3, 0.12, g);
+    part(new THREE.SphereGeometry(0.045, 10, 8), glow('#ffb347', 6), 0.2, bodyY + 0.3, 0.12, g);
   } else if (kind === 'brute') {
     part(new THREE.SphereGeometry(0.12 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), hat, 0, headY + 0.02, 0, g);
     for (const sx of [-1, 1]) {
-      const horn = part(new THREE.ConeGeometry(0.03 * s, 0.14 * s, 8), std('#efe6d2', 0.4), sx * 0.12 * s, headY + 0.08 * s, 0, g);
+      const horn = part(new THREE.ConeGeometry(0.03 * s, 0.14 * s, 8), std('#b8ab8c', 0.7), sx * 0.12 * s, headY + 0.08 * s, 0, g);
       horn.rotation.z = -sx * 0.9;
     }
     // ombreiras
@@ -213,8 +232,11 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
       const a = (i / 6) * Math.PI * 2;
       part(new THREE.ConeGeometry(0.022 * s, 0.07 * s, 6), hat, Math.sin(a) * 0.095 * s, headY + 0.18 * s, Math.cos(a) * 0.095 * s, g);
     }
-    part(new THREE.SphereGeometry(0.025 * s, 8, 6), glow('#ff5ad1', 3), 0, headY + 0.13 * s, 0.1 * s, g);
-    const cape = part(new THREE.CylinderGeometry(0.16 * s, 0.24 * s, 0.5 * s, 18, 1, true, Math.PI * 0.6, Math.PI * 0.8), std('#3a145c', 0.7), 0, bodyY - 0.05 * s, 0, g);
+    part(new THREE.SphereGeometry(0.025 * s, 8, 6), glow('#ff2a2a', 4), 0, headY + 0.13 * s, 0.1 * s, g);
+    // meia-máscara de porcelana rachada
+    const mask = part(new THREE.SphereGeometry(0.11 * s, 16, 10, -Math.PI * 0.45, Math.PI * 0.9, Math.PI * 0.25, Math.PI * 0.32), std('#d8d0bc', 0.35), 0, headY, 0.008 * s, g);
+    (mask.material as THREE.Material).side = THREE.DoubleSide;
+    const cape = part(new THREE.CylinderGeometry(0.16 * s, 0.24 * s, 0.5 * s, 18, 1, true, Math.PI * 0.6, Math.PI * 0.8), std('#1c0a24', 0.85), 0, bodyY - 0.05 * s, 0, g);
     cape.rotation.y = Math.PI;
     (cape.material as THREE.Material).side = THREE.DoubleSide;
   }
@@ -274,11 +296,11 @@ export function makeWall(w: WallSpec): THREE.Object3D {
       m4.rotation.y = (jitter - 0.5) * 0.03;
       m4.updateMatrix();
       inst.setMatrixAt(i, m4.matrix);
-      inst.setColorAt(i, new THREE.Color().setHSL(0.045 + jitter * 0.02, 0.32 + jitter * 0.12, 0.3 + jitter * 0.1));
+      inst.setColorAt(i, new THREE.Color().setHSL(0.06 + jitter * 0.03, 0.08 + jitter * 0.06, 0.16 + jitter * 0.09));
     });
     inst.castShadow = inst.receiveShadow = true;
     grp.add(inst);
-    const cap = new THREE.Mesh(new RoundedBoxGeometry(w.w + 0.06, 0.07, w.d + 0.06, 2, 0.02), std('#8d867c', 0.8));
+    const cap = new THREE.Mesh(new RoundedBoxGeometry(w.w + 0.06, 0.07, w.d + 0.06, 2, 0.02), std('#3d3934', 0.9));
     cap.position.y = w.h - 0.025;
     cap.castShadow = cap.receiveShadow = true;
     grp.add(cap);
@@ -295,6 +317,7 @@ export function makeWall(w: WallSpec): THREE.Object3D {
   grp.add(m);
   const n = Math.max(2, Math.round(Math.max(w.w, w.d) / 0.3));
   const along = w.w > w.d;
+  const thorn = std('#120d09', 0.9);
   for (let i = 0; i < n; i++) {
     const t = (i + 0.5) / n - 0.5;
     const b = new THREE.Mesh(new THREE.SphereGeometry(Math.min(w.w, w.d) * 0.52, 10, 8), hedgeMat);
@@ -302,6 +325,16 @@ export function makeWall(w: WallSpec): THREE.Object3D {
     b.scale.set(1.15, 0.55, 1.15);
     b.castShadow = true;
     grp.add(b);
+    // galhos secos espetados para cima
+    for (let k = 0; k < 2; k++) {
+      const len = 0.18 + ((i * 7 + k * 3) % 5) * 0.04;
+      const twig = new THREE.Mesh(new THREE.ConeGeometry(0.018, len, 5), thorn);
+      const off = (k - 0.5) * 0.12;
+      twig.position.set(along ? t * w.w + off : off * 0.5, w.h + len * 0.35, along ? off * 0.5 : t * w.d + off);
+      twig.rotation.set(((i + k) % 3 - 1) * 0.5, 0, ((i * 2 + k) % 3 - 1) * 0.5);
+      twig.castShadow = true;
+      grp.add(twig);
+    }
   }
   return grp;
 }
@@ -354,11 +387,11 @@ export function makeLava(r: number): THREE.Object3D {
 
 export function makeTrigger(): THREE.Group {
   const g = new THREE.Group();
-  const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 0.03, 40), std('#1d3b2b', 0.5));
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 0.03, 40), std('#14201a', 0.6));
   pad.position.y = 0.015;
   pad.receiveShadow = true;
   g.add(pad);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 48), glow('#5dffa0', 3));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 48), glow('#7dffc0', 3));
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.035;
   ring.name = 'ring';
@@ -367,21 +400,24 @@ export function makeTrigger(): THREE.Group {
   const shape = new THREE.Shape();
   shape.moveTo(-0.09, -0.1); shape.lineTo(0.09, -0.1); shape.lineTo(0.09, 0.15); shape.lineTo(0.2, 0.15);
   shape.lineTo(0, 0.38); shape.lineTo(-0.2, 0.15); shape.lineTo(-0.09, 0.15); shape.closePath();
-  const arrow = new THREE.Mesh(new THREE.ShapeGeometry(shape), glow('#5dffa0', 2));
+  const arrow = new THREE.Mesh(new THREE.ShapeGeometry(shape), glow('#7dffc0', 2));
   arrow.rotation.set(-Math.PI / 2, 0, Math.PI); // forma aponta +Y → no chão aponta +Z (frente)
   arrow.position.set(0, 0.04, 0.45);
   arrow.name = 'arrow';
   g.add(arrow);
   // bandeirinha verde de largada atrás do pad
   const flag = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.9, 8), std('#d8d0c0', 0.4, 0.6));
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.9, 8), std('#cbbf9f', 0.75));
   pole.position.y = 0.45;
   flag.add(pole);
-  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.22, 6, 1), new THREE.MeshStandardMaterial({ color: '#3ddc84', emissive: '#1f9a55', emissiveIntensity: 0.6, side: THREE.DoubleSide, roughness: 0.7 }));
-  cloth.position.set(0.17, 0.78, 0);
+  // trapo rasgado (recorte em zigue-zague na ponta)
+  const rag = new THREE.Shape();
+  rag.moveTo(0, 0.11); rag.lineTo(0.34, 0.1); rag.lineTo(0.28, 0.04); rag.lineTo(0.34, -0.01); rag.lineTo(0.26, -0.05); rag.lineTo(0.3, -0.11); rag.lineTo(0, -0.11); rag.closePath();
+  const cloth = new THREE.Mesh(new THREE.ShapeGeometry(rag), new THREE.MeshStandardMaterial({ color: '#5a1414', emissive: '#2a0404', emissiveIntensity: 0.6, side: THREE.DoubleSide, roughness: 0.9 }));
+  cloth.position.set(0, 0.78, 0);
   cloth.name = 'cloth';
   flag.add(cloth);
-  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), std('#f2c14e', 0.3, 0.8));
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), std('#cbbf9f', 0.7));
   knob.position.y = 0.91;
   flag.add(knob);
   flag.position.set(-0.36, 0, -0.32);

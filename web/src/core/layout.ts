@@ -140,6 +140,34 @@ export class Layout {
     return { placed: out };
   }
 
+  /** Traço completo: nasce em `anchor` (só se ainda não há ponta) e estende até `cur`. Muta o layout. */
+  trail(st: Stroke | null, anchor: { x: number; z: number }, cur: { x: number; z: number }, type: PieceId):
+    { stroke: Stroke | null; placed: Placed[]; fail?: Fail; ghost?: { x: number; z: number; yaw: number } } {
+    const placed: Placed[] = [];
+    let s = st;
+    if (!s) {
+      const b = this.begin(anchor.x, anchor.z, type);
+      if (b.fail) return { stroke: null, placed, fail: b.fail };
+      s = b.stroke!;
+      if (b.placed) placed.push(...b.placed);
+    }
+    const r = this.extend(s, cur.x, cur.z, type);
+    return { stroke: s, placed: [...placed, ...r.placed], fail: r.fail, ghost: r.ghost };
+  }
+
+  /** Prévia da trilha: o mesmo que `trail`, mas num clone — o layout real não muda. */
+  preview(st: Stroke | null, anchor: { x: number; z: number }, cur: { x: number; z: number }, type: PieceId) {
+    return this.clone().trail(st && { ...st }, anchor, cur, type);
+  }
+
+  private clone(): Layout {
+    const c = new Layout(this.spec, this.hand);
+    c.pieces = this.pieces.slice();
+    c.nextId = this.nextId;
+    c.strokeSeq = this.strokeSeq;
+    return c;
+  }
+
   private placeAt(type: PieceId, x: number, z: number, yaw: number, parent: number, stroke: number, ignore: Set<number>, jump = false):
     { list: Placed[] } | { fail: Fail } {
     if (this.hand[type] <= 0) return { fail: 'empty' };

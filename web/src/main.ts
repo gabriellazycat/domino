@@ -1,4 +1,6 @@
-import '@fontsource/lilita-one/400.css';
+import '@fontsource/im-fell-english-sc/400.css';
+import '@fontsource/silkscreen/400.css';
+import '@fontsource/silkscreen/700.css';
 import '@fontsource/nunito/600.css';
 import '@fontsource/nunito/800.css';
 import '@fontsource/nunito/900.css';

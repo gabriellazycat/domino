@@ -96,12 +96,12 @@ export class Fx {
     const n = big ? 34 : 18;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * (big ? 4 : 2.8);
-      const col = Math.random() < 0.3 ? new THREE.Color('#ffe9a8') : c.clone().offsetHSL(0, 0, (Math.random() - 0.5) * 0.2);
+      const col = Math.random() < 0.3 ? new THREE.Color('#cbbf9f') : c.clone().offsetHSL(0, 0, (Math.random() - 0.5) * 0.2);
       this.chips.spawn({ x, y, z, vx: Math.cos(a) * sp, vy: 2.5 + Math.random() * 3.5, vz: Math.sin(a) * sp, wx: 10 * Math.random(), wy: 8, wz: 10 * Math.random(), s: 0.04 + Math.random() * 0.05, max: 1.2 + Math.random() * 0.8, g: -12, drag: 0.6 }, col);
     }
-    this.sparkBurst(x, y, z, big ? 26 : 14, '#ffd27a', 3.5);
-    this.puff(x, 0.15, z, big ? 1.3 : 0.8, '#e8dccb', 0.5);
-    this.ring(x, z, big ? 1.4 : 0.9, '#ffe2a0');
+    this.sparkBurst(x, y, z, big ? 26 : 14, '#ff9a4a', 3.5);
+    this.puff(x, 0.15, z, big ? 1.3 : 0.8, '#5a4e44', 0.5);
+    this.ring(x, z, big ? 1.4 : 0.9, '#ff7a4a');
   }
 
   sparkBurst(x: number, y: number, z: number, n: number, color: string, speed: number) {
@@ -115,10 +115,10 @@ export class Fx {
 
   /** Poeirinha da peça batendo no chão. */
   dust(x: number, z: number, scale = 1) {
-    this.puff(x, 0.08, z, 0.45 * scale, '#d9ccb6', 0.35);
+    this.puff(x, 0.08, z, 0.45 * scale, '#7d7262', 0.35);
     for (let i = 0; i < 3; i++) {
       const a = Math.random() * Math.PI * 2;
-      this.chips.spawn({ x, y: 0.05, z, vx: Math.cos(a) * 0.8, vy: 1.2 + Math.random(), vz: Math.sin(a) * 0.8, wx: 6, wy: 6, wz: 6, s: 0.025, max: 0.6, g: -10, drag: 1 }, new THREE.Color('#bfae92'));
+      this.chips.spawn({ x, y: 0.05, z, vx: Math.cos(a) * 0.8, vy: 1.2 + Math.random(), vz: Math.sin(a) * 0.8, wx: 6, wy: 6, wz: 6, s: 0.025, max: 0.6, g: -10, drag: 1 }, new THREE.Color('#6a5e4c'));
     }
   }
 
@@ -136,7 +136,8 @@ export class Fx {
   }
 
   confetti(x: number, z: number, n = 140) {
-    const cols = ['#f2c14e', '#e5493a', '#3fb6a8', '#7d5bd6', '#f6ead2', '#5dffa0'];
+    // brasas e cinzas (em vez de confete colorido)
+    const cols = ['#ff8a3c', '#ffb347', '#ff5a2a', '#3a302a', '#6a5a4a', '#cbbf9f'];
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 3;
       this.chips.spawn({ x: x + (Math.random() - 0.5) * 2, y: 3 + Math.random() * 2, z: z + (Math.random() - 0.5) * 2, vx: Math.cos(a) * sp, vy: Math.random() * 2, vz: Math.sin(a) * sp, wx: 12 * Math.random(), wy: 12, wz: 12 * Math.random(), s: 0.07, max: 3 + Math.random() * 1.5, g: -4, drag: 1.4 }, new THREE.Color(cols[i % cols.length]));

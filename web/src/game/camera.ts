@@ -105,6 +105,11 @@ export class CameraRig {
       this.target.z + this.dist * sinP * Math.cos(this.az),
     );
     this.cam.lookAt(this.target);
+    // respiração: a câmera nunca fica 100% parada (alguém segurando)
+    const b = this.shakeScale;
+    this.cam.rotateZ(Math.sin(this.t * 0.41) * 0.004 * b);
+    this.cam.rotateX(Math.sin(this.t * 0.53 + 1) * 0.003 * b);
+    this.cam.rotateY(Math.sin(this.t * 0.37 + 2) * 0.003 * b);
     // tremor
     this.trauma = Math.max(0, this.trauma - dt * 1.4);
     const s = this.trauma * this.trauma * this.shakeScale;

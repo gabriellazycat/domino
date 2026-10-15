@@ -139,6 +139,26 @@ export class Audio {
     this.noise(t, 0.45, 0.35, 'bandpass', 600, 4, this.sfx, 3500);
   }
 
+  /** A mão pousando na mesa: baque grave e abafado. */
+  thud() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.tone('sine', 72, t, 0.9, 0.6, this.sfx, 30);
+    this.noise(t, 0.4, 0.6, 'lowpass', 500, 0.7, this.sfx, 90);
+  }
+
+  /** A mão varrendo a mesa: arrasto de pele na madeira + chocalho de peças. */
+  scrape(dur = 1) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.noise(t, dur, 0.4, 'bandpass', 260, 1.2, this.sfx, 900);
+    this.noise(t + 0.05, dur * 0.9, 0.18, 'highpass', 2600, 0.8, this.sfx);
+    for (let i = 0; i < 9; i++) {
+      const ti = t + 0.08 + Math.random() * dur * 0.85;
+      this.noise(ti, 0.04, 0.3, 'bandpass', 2200 + Math.random() * 1600, 2.5, this.sfx);
+    }
+  }
+
   coin(i = 0) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime + i * 0.06;

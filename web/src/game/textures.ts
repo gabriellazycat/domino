@@ -64,26 +64,62 @@ export function pipAtlas(): THREE.CanvasTexture {
   return atlasTex;
 }
 
+/** Pano velho e manchado da mesa (verde-acinzentado quase preto, manchas de vinho e queimado). */
 export function feltTexture(): THREE.CanvasTexture {
-  const S = 512;
+  const S = 1024;
   const [c, g] = canvas(S, S);
-  g.fillStyle = '#2f5a45';
+  g.fillStyle = '#2a2f27';
   g.fillRect(0, 0, S, S);
   const r = new Rng(7);
+  // manchas grandes e suaves (tileable: desenha cada mancha nos 4 quadrantes vizinhos)
+  const blot = (x: number, y: number, rad: number, col: string, a: number) => {
+    for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) {
+      const grd = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, rad);
+      grd.addColorStop(0, col.replace('A', String(a)));
+      grd.addColorStop(1, col.replace('A', '0'));
+      g.fillStyle = grd;
+      g.fillRect(x + ox - rad, y + oy - rad, rad * 2, rad * 2);
+    }
+  };
+  for (let i = 0; i < 26; i++) blot(r.float() * S, r.float() * S, 60 + r.float() * 180, 'rgba(8,10,8,A)', 0.35 + r.float() * 0.3);
+  for (let i = 0; i < 7; i++) blot(r.float() * S, r.float() * S, 30 + r.float() * 70, 'rgba(70,18,14,A)', 0.25 + r.float() * 0.2);
+  for (let i = 0; i < 10; i++) blot(r.float() * S, r.float() * S, 40 + r.float() * 90, 'rgba(90,96,70,A)', 0.12);
   const img = g.getImageData(0, 0, S, S);
   for (let i = 0; i < img.data.length; i += 4) {
-    const n = (r.float() - 0.5) * 22;
+    const n = (r.float() - 0.5) * 18;
     img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n;
   }
   g.putImageData(img, 0, 0);
   // fibras
-  g.globalAlpha = 0.05;
-  for (let i = 0; i < 1800; i++) {
-    g.strokeStyle = r.chance(0.5) ? '#9fd1b0' : '#0d2219';
+  g.globalAlpha = 0.06;
+  for (let i = 0; i < 5000; i++) {
+    g.strokeStyle = r.chance(0.5) ? '#8a9a80' : '#050605';
     g.beginPath();
     const x = r.float() * S, y = r.float() * S, a = r.float() * Math.PI;
-    g.moveTo(x, y); g.lineTo(x + Math.cos(a) * 6, y + Math.sin(a) * 6); g.stroke();
+    g.moveTo(x, y); g.lineTo(x + Math.cos(a) * 7, y + Math.sin(a) * 7); g.stroke();
   }
+  g.globalAlpha = 1;
+  return tex(c, 1);
+}
+
+/** Verso de carta velha (props da mesa). */
+export function cardBackTexture(): THREE.CanvasTexture {
+  const W = 128, H = 192;
+  const [c, g] = canvas(W, H);
+  g.fillStyle = '#c2b28c';
+  g.fillRect(0, 0, W, H);
+  g.strokeStyle = '#3a2416';
+  g.lineWidth = 5;
+  g.strokeRect(8, 8, W - 16, H - 16);
+  g.lineWidth = 2;
+  g.strokeRect(16, 16, W - 32, H - 32);
+  // olho no centro
+  g.beginPath(); g.ellipse(W / 2, H / 2, 30, 16, 0, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = '#3a2416';
+  g.beginPath(); g.arc(W / 2, H / 2, 9, 0, Math.PI * 2); g.fill();
+  const r = new Rng(13);
+  g.globalAlpha = 0.25;
+  for (let i = 0; i < 40; i++) { g.fillStyle = r.chance(0.5) ? '#5a3a22' : '#e8dcc0'; g.beginPath(); g.arc(r.float() * W, r.float() * H, 2 + r.float() * 9, 0, Math.PI * 2); g.fill(); }
   g.globalAlpha = 1;
   return tex(c, 1);
 }
@@ -93,7 +129,7 @@ export function gridTexture(w: number, d: number): THREE.CanvasTexture {
   const px = 64;
   const [c, g] = canvas(w * px, d * px);
   g.clearRect(0, 0, c.width, c.height);
-  g.strokeStyle = 'rgba(255,240,200,0.045)';
+  g.strokeStyle = 'rgba(230,210,180,0.035)';
   g.lineWidth = 2;
   for (let x = 0; x <= w; x++) { g.beginPath(); g.moveTo(x * px, 0); g.lineTo(x * px, c.height); g.stroke(); }
   for (let z = 0; z <= d; z++) { g.beginPath(); g.moveTo(0, z * px); g.lineTo(c.width, z * px); g.stroke(); }
@@ -103,7 +139,7 @@ export function gridTexture(w: number, d: number): THREE.CanvasTexture {
   return t;
 }
 
-export function woodTexture(base = '#6b4325', dark = '#3e2412', seed = 3): THREE.CanvasTexture {
+export function woodTexture(base = '#3a2416', dark = '#160b05', seed = 3): THREE.CanvasTexture {
   const W = 1024, H = 256;
   const [c, g] = canvas(W, H);
   g.fillStyle = base;
@@ -163,30 +199,58 @@ export function stoneTexture(): THREE.CanvasTexture {
   return tex(c, 1);
 }
 
+/** Arbusto morto: folhas secas marrom-acinzentadas + galhos e espinhos. */
 export function hedgeTexture(): THREE.CanvasTexture {
   const S = 256;
   const [c, g] = canvas(S, S);
-  g.fillStyle = '#2f6b2a';
+  g.fillStyle = '#1f1a13';
   g.fillRect(0, 0, S, S);
   const r = new Rng(5);
   for (let i = 0; i < 900; i++) {
     const l = r.float();
-    g.fillStyle = l < 0.3 ? '#1f4d1d' : l < 0.75 ? '#3f8a35' : '#6fb85a';
+    g.fillStyle = l < 0.35 ? '#120e0a' : l < 0.75 ? '#3a3022' : l < 0.95 ? '#57492f' : '#4a5233';
     g.beginPath();
-    g.ellipse(r.float() * S, r.float() * S, 4 + r.float() * 6, 2 + r.float() * 3, r.float() * Math.PI, 0, Math.PI * 2);
+    g.ellipse(r.float() * S, r.float() * S, 3 + r.float() * 5, 1.5 + r.float() * 2.5, r.float() * Math.PI, 0, Math.PI * 2);
     g.fill();
+  }
+  // galhos secos
+  g.strokeStyle = '#0d0a07';
+  g.lineCap = 'round';
+  for (let i = 0; i < 26; i++) {
+    let x = r.float() * S, y = r.float() * S, a = r.float() * Math.PI * 2;
+    g.lineWidth = 1.5 + r.float() * 2;
+    g.beginPath(); g.moveTo(x, y);
+    for (let k = 0; k < 4; k++) {
+      a += (r.float() - 0.5) * 1.2;
+      const nx = x + Math.cos(a) * 14, ny = y + Math.sin(a) * 14;
+      g.lineTo(nx, ny);
+      // espinho
+      g.moveTo(nx, ny); g.lineTo(nx + Math.cos(a + 1.4) * 5, ny + Math.sin(a + 1.4) * 5); g.moveTo(nx, ny);
+      x = nx; y = ny;
+    }
+    g.stroke();
   }
   return tex(c, 1);
 }
 
+/** Caixote de madeira podre: tábuas escuras, musgo e rachaduras. */
 export function crateTexture(): THREE.CanvasTexture {
   const S = 256;
   const [c, g] = canvas(S, S);
-  g.drawImage(woodTexture('#a8743f', '#5c3a19', 9).image as HTMLCanvasElement, 0, 0, S, S);
-  g.strokeStyle = '#4a2c12';
+  g.drawImage(woodTexture('#4a3a28', '#1c140b', 9).image as HTMLCanvasElement, 0, 0, S, S);
+  const r = new Rng(17);
+  // musgo e mofo
+  for (let i = 0; i < 60; i++) {
+    g.fillStyle = `rgba(${50 + r.float() * 30},${70 + r.float() * 30},${30 + r.float() * 20},${0.15 + r.float() * 0.25})`;
+    g.beginPath(); g.arc(r.float() * S, S - r.float() * r.float() * S, 3 + r.float() * 10, 0, Math.PI * 2); g.fill();
+  }
+  g.strokeStyle = '#1a0f07';
   g.lineWidth = 18;
   g.strokeRect(9, 9, S - 18, S - 18);
   g.beginPath(); g.moveTo(9, 9); g.lineTo(S - 9, S - 9); g.stroke();
+  // pregos enferrujados
+  g.fillStyle = '#5a3018';
+  for (const [x, y] of [[9, 9], [S - 9, 9], [9, S - 9], [S - 9, S - 9]]) { g.beginPath(); g.arc(x, y, 4, 0, Math.PI * 2); g.fill(); }
   return tex(c, 1);
 }
 

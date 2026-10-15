@@ -4,9 +4,13 @@ import { Placed } from '../core/layout';
 import { PhaseSpec, ENEMY_RADIUS } from '../core/mapgen';
 import { makeDomino, makeEnemy, makeWall, makeLava, makeTrigger, makeHeadRing, dominoGeometry, ghostMaterial, lavaUniforms, glow } from './models';
 import { Sim, patrolPos, ENEMY_HEIGHT, quatYaw } from './sim';
+import { FaceRig, Expr, tiltOfQuat } from './faces';
+import type { SweepTarget } from './hand';
 
-// Visual do tabuleiro: cenário da fase, peças do plano, inimigos; sincroniza com a física.
-interface PieceView { mesh: THREE.Mesh; p: Placed; pop: number }
+// Visual do tabuleiro: cenário da fase, peças do plano (com rosto), inimigos; sincroniza com a física.
+interface PieceView { mesh: THREE.Mesh; p: Placed; pop: number; face: FaceRig; simExpr: Expr | null }
+/** Humor geral das peças: calmas no planejamento, nervosas antes do disparo, felizes/tristes no resultado. */
+export type Mood = 'calm' | 'nervous' | 'happy' | 'sad';
 interface EnemyView { pivot: THREE.Group; ring: THREE.Mesh; hpPips?: THREE.Group; bob: number; hitT: number }
 
 export class Board {
@@ -17,9 +21,14 @@ export class Board {
   trigger!: THREE.Group;
   heads: THREE.Mesh[] = [];
   ghost: THREE.Mesh;
+  trailMeshes: THREE.Mesh[] = [];
   hoverRing: THREE.Mesh;
   spec!: PhaseSpec;
   t = 0;
+  mood: Mood = 'calm';
+  /** objetos surgindo na fase nova (cai do alto com quique, em onda da esquerda p/ direita) */
+  private spawning: { o: THREE.Object3D; delay: number; pos: THREE.Vector3; scale: THREE.Vector3 }[] = [];
+  private spawnT = 0;
 
   constructor(public scene: THREE.Scene) {
     scene.add(this.root);
@@ -41,6 +50,7 @@ export class Board {
     for (const l of spec.lava) {
       const m = makeLava(l.r);
       m.position.set(l.x, 0, l.z);
+      m.userData.sweep = 'fade';
       this.stat.add(m);
     }
     this.trigger = makeTrigger();
@@ -60,6 +70,7 @@ export class Board {
           const dot = new THREE.Mesh(new THREE.CircleGeometry(0.035, 10), glow('#f2a93a', 1.4));
           dot.rotation.x = -Math.PI / 2;
           dot.position.set(a.x + (b.x - a.x) * t, 0.012, a.z + (b.z - a.z) * t);
+          dot.userData.sweep = 'fade';
           this.stat.add(dot);
         }
       }
@@ -116,8 +127,10 @@ export class Board {
     mesh.position.set(p.x, d.h / 2, p.z);
     mesh.rotation.set(0, p.yaw, 0);
     if (animate) mesh.scale.setScalar(0.01);
+    const face = new FaceRig(p.type);
+    mesh.add(face.mesh);
     this.root.add(mesh);
-    this.pieceViews.set(p.id, { mesh, p, pop: animate ? 0 : 1 });
+    this.pieceViews.set(p.id, { mesh, p, pop: animate ? 0 : 1, face, simExpr: null });
   }
 
   removePiece(id: number) {
@@ -141,6 +154,7 @@ export class Board {
       v.mesh.visible = true;
       v.mesh.scale.setScalar(1);
       v.pop = 1;
+      v.simExpr = null;
     }
   }
 
@@ -166,6 +180,24 @@ export class Board {
 
   hideHeads() { for (const r of this.heads) r.visible = false; }
 
+  /** Trilha fantasma: peças que seriam colocadas se o clique fosse agora (ainda não existem no layout). */
+  setTrail(list: Placed[]) {
+    while (this.trailMeshes.length < list.length) {
+      const m = new THREE.Mesh(dominoGeometry('common', 0, 0), ghostMaterial(true));
+      m.renderOrder = 2;
+      this.trailMeshes.push(m);
+      this.scene.add(m);
+    }
+    this.trailMeshes.forEach((m, i) => {
+      const p = list[i];
+      m.visible = !!p;
+      if (!p) return;
+      m.geometry = dominoGeometry(p.type, 0, 0);
+      m.position.set(p.x, PIECES[p.type].h / 2, p.z);
+      m.rotation.set(0, p.yaw, 0);
+    });
+  }
+
   showGhost(g: { x: number; z: number; yaw: number } | null, type: keyof typeof PIECES = 'common') {
     if (!g) { this.ghost.visible = false; return; }
     this.ghost.geometry = dominoGeometry(type, 0, 0);
@@ -174,8 +206,10 @@ export class Board {
     this.ghost.rotation.set(0, g.yaw, 0);
   }
 
-  /** Copia a física para os meshes. */
+  /** Copia a física para os meshes e decide a cara de cada peça (medo → grito → tontura). */
   syncSim(sim: Sim) {
+    const near: { x: number; z: number }[] = [];
+    for (let i = sim.recentFalls.length - 1; i >= 0 && sim.t - sim.recentFalls[i].t < 0.9; i--) near.push(sim.recentFalls[i]);
     sim.pieces.forEach((s) => {
       const v = this.pieceViews.get(s.p.id);
       if (!v) return;
@@ -183,6 +217,15 @@ export class Board {
       v.mesh.position.set(t.x, t.y, t.z);
       v.mesh.quaternion.set(q.x, q.y, q.z, q.w);
       if (s.exploded) v.mesh.visible = false;
+      const tilt = tiltOfQuat(q);
+      let ex: Expr;
+      if (tilt > 1.15) {
+        const w = s.body.angvel();
+        ex = Math.abs(w.x) + Math.abs(w.y) + Math.abs(w.z) < 1.5 ? 'dizzy' : 'scream';
+      } else if (tilt > 0.16 || s.launched >= 0) ex = 'scream';
+      else if (near.some((f) => (f.x - t.x) ** 2 + (f.z - t.z) ** 2 < 0.8)) ex = 'scared';
+      else ex = sim.fired ? 'nervous' : 'neutral';
+      v.simExpr = ex;
     });
     sim.enemies.forEach((e, i) => {
       const v = this.enemyViews[i];
@@ -203,11 +246,69 @@ export class Board {
 
   enemyHit(i: number) { this.enemyViews[i].hitT = this.t; }
 
+  /** Tudo que a mão vai varrer (peças, inimigos, cenário). Marcadores de UI somem na hora. */
+  sweepTargets(): SweepTarget[] {
+    const out: SweepTarget[] = [];
+    for (const v of this.pieceViews.values()) { out.push({ o: v.mesh, kind: 'fly' }); v.simExpr = 'scream'; }
+    for (const v of this.enemyViews) {
+      out.push({ o: v.pivot, kind: 'fly' }, { o: v.ring, kind: 'fade' });
+      if (v.hpPips) out.push({ o: v.hpPips, kind: 'fade' });
+    }
+    for (const c of this.stat.children) out.push({ o: c, kind: c.userData.sweep === 'fade' ? 'fade' : 'fly' });
+    this.hideHeads();
+    this.setTrail([]);
+    this.showGhost(null);
+    this.hoverRing.visible = false;
+    return out;
+  }
+
+  /** A fase recém-montada surge: cenário e inimigos caem do alto com quique, em onda. */
+  spawnIn() {
+    this.spawning = [];
+    this.spawnT = 0;
+    const add = (o: THREE.Object3D, delay: number) => {
+      this.spawning.push({ o, delay, pos: o.position.clone(), scale: o.scale.clone() });
+      o.scale.setScalar(0.0001);
+    };
+    const wave = (x: number) => ((x + 8) / 16) * 0.45 + Math.random() * 0.06;
+    for (const o of this.stat.children) add(o, 0.05 + wave(o.position.x));
+    for (const v of this.enemyViews) {
+      const body = v.pivot.children[0];
+      if (body) add(body, 0.3 + wave(v.pivot.position.x));
+      add(v.ring, 0.3 + wave(v.pivot.position.x));
+    }
+  }
+
+  /** Anima a fase surgindo (chamado pelo jogo com tempo real). */
+  updateSpawn(dt: number) {
+    if (!this.spawning.length) return;
+    this.spawnT += dt;
+    let done = true;
+    for (const s of this.spawning) {
+      const k = THREE.MathUtils.clamp((this.spawnT - s.delay) / 0.5, 0, 1);
+      if (k < 1) done = false;
+      // easeOutBack: passa um pouco do tamanho e volta (quique)
+      const c = 2.2, e = 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2);
+      s.o.scale.copy(s.scale).multiplyScalar(Math.max(0.0001, k <= 0 ? 0 : e));
+      s.o.position.set(s.pos.x, s.pos.y + Math.pow(1 - k, 3) * 1.4, s.pos.z);
+    }
+    if (done) this.spawning = [];
+  }
+
   update(dt: number, planning: boolean, patrolT: number) {
     this.t += dt;
     lavaUniforms.uTime.value = this.t;
-    // pop das peças novas (mola)
+    // pop das peças novas (mola) + rosto
     for (const v of this.pieceViews.values()) {
+      const se = v.simExpr;
+      let ex: Expr;
+      if (se === 'dizzy' || se === 'scream') ex = se;
+      else if (this.mood === 'happy') ex = 'happy';
+      else if (this.mood === 'sad') ex = 'sad';
+      else if (se) ex = se;
+      else ex = this.mood === 'nervous' ? 'nervous' : 'neutral';
+      v.face.base = ex;
+      v.face.update(dt);
       if (v.pop < 1) {
         v.pop = Math.min(1, v.pop + dt * 5);
         const x = v.pop;
@@ -254,9 +355,14 @@ export class Board {
       }
     });
     if (this.ghost.visible) (this.ghost.material as THREE.MeshBasicMaterial).opacity = 0.35 + Math.sin(this.t * 10) * 0.12;
+    if (this.trailMeshes.length && this.trailMeshes[0].visible) {
+      const k = 0.4 + Math.sin(this.t * 6) * 0.1;
+      for (const m of this.trailMeshes) if (m.visible) (m.material as THREE.MeshBasicMaterial).opacity = k;
+    }
   }
 
   private clearAll() {
+    this.spawning = [];
     this.clearPieces();
     this.stat.clear();
     for (const v of this.enemyViews) { this.root.remove(v.pivot, v.ring); if (v.hpPips) this.root.remove(v.hpPips); }

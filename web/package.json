@@ -13,8 +13,9 @@
   "license": "ISC",
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.14.0",
-    "@fontsource/lilita-one": "^5.3.0",
+    "@fontsource/im-fell-english-sc": "^5.3.0",
     "@fontsource/nunito": "^5.3.0",
+    "@fontsource/silkscreen": "^5.3.0",
     "three": "^0.170.0"
   },
   "devDependencies": {

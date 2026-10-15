@@ -294,7 +294,7 @@ function tryGenerate(rng: Rng, runSeed: number, depth: number, deckCards: number
   const par = Math.max(6, est + (enemies.some((e) => e.kind !== 'soldier') ? 2 : 0));
   const area = AREAS[Math.floor(depth / 3) % AREAS.length];
   let hint: string | undefined;
-  if (depth === 0) hint = 'Arraste a partir do marcador VERDE para desenhar a fileira até os soldados.';
+  if (depth === 0) hint = 'Clique no marcador VERDE e mova o mouse: a trilha aparece. Clique no chão para colocar.';
   else if (depth === 1) hint = 'Muro no caminho! Faça a curva desenhando em volta dele.';
   else if (depth === 2) hint = 'Dois pelotões: use a BIFURCAÇÃO para dividir a corrente.';
   else if (enemies.some((e) => e.kind === 'brute') && depth <= 4) hint = 'Brutamontes aguentam 2 golpes. Pesada ou Torre derrubam de uma vez!';

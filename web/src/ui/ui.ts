@@ -11,6 +11,25 @@ const h = (tag: string, cls = '', html = ''): HTMLElement => {
   return e;
 };
 
+/** Texto com uma span por letra que ondula (estilo Balatro). */
+export function wob(text: string): string {
+  return [...text].map((ch, i) => `<span style="--i:${i}">${ch === ' ' ? '&nbsp;' : ch}</span>`).join('');
+}
+const title = (text: string, cls = ''): HTMLElement => h('h1', `wob ${cls}`, wob(text));
+
+/** Carta inclina em 3D seguindo o mouse (variáveis CSS --rx/--ry e brilho em --mx/--my). */
+function tiltable(el: HTMLElement, amt = 20) {
+  el.addEventListener('pointermove', (e) => {
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+    el.style.setProperty('--ry', `${(x - 0.5) * amt}deg`);
+    el.style.setProperty('--rx', `${(0.5 - y) * amt}deg`);
+    el.style.setProperty('--mx', `${x * 100}%`);
+    el.style.setProperty('--my', `${y * 100}%`);
+  });
+  el.addEventListener('pointerleave', () => { el.style.setProperty('--rx', '0deg'); el.style.setProperty('--ry', '0deg'); });
+}
+
 const PIPS: Record<number, [number, number][]> = {
   1: [[.5, .5]], 2: [[.28, .28], [.72, .72]], 3: [[.25, .25], [.5, .5], [.75, .75]],
   4: [[.28, .28], [.72, .28], [.28, .72], [.72, .72]], 5: [[.26, .26], [.74, .26], [.5, .5], [.26, .74], [.74, .74]],
@@ -26,15 +45,19 @@ export function pieceSvg(id: PieceId): string {
   const pip = (cx: number, cy: number) => `<circle cx="${cx}" cy="${cy}" r="3.2" fill="${d.pip}"/>`;
   const half = (n: number, top: boolean) => (PIPS[n] || []).map(([px, py]) => pip(x + 4 + px * (W - 8), y + (top ? 4 : H / 2 + 2) + py * (H / 2 - 6))).join('');
   let deco = '';
-  if (id === 'blast') deco = `<path d="M${x + W / 2 + 6} ${y + 2} q 6 -8 12 -6" stroke="#333" stroke-width="2.5" fill="none"/><circle cx="${x + W / 2 + 18}" cy="${y - 4}" r="3.5" fill="#ffb347"/><circle cx="${x + W / 2}" cy="${y + H * 0.58}" r="9" fill="${d.pip}"/><text x="${x + W / 2}" y="${y + H * 0.33}" text-anchor="middle" font-size="12" font-family="Lilita One" fill="${d.pip}">TNT</text>`;
+  if (id === 'blast') deco = `<path d="M${x + W / 2 + 6} ${y + 2} q 6 -8 12 -6" stroke="#333" stroke-width="2.5" fill="none"/><circle cx="${x + W / 2 + 18}" cy="${y - 4}" r="3.5" fill="#ffb347"/><circle cx="${x + W / 2}" cy="${y + H * 0.58}" r="9" fill="${d.pip}"/><text x="${x + W / 2}" y="${y + H * 0.33}" text-anchor="middle" font-size="9" font-family="Silkscreen" font-weight="700" fill="${d.pip}">TNT</text>`;
   else if (id === 'runner') deco = `<path d="M${x + 8} ${y + H * 0.45} l ${W / 2 - 8} -12 l ${W / 2 - 8} 12" stroke="${d.pip}" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M${x + 8} ${y + H * 0.7} l ${W / 2 - 8} -12 l ${W / 2 - 8} 12" stroke="${d.pip}" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="${x - 4}" y="${y + H - 22}" width="5" height="18" rx="2" fill="#d23a2a"/><rect x="${x + W - 1}" y="${y + H - 22}" width="5" height="18" rx="2" fill="#d23a2a"/>`;
   else if (id === 'fork') {
     const hw = 16;
     return `<svg viewBox="${vb}"><rect x="${x - 1}" y="${y + 8}" width="${hw}" height="${H - 8}" rx="4" fill="${d.color}" stroke="#2a1d16" stroke-width="2"/><rect x="${x + W - hw + 1}" y="${y + 8}" width="${hw}" height="${H - 8}" rx="4" fill="${d.color}" stroke="#2a1d16" stroke-width="2"/>${pip(x + 7, y + 22)}${pip(x + 7, y + 50)}${pip(x + W - 7, y + 30)}${pip(x + W - 7, y + 60)}<path d="M23 4 v8 M23 8 l -8 6 M23 8 l 8 6" stroke="#f08a3c" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
   } else {
-    const a = id === 'heavy' ? 6 : id === 'tower' ? 5 : id === 'big' ? 4 : 3;
     const b = id === 'heavy' ? 6 : id === 'tower' ? 6 : id === 'big' ? 2 : 5;
-    deco = half(a, true) + half(b, false) + `<line x1="${x + 5}" y1="${y + H / 2}" x2="${x + W - 5}" y2="${y + H / 2}" stroke="${d.pip}" stroke-width="2"/>`;
+    // rosto na metade de cima (igual à peça 3D), pips embaixo
+    const cy = y + H * 0.24, ex = W * 0.2, c = d.pip;
+    const face = `<circle cx="${x + W / 2 - ex}" cy="${cy}" r="4.4" fill="none" stroke="${c}" stroke-width="2"/><circle cx="${x + W / 2 + ex}" cy="${cy}" r="4.4" fill="none" stroke="${c}" stroke-width="2"/>`
+      + `<circle cx="${x + W / 2 - ex}" cy="${cy + 0.5}" r="1.9" fill="${c}"/><circle cx="${x + W / 2 + ex}" cy="${cy + 0.5}" r="1.9" fill="${c}"/>`
+      + `<path d="M${x + W / 2 - 5} ${cy + 10} q 5 2 10 0" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+    deco = face + half(b, false) + `<line x1="${x + 5}" y1="${y + H / 2}" x2="${x + W - 5}" y2="${y + H / 2}" stroke="${d.pip}" stroke-width="2"/>`;
   }
   const shine = id === 'heavy' ? `<rect x="${x + 4}" y="${y + 4}" width="6" height="${H - 8}" rx="3" fill="rgba(255,255,255,.18)"/>` : `<rect x="${x + 4}" y="${y + 4}" width="5" height="${H - 8}" rx="2.5" fill="rgba(255,255,255,.35)"/>`;
   return `<svg viewBox="${vb}"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="${d.color}" stroke="#2a1d16" stroke-width="2.5"/>${shine}${deco}</svg>`;
@@ -49,18 +72,20 @@ export interface HudCallbacks {
   deck(): void;
   speed(): void;
   skipSim(): void;
+  fireHover?(on: boolean): void;
 }
 
 export class UI {
   root = document.getElementById('ui')!;
   hud = h('div', 'hud');
-  private phaseBadge = h('div', 'phase-badge hit');
-  private obj = h('div', 'obj');
+  private phaseBadge = h('div', 'phase-badge box hit');
+  private obj = h('div', 'obj box');
   private enemyIcons = h('div', 'enemy-icons');
   private piecesPar = h('div', 'pieces-par');
-  private lifeEl = h('div', 'stat life');
-  private goldEl = h('div', 'stat gold');
-  private attEl = h('div', 'stat att');
+  private lifeEl = h('div', 'stat box life');
+  private goldEl = h('div', 'stat box gold');
+  private attEl = h('div', 'stat box att');
+  private skipEl = h('div', 'skip-hint off', 'clique para pular');
   private tray = h('div', 'tray');
   private actions = h('div', 'actions');
   private fireBtn!: HTMLButtonElement;
@@ -86,6 +111,8 @@ export class UI {
     pauseBtn.title = 'Pausa (Esc)';
     tr.append(this.lifeEl, this.goldEl, this.attEl, pauseBtn);
     this.fireBtn = this.btn('DISPARAR!', 'btn red fire', () => cb.fire()) as HTMLButtonElement;
+    this.fireBtn.addEventListener('mouseenter', () => cb.fireHover?.(true));
+    this.fireBtn.addEventListener('mouseleave', () => cb.fireHover?.(false));
     const row = h('div', 'row');
     row.append(
       this.btn('↶ Desfazer<span class="kbd">Ctrl+Z</span>', 'btn dark small', () => cb.undo()),
@@ -96,9 +123,11 @@ export class UI {
     this.speedBtn = this.btn('⏩ 1×', 'btn dark small', () => cb.speed()) as HTMLButtonElement;
     this.simbar.append(this.speedBtn, this.btn('⏭ Pular', 'btn dark small', () => cb.skipSim()));
     this.hud.append(tl, tr, this.tray, this.actions, this.leftActions, this.coachEl, this.toastEl, this.tipEl);
-    this.root.append(this.simbar);
-    this.comboEl.innerHTML = '<span class="n">0</span><span class="l">COMBO</span>';
+    this.root.append(this.simbar, this.skipEl);
+    this.comboEl.innerHTML = `<span class="n">0</span><span class="l wob">${wob('COMBO')}</span>`;
   }
+
+  setSkipHint(on: boolean) { this.skipEl.classList.toggle('off', !on); }
 
   btn(label: string, cls: string, fn: () => void): HTMLElement {
     const b = h('button', cls, label);
@@ -119,8 +148,8 @@ export class UI {
   setSpeed(x: number) { this.speedBtn.innerHTML = `⏩ ${x}×`; }
 
   setPhase(spec: PhaseSpec) {
-    this.phaseBadge.className = `phase-badge hit${spec.boss ? ' boss' : ''}`;
-    this.phaseBadge.innerHTML = `<div class="t">${spec.title}</div><div class="s">${spec.subtitle}${spec.shop ? ' · próxima: ★ LOJA' : ''}</div>`;
+    this.phaseBadge.className = `phase-badge box hit${spec.boss ? ' boss' : ''}`;
+    this.phaseBadge.innerHTML = `<div class="t wob">${wob(spec.title)}</div><div class="s">${spec.subtitle}${spec.shop ? ' · próxima: ★ LOJA' : ''}</div>`;
     this.enemyIcons.innerHTML = spec.enemies.map((e) => `<i class="${e.kind}"></i>`).join('');
   }
   enemyDown(i: number) { this.enemyIcons.children[i]?.classList.add('down'); }
@@ -147,6 +176,8 @@ export class UI {
       this.cards.clear();
       ids.forEach((id, i) => {
         const c = h('div', 'card hit', `<span class="key">${i + 1}</span>${pieceSvg(id)}<span class="nm">${PIECES[id].name}</span><span class="cnt"></span>`);
+        c.style.setProperty('--i', String(i));
+        tiltable(c, 24);
         c.addEventListener('pointerdown', (e) => { e.stopPropagation(); audio.unlock(); this.cb.select(id); });
         c.addEventListener('mouseenter', () => { audio.ui('hover'); this.tip(id); });
         c.addEventListener('mouseleave', () => this.tip(null));
@@ -223,8 +254,8 @@ export class UI {
   showHowTo(back: () => void) {
     const s = this.screen();
     const p = h('div', 'panel');
-    p.innerHTML = `<h1>Como jogar</h1><ol class="howto">
-      <li><b>Arraste</b> a partir do <b>marcador VERDE</b> para desenhar uma fileira de dominós. Depois, continue de qualquer <b>ponta brilhante</b>.</li>
+    p.innerHTML = `<h1 class="wob">${wob('Como jogar')}</h1><ol class="howto">
+      <li><b>Clique</b> no <b>marcador VERDE</b> e mova o mouse: aparece uma <b>trilha fantasma</b>. <b>Clique no chão</b> para colocar as peças de uma vez. Depois, continue de qualquer <b>ponta brilhante</b>.</li>
       <li>Escolha a peça nas <b>cartas</b> de baixo (teclas <b>1–7</b>). Cada carta é uma peça; a mão volta cheia a cada fase.</li>
       <li>Aperte <b>DISPARAR</b> (Espaço): a 1ª peça cai e a corrente faz o resto. Derrube <b>todos</b> os inimigos!</li>
       <li><b>3 tentativas</b> por fase — o desenho fica salvo entre tentativas. Sobrou inimigo de pé no fim? Cada um tira <b>1 ❤</b>.</li>
@@ -238,10 +269,10 @@ export class UI {
     s.append(p);
   }
 
-  showOptions(st: { master: number; music: number; sfx: number; shake: number; post: boolean; tilt: boolean }, change: (k: string, v: number | boolean) => void, back: () => void) {
+  showOptions(st: { master: number; music: number; sfx: number; shake: number; post: boolean; tilt: boolean; crt: boolean }, change: (k: string, v: number | boolean) => void, back: () => void) {
     const s = this.screen();
     const p = h('div', 'panel');
-    p.append(h('h1', '', 'Opções'));
+    p.append(title('Opções'));
     const g = h('div', 'opts');
     const slider = (label: string, k: keyof typeof st) => {
       g.append(h('div', '', label));
@@ -262,6 +293,7 @@ export class UI {
     slider('Efeitos', 'sfx');
     slider('Tremor de tela', 'shake');
     check('Brilho (bloom) e pós-efeitos', 'post');
+    check('Efeito TV antiga (CRT)', 'crt');
     check('Efeito maquete (tilt-shift)', 'tilt');
     p.append(g);
     const b = h('div', 'btns');
@@ -273,7 +305,7 @@ export class UI {
   showPause(on: { resume(): void; options(): void; howto(): void; quit(): void }) {
     const s = this.screen();
     const p = h('div', 'panel');
-    p.append(h('h1', '', 'Pausa'));
+    p.append(title('Pausa'));
     const b = h('div', 'btns');
     b.style.flexDirection = 'column';
     b.append(this.btn('Continuar', 'btn', on.resume), this.btn('Como jogar', 'btn dark', on.howto), this.btn('Opções', 'btn dark', on.options), this.btn('Sair para o menu', 'btn red', on.quit));
@@ -285,7 +317,7 @@ export class UI {
     const s = this.screen();
     const p = h('div', 'panel');
     const total = PIECE_ORDER.reduce((a, k) => a + deck[k], 0);
-    p.append(h('h1', '', 'Seu baralho'), h('p', '', `${total} cartas — a mão de cada fase é o baralho inteiro.`));
+    p.append(title('Seu baralho'), h('p', '', `${total} cartas — a mão de cada fase é o baralho inteiro.`));
     const g = h('div', 'deck-grid');
     for (const id of PIECE_ORDER) {
       if (!deck[id]) continue;
@@ -305,13 +337,14 @@ export class UI {
     const desc = PIECES[star.piece].desc;
     c.innerHTML = `<div class="rar">${o.rarity}</div><div class="art">${art}</div><div class="lbl">${o.label}</div><div class="desc">${desc}</div>${price !== null ? `<div class="price">◉ ${price}</div>` : ''}`;
     c.addEventListener('mouseenter', () => audio.ui('hover'));
+    tiltable(c, 18);
     return c;
   }
 
-  showDraft(title: string, sub: string, opts: RewardOption[], gold: number, rerollCost: number, on: { pick(i: number): void; reroll(): void; skip(): void }) {
+  showDraft(heading: string, sub: string, opts: RewardOption[], gold: number, rerollCost: number, on: { pick(i: number): void; reroll(): void; skip(): void }) {
     const s = this.screen();
     const p = h('div', 'panel');
-    p.append(h('h1', '', title), h('p', '', sub));
+    p.append(title(heading), h('p', '', sub));
     const row = h('div', 'offers');
     opts.forEach((o, i) => {
       const c = this.offerCard(o, null, true);
@@ -331,8 +364,8 @@ export class UI {
     on: { buy(i: number): void; reroll(): void; heal(): void; attempt(): void; leave(): void }) {
     const s = this.screen();
     const p = h('div', 'panel');
-    p.style.borderColor = '#ffdf8a';
-    p.append(h('h1', '', '★ LOJA ★'), h('div', 'gold-line', `◉ ${data.gold} ouro`));
+    p.style.borderColor = '#b8913e';
+    p.append(title('★ LOJA ★'), h('div', 'gold-line', `◉ ${data.gold} ouro`));
     const row = h('div', 'offers');
     data.offers.forEach((o, i) => {
       const c = this.offerCard(o.opt, o.price, data.gold >= o.price);
@@ -359,8 +392,8 @@ export class UI {
   showResult(r: { win: boolean; title: string; stars: number; rows: [string, string, string?][]; gold: number; buttons: { label: string; cls: string; fn: () => void }[] }) {
     const s = this.screen();
     const p = h('div', 'panel');
-    const t = h('h1', r.win ? 'win-title' : '', r.title);
-    if (!r.win) t.style.color = '#ff8a6b';
+    const t = title(r.title, r.win ? 'win-title' : '');
+    if (!r.win) t.style.color = '#e0543e';
     p.append(t);
     if (r.win) {
       const st = h('div', 'stars');
@@ -379,8 +412,9 @@ export class UI {
       const tick = () => {
         const k = Math.min(1, Math.max(0, (performance.now() - start) / 700));
         const v = Math.round(r.gold * k);
-        if (v !== n) { n = v; g.textContent = `◉ +${v}`; if (v % 3 === 0) audio.coin(); }
+        if (v !== n) { n = v; g.textContent = `◉ +${v}`; g.classList.add('jit'); if (v % 3 === 0) audio.coin(); }
         if (k < 1) requestAnimationFrame(tick);
+        else setTimeout(() => g.classList.remove('jit'), 250);
       };
       requestAnimationFrame(tick);
     }

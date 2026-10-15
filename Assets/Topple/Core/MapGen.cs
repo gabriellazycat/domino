@@ -28,6 +28,7 @@ namespace Topple.Core
     {
         public float CX, CZ, SX, SZ;
         public BlockVariant Variant; // só pintura (validade idêntica)
+        public bool Gate; // muro-porteira: nasceu EM CIMA da rota (força curva)
     }
 
     // Ponte-vão: disco onde NÃO se constrói (chão intacto); a onda atravessa
@@ -54,6 +55,7 @@ namespace Topple.Core
         public readonly List<MapGap> Gaps = new();
         public readonly List<MapVoid> Voids = new();
         public readonly List<MapPt> ClusterCenters = new(); // 1 por pelotão (fork-útil)
+        public readonly List<MapPt> RefRoute = new(); // rota de referência (provas/solver)
     }
 
     public static class MapGen
@@ -156,6 +158,7 @@ namespace Topple.Core
 
             var route = ReferenceRoute(ref rng, tgx, tgz, tdeg, legsMin, legsMax, lenMin, lenMax);
             float tx = ToWorld(tgx), tz = ToWorld(tgz);
+            foreach (var rp in route) spec.RefRoute.Add(new MapPt(rp.gx * Cell, rp.gz * Cell));
 
             int clusters = clusterBase + RngInt(ref rng, 0, clusterCap - clusterBase + 1);
             int brutesLeft = depth >= 6 ? System.Math.Min(1 + depth / 8, 3) : 0;
@@ -172,9 +175,29 @@ namespace Topple.Core
                     // Fork-útil (prof 4+): 2º pelotão nasce perto do 1º ao longo
                     // da rota (só na 1ª tentativa; resto espalha normal).
                     int anchorIdx = RngInt(ref rng, 0, route.Count);
-                    if (c == 1 && depth >= 4 && anchor0 >= 0 && attempt == 0)
-                        anchorIdx = (anchor0 + RngInt(ref rng, -4, 5) + route.Count) % route.Count;
-                    else if (c == 0 && attempt == 0) anchor0 = anchorIdx;
+                    if (c == 0 && attempt == 0) anchor0 = anchorIdx;
+                    else if (c >= 1 && depth >= 4 && attempt == 0 && centroids.Count > 0)
+                    {
+                        // Ex.3 do sketch: rumo divergente (70–160°) a 2,5–5 m
+                        // do trigger; ancora no ponto da rota mais próximo
+                        // (≤1,5 m). Sem rota por perto, vale o sorteio acima
+                        // (ou o tronco compartilhado p/ c==1).
+                        float b0 = (float)System.Math.Atan2(centroids[0].x - tx, centroids[0].z - tz);
+                        float tb = b0 + (rng.NextFloat() < 0.5f ? -1f : 1f) * RngRange(ref rng, 1.2217f, 2.7925f);
+                        float td = RngRange(ref rng, 50f, 100f);
+                        float qx = tx + (float)System.Math.Sin(tb) * td * Cell;
+                        float qz = tz + (float)System.Math.Cos(tb) * td * Cell;
+                        int bestI = -1;
+                        float bestD = 30f;
+                        for (int ri = 0; ri < route.Count; ri++)
+                        {
+                            float rd = DistCells(qx, qz, route[ri].gx * Cell, route[ri].gz * Cell);
+                            if (rd < bestD) { bestD = rd; bestI = ri; }
+                        }
+                        if (bestI >= 0) anchorIdx = bestI;
+                        else if (c == 1 && anchor0 >= 0)
+                            anchorIdx = (anchor0 + RngInt(ref rng, -4, 5) + route.Count) % route.Count;
+                    }
                     var anchor = route[anchorIdx];
                     float ar = anchor.deg * (float)System.Math.PI / 180f;
                     float anx = anchor.gx * Cell, anz = anchor.gz * Cell;
@@ -183,6 +206,18 @@ namespace Topple.Core
                     float off = RngRange(ref rng, 10f, 14f);
                     float cx = anx + (float)System.Math.Cos(ar) * side * off * Cell;
                     float cz = anz - (float)System.Math.Sin(ar) * side * off * Cell;
+                    if (c >= 1 && depth >= 4 && attempt == 0 && centroids.Count > 0)
+                    {
+                        // Ex.3 do sketch: centroide DIRETO no rumo divergente
+                        // (70–160° do 1º, a 2,5–5 m), fileira de frente p/ o
+                        // trigger. Filtros abaixo valem igual (nunca trava).
+                        float b0 = (float)System.Math.Atan2(centroids[0].x - tx, centroids[0].z - tz);
+                        float tb = b0 + (rng.NextFloat() < 0.5f ? -1f : 1f) * RngRange(ref rng, 1.2217f, 2.7925f);
+                        float td = RngRange(ref rng, 50f, 100f);
+                        cx = tx + (float)System.Math.Sin(tb) * td * Cell;
+                        cz = tz + (float)System.Math.Cos(tb) * td * Cell;
+                        ar = tb + 1.5708f;
+                    }
                     // Separação entre grupos ≥ 1,0 m (sem splash grátis entre grupos).
                     bool ok = true;
                     foreach (var o in centroids)
@@ -283,6 +318,16 @@ namespace Topple.Core
                 clusterSizes.RemoveAt(clusterSizes.Count - 1);
                 spec.ParPieces = System.Math.Max(8, spec.ParPieces - 2 * n);
             }
+            // Muros do sketch (dono): porteira EM CIMA da rota + escudo atrás
+            // do pelotão. Vêm por último: não deslocam soldados/vãos/buracos.
+            if (depth >= 3)
+            {
+                int gates = depth >= 8 && rng.NextFloat() < 0.35f ? 2 : 1;
+                for (int g = 0; g < gates; g++)
+                    if (rng.NextFloat() < 0.8f) TryGateWall(ref rng, spec, route, tx, tz);
+            }
+            if (depth >= 4 && spec.ClusterCenters.Count > 0 && rng.NextFloat() < 0.5f)
+                TryShieldWall(ref rng, spec, route, tx, tz);
             return spec;
         }
 
@@ -369,6 +414,100 @@ namespace Topple.Core
         {
             long h = (long)(System.Math.Abs(x * 12.915 + z * 78.233) * 100.0);
             return (BlockVariant)(h % 3);
+        }
+
+        // Validade da porteira/escudo: campo, trigger longe (início respira),
+        // sem cobrir soldado (sem pop; patrulha vale o loop todo), sem
+        // sobrepor vão/buraco/muro. soldierClear em células, além da meia-peça.
+        static bool GateSpotOk(MapSpec spec, float bx, float bz, float half, float tx, float tz, int checkBlocks, float soldierClear)
+        {
+            if (!(System.Math.Abs(bx / Cell) + half < FieldHx && System.Math.Abs(bz / Cell) + half < FieldHz)) return false;
+            if (DistCells(bx, bz, tx, tz) < half + 30f) return false; // 1,5 m+ do trigger
+            foreach (var sl in spec.Soldiers)
+            {
+                if (DistCells(bx, bz, sl.X, sl.Z) < half + soldierClear) return false;
+                if (sl.Loop != null)
+                    foreach (var w in sl.Loop)
+                        if (DistCells(bx, bz, w.X, w.Z) < half + soldierClear) return false;
+            }
+            foreach (var gp in spec.Gaps)
+                if (DistCells(bx, bz, gp.X, gp.Z) < half + gp.RadiusCells + 4f) return false;
+            foreach (var vd in spec.Voids)
+            {
+                float ox = (vd.X0 + vd.X1) * 0.5f, oz = (vd.Z0 + vd.Z1) * 0.5f;
+                float oh = System.Math.Max(vd.X1 - vd.X0, vd.Z1 - vd.Z0) * 0.5f;
+                if (DistCells(bx, bz, ox, oz) < half + oh / Cell + 4f) return false;
+            }
+            for (int i = 0; i < checkBlocks && i < spec.Blocks.Count; i++)
+            {
+                var b = spec.Blocks[i];
+                if (DistCells(bx, bz, b.CX, b.CZ) < half + b.SX / (2f * Cell) + 4f) return false;
+            }
+            return true;
+        }
+
+        // Muro-porteira (dono, Ex.1/Ex.2 do sketch): nasce EM CIMA da rota
+        // (±0,15 m do ponto), forçando curva. Campo aberto + bloco sem encostar
+        // na borda = contorno sempre possível (nunca sela o mapa). Prof 3+,
+        // +2 de par por bloco (desvio custa peças).
+        static void TryGateWall(ref ToppleRng rng, MapSpec spec, List<(int gx, int gz, float deg)> route, float tx, float tz)
+        {
+            if (route.Count < 8) return;
+            for (int i = 0; i < 8; i++)
+            {
+                var s = route[RngInt(ref rng, route.Count / 4, route.Count * 3 / 4)];
+                float bx = s.gx * Cell + RngRange(ref rng, -3f, 3f) * Cell;
+                float bz = s.gz * Cell + RngRange(ref rng, -3f, 3f) * Cell;
+                float half = RngRange(ref rng, 8f, 12f); // 0,8-1,2 m
+                if (!GateSpotOk(spec, bx, bz, half, tx, tz, spec.Blocks.Count, 7f)) continue;
+                spec.Blocks.Add(new MapBlock { CX = bx, CZ = bz, SX = half * 2f * Cell, SZ = half * 2f * Cell, Variant = VariantFor(bx, bz), Gate = true });
+                spec.ParPieces += 2;
+                // Composição em L (60%, Ex.1): 2º bloco adjacente, também na rota.
+                if (rng.NextFloat() < 0.6f) TryGatePartner(ref rng, spec, route, bx, bz, half, tx, tz);
+                return;
+            }
+        }
+
+        static void TryGatePartner(ref ToppleRng rng, MapSpec spec, List<(int gx, int gz, float deg)> route, float bx, float bz, float half, float tx, float tz)
+        {
+            int dir = RngInt(ref rng, 0, 4);
+            float step = half * 2f * Cell;
+            float px = bx + (dir == 0 ? step : dir == 1 ? -step : 0f);
+            float pz = bz + (dir == 2 ? step : dir == 3 ? -step : 0f);
+            if (!GateSpotOk(spec, px, pz, half, tx, tz, spec.Blocks.Count - 1, 7f)) return;
+            bool crosses = false;
+            foreach (var rp in route)
+                if (DistCells(px, pz, rp.gx * Cell, rp.gz * Cell) < half + 10f) { crosses = true; break; }
+            if (!crosses) return; // parceiro fora da rota não é porteira
+            spec.Blocks.Add(new MapBlock { CX = px, CZ = pz, SX = half * 2f * Cell, SZ = half * 2f * Cell, Variant = VariantFor(px, pz), Gate = true });
+            spec.ParPieces += 2;
+        }
+
+        // Muro-escudo (dono, detalhe Ex.2): colado ATRÁS do pelotão (lado oposto
+        // à rota, 0,7–1,0 m do centro) — a onda faz a curva por fora. Fora do
+        // corredor (é escudo, não porteira). +2 de par.
+        static void TryShieldWall(ref ToppleRng rng, MapSpec spec, List<(int gx, int gz, float deg)> route, float tx, float tz)
+        {
+            var c = spec.ClusterCenters[RngInt(ref rng, 0, spec.ClusterCenters.Count)];
+            float best = float.MaxValue;
+            float nx = c.X, nz = c.Z;
+            foreach (var rp in route)
+            {
+                float d = DistCells(c.X, c.Z, rp.gx * Cell, rp.gz * Cell);
+                if (d < best) { best = d; nx = rp.gx * Cell; nz = rp.gz * Cell; }
+            }
+            float dx = c.X - nx, dz = c.Z - nz;
+            float len = (float)System.Math.Sqrt(dx * dx + dz * dz);
+            if (len < 1e-4f) return;
+            float dist = RngRange(ref rng, 14f, 20f); // 0,7–1,0 m do centro
+            float bx = c.X + dx / len * dist * Cell;
+            float bz = c.Z + dz / len * dist * Cell;
+            float half = RngRange(ref rng, 8f, 12f);
+            if (!GateSpotOk(spec, bx, bz, half, tx, tz, spec.Blocks.Count, 6f)) return;
+            foreach (var rp in route)
+                if (DistCells(bx, bz, rp.gx * Cell, rp.gz * Cell) < half + 6f) return;
+            spec.Blocks.Add(new MapBlock { CX = bx, CZ = bz, SX = half * 2f * Cell, SZ = half * 2f * Cell, Variant = VariantFor(bx, bz), Gate = false });
+            spec.ParPieces += 2;
         }
 
         // Patrulha em retângulo ao redor do cluster (timing, não bloqueio).

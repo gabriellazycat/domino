@@ -553,8 +553,9 @@ namespace Topple.Tests
 
         [Test] public void ForkPair_GeometryFromDepth4()
         {
-            // Pressão de fork (prof 4+): existe par de pelotões no mesmo
-            // quarteirão (1,0–8,0 m: separados mas com tronco compartilhável).
+            // Pressão de fork (prof 4+), dois sabores: par no mesmo quarteirão
+            // (1,0–8,0 m: tronco compartilhável) OU par divergente (≥60° visto
+            // do trigger: split na raiz, Ex.3 do sketch). Ambos pedem fork.
             for (int d = 4; d <= 11; d++)
             {
                 int ok = 0;
@@ -562,18 +563,92 @@ namespace Topple.Tests
                 {
                     var m = Topple.Core.MapGen.Generate(s, d);
                     if (m.ClusterCenters.Count < 2) continue;
-                    bool pair = false;
-                    for (int i = 0; i < m.ClusterCenters.Count && !pair; i++)
-                        for (int j = i + 1; j < m.ClusterCenters.Count && !pair; j++)
+                    float tx = m.TriggerGx * 0.05f, tz = m.TriggerGz * 0.05f;
+                    bool pressure = false;
+                    for (int i = 0; i < m.ClusterCenters.Count && !pressure; i++)
+                        for (int j = i + 1; j < m.ClusterCenters.Count && !pressure; j++)
                         {
                             float dx = m.ClusterCenters[i].X - m.ClusterCenters[j].X;
                             float dz = m.ClusterCenters[i].Z - m.ClusterCenters[j].Z;
                             float dist = (float)System.Math.Sqrt(dx * dx + dz * dz);
-                            if (dist >= 1.0f && dist <= 8.0f) pair = true;
+                            if (dist >= 1.0f && dist <= 8.0f) pressure = true;
+                            float b0 = (float)System.Math.Atan2(m.ClusterCenters[i].X - tx, m.ClusterCenters[i].Z - tz);
+                            float b1 = (float)System.Math.Atan2(m.ClusterCenters[j].X - tx, m.ClusterCenters[j].Z - tz);
+                            float dd = (float)System.Math.Abs(b1 - b0) % ((float)System.Math.PI * 2f);
+                            if (dd > System.Math.PI) dd = (float)System.Math.PI * 2f - dd;
+                            if (dd >= 1.0472f - 1e-4f) pressure = true;
                         }
-                    if (pair) ok++;
+                    if (pressure) ok++;
                 }
-                Assert.GreaterOrEqual(ok, 18, $"prof {d}: só {ok}/24 mapas com par p/ fork");
+                Assert.GreaterOrEqual(ok, 18, $"prof {d}: só {ok}/24 mapas com pressão de fork");
+            }
+        }
+
+        [Test] public void GateWalls_CrossRouteAndKeepClearance()
+        {
+            // Muro-porteira (prof 3+): nasce EM CIMA da rota (cobre o corredor),
+            // longe do trigger (início respira) e sem cobrir soldado (sem pop).
+            int withGate = 0, maps = 0;
+            for (uint s = 0; s < 16; s++)
+                for (int d = 3; d <= 15; d++)
+                {
+                    var m = Topple.Core.MapGen.Generate(s, d);
+                    maps++;
+                    float tx = m.TriggerGx * 0.05f, tz = m.TriggerGz * 0.05f;
+                    bool any = false;
+                    foreach (var b in m.Blocks)
+                    {
+                        if (!b.Gate) continue;
+                        any = true;
+                        float halfCells = b.SX / (2f * 0.05f);
+                        float near = float.MaxValue;
+                        foreach (var rp in m.RefRoute)
+                        {
+                            float dx = (b.CX - rp.X) / 0.05f, dz = (b.CZ - rp.Z) / 0.05f;
+                            float dist = (float)System.Math.Sqrt(dx * dx + dz * dz);
+                            if (dist < near) near = dist;
+                        }
+                        Assert.LessOrEqual(near, halfCells + 10f, $"seed {s} prof {d}: porteira fora da rota");
+                        float tdx = (b.CX - tx) / 0.05f, tdz = (b.CZ - tz) / 0.05f;
+                        Assert.GreaterOrEqual((float)System.Math.Sqrt(tdx * tdx + tdz * tdz), halfCells + 29f,
+                            $"seed {s} prof {d}: porteira no trigger");
+                        foreach (var sl in m.Soldiers)
+                        {
+                            float sdx = (b.CX - sl.X) / 0.05f, sdz = (b.CZ - sl.Z) / 0.05f;
+                            Assert.GreaterOrEqual((float)System.Math.Sqrt(sdx * sdx + sdz * sdz), halfCells + 5f,
+                                $"seed {s} prof {d}: porteira em cima de soldado");
+                        }
+                    }
+                    if (any) withGate++;
+                }
+            Assert.GreaterOrEqual(withGate, maps / 2, $"só {withGate}/{maps} mapas com porteira");
+        }
+
+        [Test] public void DivergentGroups_FromDepth4()
+        {
+            // Ex.3 do sketch (prof 4+): existe par de pelotões em rumos
+            // divergentes vistos do trigger (≥60° — fork em X).
+            for (int d = 4; d <= 11; d++)
+            {
+                int ok = 0;
+                for (uint s = 0; s < 24; s++)
+                {
+                    var m = Topple.Core.MapGen.Generate(s, d);
+                    if (m.ClusterCenters.Count < 2) continue;
+                    float tx = m.TriggerGx * 0.05f, tz = m.TriggerGz * 0.05f;
+                    bool divergent = false;
+                    for (int i = 0; i < m.ClusterCenters.Count && !divergent; i++)
+                        for (int j = i + 1; j < m.ClusterCenters.Count && !divergent; j++)
+                        {
+                            float b0 = (float)System.Math.Atan2(m.ClusterCenters[i].X - tx, m.ClusterCenters[i].Z - tz);
+                            float b1 = (float)System.Math.Atan2(m.ClusterCenters[j].X - tx, m.ClusterCenters[j].Z - tz);
+                            float dd = (float)System.Math.Abs(b1 - b0) % ((float)System.Math.PI * 2f);
+                            if (dd > System.Math.PI) dd = (float)System.Math.PI * 2f - dd;
+                            if (dd >= 1.0472f - 1e-4f) divergent = true;
+                        }
+                    if (divergent) ok++;
+                }
+                Assert.GreaterOrEqual(ok, 14, $"prof {d}: só {ok}/24 mapas com par divergente");
             }
         }
     }

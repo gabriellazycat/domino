@@ -29,7 +29,8 @@ Opções: volume, brilho/vinheta, zoom). Auto-save por fase (checkpoint no
     ficam objetivo + banner). Clique em botão da HUD não coloca peça no chão.
     Patrulha = discos+linhas **âmbar** (+ corpo andando no planejamento, vitrine,
     que continua de onde estava ao DISPARAR);
-    muros = pedra/casa/cerca (só pintura, bloqueiam igual); trigger = verde;
+    muros = pedra/casa/cerca (só pintura, bloqueiam igual); porteira = muro EM
+    CIMA do caminho (força a curva, +2 de par); trigger = verde;
     ponte-vão = disco **azul** (só Grande/Torre atravessa); buraco = sem chão
     (com saia + borda de alerta). Times narrativos (só visual): mal **vermelho**,
     bem **ciano** (P1–P3 tudo mal).

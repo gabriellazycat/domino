@@ -590,3 +590,23 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
   determinístico, golden intacto, paridade de mecânica preservada).
   Provas `Patrol_OffsetContinuesVitrine` (EditMode, mesma matemática) +
   `Patrol_ContinuesFromVitrineIntoSim` (ao vivo, <0,35 m).
+
+## 44. Muros do sketch: porteira + divergência + escudo (14/out/2026, pedido do dono)
+- Desenho do dono (3 exemplos): bifurcação + muro atravessando o caminho,
+  forçando curva. O `TryWall` antigo era proibido de nascer perto da rota
+  (decorava, não ditava curva).
+- Muro-porteira (prof 3+, 1–2/mapa): nasce EM CIMA da rota (±0,15 m),
+  compondo L em 60% (Ex.1/Ex.2); campo aberto sem encostar na borda =
+  contorno sempre possível (nunca sela); +2 de par por bloco; `MapBlock.Gate`
+  marca p/ prova; rota exposta em `MapSpec.RefRoute`. Vêm por último na
+  geração: soldados/vãos/buracos intactos.
+- Grupos divergentes (prof 4+, Ex.3): centroide DIRETO no rumo 70–160° do 1º
+  (a 2,5–5 m), fileira de frente p/ o trigger; filtros clássicos valem
+  (nunca trava). Rota reta demais → cai no tronco compartilhado (F6).
+- Muro-escudo (prof 4+, 50%, detalhe Ex.2): colado atrás do pelotão
+  (0,7–1,0 m, fora do corredor); sem sobrepor spawn (vale o loop da patrulha).
+- Harness em 2 níveis (porteira fura arco guloso — humano com fork/retry
+  curva; T5 planeja desvio): piso ≥50%/amostra (anti-stillborn) + barra ≥75%
+  no agregado. Fecha atual: 2/6 integrais, 57/73 corpos (78%).
+  Provas `GateWalls_*`, `DivergentGroups_*`, `ForkPair_*` (dois sabores:
+  tronco 1–8 m OU split ≥60°).

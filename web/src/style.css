@@ -135,6 +135,7 @@ button { font-family: var(--display); cursor: pointer; border: none; }
 .pop.hit { color: #cfd6ff; font-size: 26px; }
 .pop.boom { color: #ffb347; font-size: 64px; }
 .pop.small { font-size: 22px; }
+.pop.alarm { font-size: 46px; color: #fff; -webkit-text-stroke: 3px #c0261a; text-shadow: 0 3px 0 #5a0e08; animation-duration: .9s; }
 @keyframes popup {
   0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--r)) scale(calc(var(--s) * .2)); }
   18% { opacity: 1; transform: translate(-50%, -80%) rotate(var(--r)) scale(calc(var(--s) * 1.25)); }

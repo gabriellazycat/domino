@@ -126,6 +126,13 @@ export class Audio {
     this.noise(t, 0.25, 0.5, 'bandpass', 900, 1, this.sfx);
   }
 
+  alarm() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.tone('square', 880, t, 0.05, 0.08, this.sfx, 1500);
+    this.tone('square', 1100, t + 0.07, 0.04, 0.08, this.sfx, 1800);
+  }
+
   whoosh() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;

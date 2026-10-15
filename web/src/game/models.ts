@@ -293,13 +293,13 @@ export function makeWall(w: WallSpec): THREE.Object3D {
   m.position.y = w.h / 2;
   m.castShadow = m.receiveShadow = true;
   grp.add(m);
-  const n = Math.max(2, Math.round(Math.max(w.w, w.d) / 0.35));
+  const n = Math.max(2, Math.round(Math.max(w.w, w.d) / 0.3));
   const along = w.w > w.d;
   for (let i = 0; i < n; i++) {
     const t = (i + 0.5) / n - 0.5;
-    const b = new THREE.Mesh(new THREE.SphereGeometry(Math.min(w.w, w.d) * 0.62, 10, 8), hedgeMat);
+    const b = new THREE.Mesh(new THREE.SphereGeometry(Math.min(w.w, w.d) * 0.52, 10, 8), hedgeMat);
     b.position.set(along ? t * w.w : 0, w.h - 0.02, along ? 0 : t * w.d);
-    b.scale.y = 0.6;
+    b.scale.set(1.15, 0.55, 1.15);
     b.castShadow = true;
     grp.add(b);
   }

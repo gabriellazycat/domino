@@ -100,6 +100,7 @@ export class World {
     this.scene.add(this.lamp);
 
     this.buildTable();
+    this.buildProps();
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
@@ -149,6 +150,58 @@ export class World {
     table.position.y = -0.31;
     table.receiveShadow = true;
     this.scene.add(table);
+  }
+
+  /** Objetos de mesa fora do tabuleiro: caneca, lápis, dado, dominós de reserva (clima de maquete). */
+  private buildProps() {
+    const W = BOARD.w, D = BOARD.d;
+    const m = (c: string, r = 0.5, mt = 0) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: mt });
+    const add = (o: THREE.Object3D) => { o.traverse((c) => { (c as THREE.Mesh).castShadow = true; (c as THREE.Mesh).receiveShadow = true; }); this.scene.add(o); };
+    // caneca
+    const mug = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.5, 1.2, 32, 1, true), m('#c9473a', 0.35));
+    (body.material as THREE.Material).side = THREE.DoubleSide;
+    body.position.y = 0.6;
+    const bottom = new THREE.Mesh(new THREE.CircleGeometry(0.5, 32), m('#c9473a', 0.35));
+    bottom.rotation.x = -Math.PI / 2; bottom.position.y = 0.02;
+    const coffee = new THREE.Mesh(new THREE.CircleGeometry(0.5, 32), m('#2b170c', 0.15));
+    coffee.rotation.x = -Math.PI / 2; coffee.position.y = 1.0;
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.07, 10, 24, Math.PI * 1.2), m('#c9473a', 0.35));
+    handle.position.set(0.58, 0.6, 0); handle.rotation.z = -Math.PI * 0.6;
+    mug.add(body, bottom, coffee, handle);
+    mug.position.set(W / 2 + 2.2, 0, -D / 2 + 1.2);
+    add(mug);
+    // lápis
+    const pencil = new THREE.Group();
+    const wood = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 3, 6), m('#f2c14e', 0.5));
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.25, 6), m('#e8c9a0', 0.6));
+    tip.position.y = 1.62;
+    const eraser = new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.072, 0.2, 12), m('#e58a9a', 0.8));
+    eraser.position.y = -1.6;
+    pencil.add(wood, tip, eraser);
+    pencil.rotation.set(0, 0.5, Math.PI / 2);
+    pencil.position.set(-W / 2 - 1.6, 0.07, D / 2 - 0.5);
+    add(pencil);
+    // dado
+    const die = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), m('#f6efe2', 0.3));
+    die.position.set(W / 2 + 1.5, 0.25, D / 2 - 1.0);
+    die.rotation.y = 0.6;
+    for (const [x, z] of [[-0.12, -0.12], [0, 0], [0.12, 0.12]]) {
+      const pip = new THREE.Mesh(new THREE.CircleGeometry(0.045, 12), m('#c9473a', 0.4));
+      pip.rotation.x = -Math.PI / 2; pip.position.set(x, 0.251, z);
+      die.add(pip);
+    }
+    add(die);
+    // dominós de reserva deitados em pilha
+    const spare = new THREE.Group();
+    for (let i = 0; i < 5; i++) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.12, 0.8), m('#ebdfc6', 0.35));
+      b.position.set(Math.sin(i * 1.7) * 0.05, 0.06 + i * 0.125, Math.cos(i * 2.1) * 0.05);
+      b.rotation.y = i * 0.12;
+      spare.add(b);
+    }
+    spare.position.set(-W / 2 - 1.8, 0, -D / 2 + 1.5);
+    add(spare);
   }
 
   resize() {

@@ -1,3 +1,11 @@
+# TOPPLE
+
+> **Novo: versão web jogável no navegador** — veja [web/](web/README.md).
+> `cd web && npm install && npm run dev` (ou dois cliques em `web/Jogar.bat` no Windows).
+> O projeto Unity abaixo continua intacto.
+
+---
+
 # TOPPLE — como testar no Editor (solo)
 
 Projeto: Unity `6000.3.25f1` + URP 17.3.0. Abra a pasta `Topple/` pelo Unity Hub.

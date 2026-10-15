@@ -115,7 +115,9 @@ export class Layout {
       const dx = cx - h.x, dz = cz - h.z;
       if (Math.hypot(dx, dz) < step * 0.9) break;
       const desired = Math.atan2(dx, dz);
-      const diff = Math.max(-MAX_TURN, Math.min(MAX_TURN, wrapAngle(desired - h.yaw)));
+      // bifurcação nasce alinhada à ponta: as duas metades ficam dentro da faixa de queda dela
+      const turn = type === 'fork' ? 0 : MAX_TURN;
+      const diff = Math.max(-turn, Math.min(turn, wrapAngle(desired - h.yaw)));
       const yaw = wrapAngle(h.yaw + diff);
       const fx = Math.sin(yaw), fz = Math.cos(yaw);
       let res = this.placeAt(type, h.x + fx * step, h.z + fz * step, yaw, h.id, st.id, new Set([h.id]));

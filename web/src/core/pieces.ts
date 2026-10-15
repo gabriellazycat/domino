@@ -66,7 +66,7 @@ export const PIECES: Record<PieceId, PieceDef> = {
 export const PIECE_ORDER: PieceId[] = ['common', 'heavy', 'big', 'tower', 'blast', 'runner', 'fork'];
 
 /** Distância lateral de cada meia-peça da bifurcação em relação ao eixo. */
-export const FORK_OFFSET = 0.2;
+export const FORK_OFFSET = 0.17;
 
 export type Deck = Record<PieceId, number>;
 

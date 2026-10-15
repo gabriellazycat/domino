@@ -38,6 +38,12 @@ class Pool {
     this.mesh.setColorAt(i, color);
     this.mesh.instanceColor!.needsUpdate = true;
   }
+  clear() {
+    const d = this.dummy;
+    d.scale.setScalar(0); d.updateMatrix();
+    for (let i = 0; i < this.cap; i++) { this.ps[i].alive = false; this.mesh.setMatrixAt(i, d.matrix); }
+    this.mesh.instanceMatrix.needsUpdate = true;
+  }
   update(dt: number) {
     const d = this.dummy;
     for (let i = 0; i < this.cap; i++) {
@@ -215,6 +221,8 @@ export class Fx {
     this.puffs = [];
     for (const r of this.rings) { this.scene.remove(r.m); }
     this.rings = [];
+    this.chips.clear();
+    this.sparks.clear();
     this.layer.innerHTML = '';
   }
 }

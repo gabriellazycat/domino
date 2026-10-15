@@ -104,7 +104,7 @@ export class Sim {
   private acc = 0;
   private quietFor = 0;
   private owner = new Map<number, { kind: 'piece' | 'enemy'; i: number }>();
-  private pendingSplash: { e: SimEnemy; at: number; fx: number; fz: number }[] = [];
+  private pendingSplash: { e: SimEnemy; at: number; fx: number; fz: number; src: number }[] = [];
   private pendingBlast: { i: number; at: number }[] = [];
 
   constructor(public spec: PhaseSpec, layout: Placed[], public patrolOffset: number, public ev: SimEvents = {}) {
@@ -264,7 +264,10 @@ export class Sim {
     }
     for (const sp of this.pendingSplash.splice(0)) {
       if (this.t < sp.at) { this.pendingSplash.push(sp); continue; }
-      if (sp.e.alive) this.knock(sp.e, sp.fx, sp.fz, 'splash', 0.8);
+      if (!sp.e.alive) continue;
+      // soldado cai junto; brutamontes/general levam 1 de dano por vizinho derrubado
+      if (sp.e.spec.kind === 'soldier') this.knock(sp.e, sp.fx, sp.fz, 'splash', 0.8);
+      else this.hit(sp.e, 2000 + sp.src, 1, { x: sp.fx, z: sp.fz }, 'splash');
     }
     if (this.t - this.lastKnockT > 1.5) this.combo = 0;
 
@@ -369,12 +372,12 @@ export class Sim {
     this.lastKnockT = this.t;
     this.bestCombo = Math.max(this.bestCombo, this.combo);
     this.ev.enemyKnock?.(e, cause, this.combo);
-    // pelotão cai junto (respingo em cadeia, só soldados)
+    // pelotão cai junto (respingo em cadeia): vizinho a ≤ SPLASH_R tomba ou leva 1 de dano
     for (const o of this.enemies) {
       if (!o.alive || o === e || o.spec.squad !== e.spec.squad) continue;
-      if (o.spec.kind !== 'soldier') continue;
-      if (Math.hypot(o.spec.x - e.spec.x, o.spec.z - e.spec.z) <= SPLASH_R + 1e-6 && !this.pendingSplash.some((s) => s.e === o))
-        this.pendingSplash.push({ e: o, at: this.t + 0.09, fx: p.x, fz: p.z });
+      if (o.spec.kind === 'patroller') continue;
+      if (Math.hypot(o.spec.x - e.spec.x, o.spec.z - e.spec.z) <= SPLASH_R + 1e-6 && !this.pendingSplash.some((s) => s.e === o && s.src === e.idx))
+        this.pendingSplash.push({ e: o, at: this.t + 0.09, fx: p.x, fz: p.z, src: e.idx });
     }
   }
 

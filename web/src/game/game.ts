@@ -13,6 +13,7 @@ import { RunState, newRun, saveRun, loadRun, clearSave, runRng, saveRng, addItem
 import { RULES, starsFor, goldFor, shopPrice } from '../core/rules';
 import { draft3, RewardOption } from '../core/rewards';
 import { autoPlan } from '../core/bot';
+import { solve } from './solver';
 
 type Mode = 'menu' | 'planning' | 'sim' | 'result' | 'screen';
 
@@ -54,6 +55,7 @@ export class Game {
   private attemptsUsed = 0;
   private demo: { loops: number; waitUntil: number; seed: number; endAt: number } | null = null;
   private phaseKnocked = 0;
+  private alarmed = new Set<number>();
   private coachStep = 0;
   private shopState: { offers: { opt: RewardOption; price: number; sold: boolean }[]; rerolls: number } | null = null;
 
@@ -342,6 +344,7 @@ export class Game {
     this.attemptsUsed++;
     this.mode = 'sim';
     this.phaseKnocked = 0;
+    this.alarmed.clear();
     this.board.hideHeads();
     this.board.setHeads([], false);
     this.board.showGhost(null);
@@ -689,11 +692,15 @@ export class Game {
     const d = this.demo!;
     const deck = emptyDeck();
     deck.common = 80; deck.fork = 3; deck.heavy = 4; deck.blast = 3;
-    const depth = 5 + (d.seed % 4);
-    this.spec = generatePhase(d.seed, depth, deck);
-    this.layout = new Layout(this.spec, deck);
-    autoPlan(this.layout);
-    // explosivas nas pontas dos ramos (pra demo ter KABUM)
+    // procura (headless) uma fase que o bot vence: a demo sempre termina em festa
+    for (let tries = 0; tries < 4; tries++) {
+      const spec = generatePhase(d.seed, 4 + (d.seed % 5), deck);
+      const r = solve(spec, deck);
+      this.spec = spec;
+      this.layout = r.layout;
+      if (r.win) break;
+      d.seed += 31;
+    }
     this.board.build(this.spec);
     for (const p of this.layout.pieces) this.board.addPiece(p, false);
     this.board.setHeads([], false);
@@ -752,6 +759,7 @@ export class Game {
       for (const s of this.sim.pieces) if (s.launched >= 0) { const t = s.body.translation(); this.fx.trail(t.x, t.y, t.z); }
       // faísca das explosivas acesas
       if (this.mode === 'sim' && !this.rig.userMoved) this.followCascade();
+      if (this.mode === 'sim') this.alarmCheck();
       if (this.mode === 'sim' && this.sim.done && this.simEndAt < 0) this.simEndAt = this.realT;
       if (this.mode === 'sim' && this.simEndAt >= 0 && this.realT - this.simEndAt > 0.7) {
         this.simEndAt = -1;
@@ -783,6 +791,23 @@ export class Game {
     this.world.lamp.intensity *= Math.exp(-dt * 6);
     this.rig.update(dt, !this.paused && this.mode !== 'menu' && !this.ui.hasScreen());
     this.world.render(dt, this.fx.flash);
+  }
+
+  /** Inimigo vê a onda chegando: '!' + pulinho (antecipação antes do impacto). */
+  private alarmCheck() {
+    const sim = this.sim!;
+    const recent = sim.recentFalls.filter((f) => sim.t - f.t < 0.4);
+    if (!recent.length) return;
+    for (const e of sim.enemies) {
+      if (!e.alive || this.alarmed.has(e.idx)) continue;
+      const p = e.body.translation();
+      if (recent.some((f) => Math.hypot(f.x - p.x, f.z - p.z) < 1.8)) {
+        this.alarmed.add(e.idx);
+        this.fx.text(p.x, p.y + 0.8, p.z, '!', 'alarm');
+        this.board.enemyHit(e.idx);
+        audio.alarm();
+      }
+    }
   }
 
   private followCascade() {

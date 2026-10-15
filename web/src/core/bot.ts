@@ -143,7 +143,92 @@ function drive(L: Layout, st: Stroke, gx: number, gz: number, stop: number, fina
   return 'stuck';
 }
 
-export function autoPlan(L: Layout): { ok: boolean; note: string } {
+export function autoPlanTree(L: Layout): { ok: boolean; note: string } {
+  const spec = L.spec;
+  const targets = squads(spec.enemies);
+  if (!targets.length) return { ok: false, note: 'sem alvos' };
+  // ordem: vizinho mais próximo a partir do gatilho
+  const order: Target[] = [];
+  const left = targets.slice();
+  let cx = spec.trigger.x, cz = spec.trigger.z;
+  while (left.length) {
+    let bi = 0, bd = Infinity;
+    left.forEach((t, i) => { const d = Math.hypot(t.x - cx, t.z - cz); if (d < bd) { bd = d; bi = i; } });
+    const t = left.splice(bi, 1)[0];
+    order.push(t); cx = t.x; cz = t.z;
+  }
+  const firstType = pickType(L, ['common']);
+  if (!firstType) return { ok: false, note: 'mão vazia' };
+  const b = L.begin(spec.trigger.x, spec.trigger.z, firstType);
+  if (!b.stroke) return { ok: false, note: 'gatilho' };
+  let st = b.stroke;
+  // perto do alvo: pesada/torre derrubam brutamontes de uma vez
+  const finisher = (t: Target) => (h: Placed): PieceId[] => {
+    const m = nearestMember(t, h.x, h.z);
+    const near = Math.hypot(m.x - h.x, m.z - h.z) < 1.0;
+    if (near && (m.kind === 'brute' || m.kind === 'general')) return ['heavy', 'tower', 'blast', 'common'];
+    return ['common'];
+  };
+  const notes: string[] = [];
+  // lado de um ponto em relação à ponta (produto vetorial 2D com a direção dela)
+  const side = (h: Placed, x: number, z: number) => Math.sin(h.yaw) * (z - h.z) - Math.cos(h.yaw) * (x - h.x);
+
+  // árvore: aproxima do grupo, bifurca, divide os alvos por lado e recursa em cada metade
+  const branch = (s: Stroke, group: Target[], tag: string): void => {
+    if (group.length === 1 || L.hand.fork <= 0) {
+      let rest = group.slice();
+      while (rest.length) {
+        const h = L.get(s.head)!;
+        rest.sort((a, b) => Math.hypot(a.x - h.x, a.z - h.z) - Math.hypot(b.x - h.x, b.z - h.z));
+        const t = rest.shift()!;
+        const m = nearestMember(t, h.x, h.z);
+        const r = drive(L, s, m.x, m.z, 0.3, finisher(t));
+        if (r !== 'arrived') notes.push(`${tag}: ${r}`);
+        if (rest.length) {
+          // sem bifurcação: contorna o pelotão e segue (o corpo arremessado pode derrubar a próxima)
+          notes.push(`${tag}: sem bifurcação`);
+          return;
+        }
+      }
+      return;
+    }
+    const cx = group.reduce((a, t) => a + t.x, 0) / group.length;
+    const cz = group.reduce((a, t) => a + t.z, 0) / group.length;
+    let h = L.get(s.head)!;
+    const dist = Math.hypot(cx - h.x, cz - h.z);
+    const nearest = Math.min(...group.map((t) => { const m = nearestMember(t, h.x, h.z); return Math.hypot(m.x - h.x, m.z - h.z); }));
+    // anda um pouco em direção ao centro do grupo (sem chegar perto demais de ninguém)
+    const walk = Math.min(1.6, Math.max(0.8, nearest - 2.2));
+    const gx = h.x + ((cx - h.x) / dist) * walk, gz = h.z + ((cz - h.z) / dist) * walk;
+    drive(L, s, gx, gz, 0.2, () => ['common'], 8);
+    let halves: Placed[] = [];
+    for (let tryF = 0; tryF < 4 && halves.length !== 2; tryF++) {
+      h = L.get(s.head)!;
+      const before = new Set(L.pieces.map((p) => p.id));
+      const fr = L.extend(s, h.x + Math.sin(h.yaw) * 0.4, h.z + Math.cos(h.yaw) * 0.4, 'fork');
+      if (fr.placed.length === 2) { halves = L.pieces.filter((p) => !before.has(p.id)); break; }
+      s.done = false;
+      const a = Math.atan2(cx - h.x, cz - h.z) + (tryF % 2 ? 0.4 : -0.4);
+      const t2 = pickType(L, ['common']);
+      if (!t2 || !L.extend(s, h.x + Math.sin(a) * 0.4, h.z + Math.cos(a) * 0.4, t2).placed.length) break;
+    }
+    if (halves.length !== 2) {
+      notes.push(`${tag}: bifurcação não coube`);
+      s.done = false;
+      return branch(s, [group[0]], tag);
+    }
+    h = L.get(halves[0].parent)!;
+    const sorted = group.slice().sort((a, b) => side(h, a.x, a.z) - side(h, b.x, b.z));
+    const k = Math.ceil(sorted.length / 2);
+    const [lo, hi] = side(h, halves[0].x, halves[0].z) < side(h, halves[1].x, halves[1].z) ? [halves[0], halves[1]] : [halves[1], halves[0]];
+    branch({ head: lo.id, done: false, id: s.id }, sorted.slice(0, k), tag + 'L');
+    branch({ head: hi.id, done: false, id: s.id }, sorted.slice(k), tag + 'R');
+  };
+  branch(st, order, 'r');
+  return { ok: notes.length === 0, note: notes.join('; ') };
+}
+
+export function autoPlanComb(L: Layout): { ok: boolean; note: string } {
   const spec = L.spec;
   const targets = squads(spec.enemies);
   if (!targets.length) return { ok: false, note: 'sem alvos' };
@@ -218,4 +303,9 @@ export function autoPlan(L: Layout): { ok: boolean; note: string } {
     if (r !== 'arrived') notes.push(`alvo ${i}: ${r}`);
   }
   return { ok: notes.length === 0, note: notes.join('; ') };
+}
+
+export type Strategy = 'comb' | 'tree';
+export function autoPlan(L: Layout, strategy: Strategy = 'comb'): { ok: boolean; note: string } {
+  return strategy === 'tree' ? autoPlanTree(L) : autoPlanComb(L);
 }

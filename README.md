@@ -67,8 +67,8 @@ Opções: volume, brilho/vinheta, zoom). Auto-save por fase (checkpoint no
   aplicados em runtime via `ContentLoader`) + espelho da loja (`shop.json`,
   validado por teste; viram dados vivos na T5). Fases base inline em `TutorialSetup.Phases`
   (10 artesanais, recicladas por `PhaseForDepth` na run infinita). Constantes em `ToppleRules.cs` (vida 10, 14 comuns base + 1 fork,
-  3 tentativas/fase, 1 dano/sobrevivente, preços da loja). Rede solo usa `LocalSession` (`MirrorSession`
-  é esqueleto T6, Steam AppID 480 só dev).
+   3 tentativas/fase, 1 dano/sobrevivente, preços da loja). Jogo 100% solo
+   (multiplayer cortado do escopo — sem rede, sem Steam).
 - Stingers de vitória/derrota (`win`/`lose` sintetizados, `GenerateAll` gera os WAVs).
   Volume global com Bloom + vinheta criado em código pelo `ToppleJuice`
   (vale no Editor e em builds; renderer URP precisa de post-processing ativo).

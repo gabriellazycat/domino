@@ -16,9 +16,9 @@
 ## Lacunas do GDD (valores iniciais = texto do GDD; viram dados em Content/ na T5)
 - Loja: preços de peças/modificadores/relíquias e custo de Remover — não especificados. Usar placeholders.
 - Relíquias: 8 exemplos dados; faltam 8 novas "no mesmo padrão" (v1.0). Não inventar na T0-T3.
-- Arquétipos: ~20 + 10 co-op não desenhados. MVP usa 1 fase tutorial + 1 fase de teste.
+- Arquétipos: ~20 não desenhados (10 co-op CORTADOS com o multiplayer, 15/out/2026). MVP usa 1 fase tutorial + 1 fase de teste.
 - Par/combo-meta/energia de porta: sem números — solver define na T5; MVP usa constantes de `ToppleRules`.
-- GDD pula §9.3/§9.4 (só 9.1/9.2 e 9.5/9.6 existem no docx). Duelo/assíncrono estão como P2 fora do v1.0 — fora do MVP.
+- GDD pula §9.3/§9.4 (só 9.1/9.2 e 9.5/9.6 existem no docx). Duelo/assíncrono (P2) CORTADOS com o multiplayer (15/out/2026) — jogo é solo.
 - Imagem do fluxo de telas (§14.2) veio só como alt-text; seguir a tabela §14.3.
 
 ## Calibragem T1 (GDD §13.2 autoriza calibrar; números finais vão para Content/ na T5)

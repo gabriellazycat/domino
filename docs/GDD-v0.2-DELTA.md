@@ -642,3 +642,10 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
   `Void_PieceFallsThroughHole`, `Void_BlocksPlacement`); `Terrain_*` agora
   trava laje+grama e ausência de `VoidDressing`. `KillY=-5` segue (segurança
   p/ peça lançada p/ fora da mesa).
+
+## 48. Multiplayer cortado do escopo (15/out/2026, pedido do dono)
+- Jogo 100% solo: fora multiplayer/co-op (T6), duelo/assíncrono (P2, §9.3/§9.4
+  inexistentes no docx) e os 10 arquétipos co-op. `.docx` segue congelado.
+- Código de rede (`MirrorSession`, esqueletos T6) segue intocado por ora —
+  solo roda em `LocalSession`, sem efeito no jogo; remoção física fica p/
+  decisão futura (deleta `Assets/Mirror` + `Net/` + transports).

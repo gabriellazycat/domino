@@ -610,3 +610,12 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
   no agregado. Fecha atual: 2/6 integrais, 57/73 corpos (78%).
   Provas `GateWalls_*`, `DivergentGroups_*`, `ForkPair_*` (dois sabores:
   tronco 1–8 m OU split ≥60°).
+
+## 45. Muros corridos: paralelepípedos em L/Z (15/out/2026, pedido do dono)
+- Dono: cubos soltos não leem como muro; sketch tem barras em L/T. Vetos
+  viraram corridas de 2–3 trechos finos (0,3–0,45 × 0,8–1,6 m) conectados em
+  90°; porteira virou barra fina atravessada (1,5–2,2 m, eixo perpendicular à
+  rota) + parceiro L fino; escudo segue pilar. Eixo-alinhado: sem rotação,
+  collider exato, validade idêntica (raio pela maior dimensão).
+  Provas `Walls_RunsAreThinAndConnected` (finos + juntas) + porteira fina;
+  harness re-verde (2/6 integrais, 55/67 = 82%).

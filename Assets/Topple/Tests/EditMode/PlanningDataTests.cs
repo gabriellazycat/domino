@@ -600,7 +600,9 @@ namespace Topple.Tests
                     {
                         if (!b.Gate) continue;
                         any = true;
-                        float halfCells = b.SX / (2f * 0.05f);
+                        float halfCells = (b.SX > b.SZ ? b.SX : b.SZ) / (2f * 0.05f);
+                        float thin = b.SX < b.SZ ? b.SX : b.SZ;
+                        Assert.LessOrEqual(thin, 0.45f, $"seed {s} prof {d}: porteira grossa (era cubo)");
                         float near = float.MaxValue;
                         foreach (var rp in m.RefRoute)
                         {
@@ -650,6 +652,40 @@ namespace Topple.Tests
                 }
                 Assert.GreaterOrEqual(ok, 14, $"prof {d}: só {ok}/24 mapas com par divergente");
             }
+        }
+
+        [Test] public void Walls_RunsAreThinAndConnected()
+        {
+            // Muros corridos (dono): paralelepípedos finos (≤0,45 m) conectados
+            // (juntas encostando ≤0,1 m) em vez de cubos soltos.
+            int maps = 0, withThin = 0, withJoint = 0;
+            for (uint s = 0; s < 16; s++)
+                for (int d = 2; d <= 15; d++)
+                {
+                    var m = Topple.Core.MapGen.Generate(s, d);
+                    if (m.Blocks.Count == 0) continue;
+                    maps++;
+                    bool thin = false, joint = false;
+                    foreach (var b in m.Blocks)
+                    {
+                        float mn = b.SX < b.SZ ? b.SX : b.SZ, mx = b.SX > b.SZ ? b.SX : b.SZ;
+                        Assert.LessOrEqual(mx, 2.5f, $"seed {s} prof {d}: muro gigante");
+                        Assert.GreaterOrEqual(mn, 0.25f, $"seed {s} prof {d}: muro fiapo");
+                        if (mn <= 0.45f && mx >= 0.8f) thin = true;
+                    }
+                    for (int i = 0; i < m.Blocks.Count && !joint; i++)
+                        for (int j = i + 1; j < m.Blocks.Count && !joint; j++)
+                        {
+                            var a = m.Blocks[i]; var b2 = m.Blocks[j];
+                            float gx = System.Math.Max(0f, System.Math.Abs(a.CX - b2.CX) - (a.SX + b2.SX) * 0.5f);
+                            float gz = System.Math.Max(0f, System.Math.Abs(a.CZ - b2.CZ) - (a.SZ + b2.SZ) * 0.5f);
+                            if (gx <= 0.1f && gz <= 0.1f) joint = true;
+                        }
+                    if (thin) withThin++;
+                    if (m.Blocks.Count >= 2 && joint) withJoint++;
+                }
+            Assert.GreaterOrEqual(withThin, maps / 2, $"só {withThin}/{maps} mapas com trecho fino");
+            Assert.GreaterOrEqual(withJoint, maps / 2, $"só {withJoint}/{maps} mapas com junta conectada");
         }
     }
 }

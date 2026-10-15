@@ -389,24 +389,67 @@ namespace Topple.Core
         }
         static void TryWall(ref ToppleRng rng, MapSpec spec, List<(int gx, int gz, float deg)> route, float cx, float cz, float tx, float tz)
         {
+            // Muro corrido (dono): 2–3 paralelepípedos finos conectados em L/Z
+            // (juntas de 90°), como o sketch. Eixo-alinhado: sem rotação,
+            // collider exato, validade idêntica (raio pela maior dimensão).
+            // 1 veto = 1 corrida (+2 de par).
             for (int i = 0; i < 6; i++)
-            {                float a = RngRange(ref rng, 0f, (float)System.Math.PI * 2f);
+            {
+                float a = RngRange(ref rng, 0f, (float)System.Math.PI * 2f);
                 float d = RngRange(ref rng, 22f, 30f); // 1,1-1,5 m do centro
-                float bx = cx + (float)System.Math.Cos(a) * d * Cell;
-                float bz = cz + (float)System.Math.Sin(a) * d * Cell;
-                float half = RngRange(ref rng, 8f, 12f); // 0,8-1,2 m
-                bool ok = System.Math.Abs(bx / Cell) + half < FieldHx && System.Math.Abs(bz / Cell) + half < FieldHz;
-                if (ok && DistCells(bx, bz, tx, tz) < half + 8f) ok = false; // fora do trigger
-                if (ok)
-                    foreach (var rp in route)
-                        if (DistCells(bx, bz, rp.gx * Cell, rp.gz * Cell) < half + 6f) { ok = false; break; }
-                if (ok)
-                    foreach (var s in spec.Soldiers)
-                        if (DistCells(bx, bz, s.X, s.Z) < half + 7f) { ok = false; break; }
-                if (!ok) continue;
-                spec.Blocks.Add(new MapBlock { CX = bx, CZ = bz, SX = half * 2f * Cell, SZ = half * 2f * Cell, Variant = VariantFor(bx, bz) });
+                float sx = cx + (float)System.Math.Cos(a) * d * Cell;
+                float sz = cz + (float)System.Math.Sin(a) * d * Cell;
+                int segs = 2 + (rng.NextFloat() < 0.5f ? 1 : 0);
+                int dx = 0, dz = 0;
+                if (rng.NextFloat() < 0.5f) dx = rng.NextFloat() < 0.5f ? 1 : -1;
+                else dz = rng.NextFloat() < 0.5f ? 1 : -1;
+                var run = new List<(float cx, float cz, float sx, float sz)>();
+                float px = sx, pz = sz;
+                bool ok = true;
+                for (int k = 0; k < segs && ok; k++)
+                {
+                    float len = RngRange(ref rng, 16f, 32f) * Cell; // 0,8-1,6 m
+                    float thick = RngRange(ref rng, 6f, 9f) * Cell; // 0,3-0,45 m
+                    float wx = dx != 0 ? len : thick;
+                    float wz = dz != 0 ? len : thick;
+                    float ccx = px + dx * len * 0.5f;
+                    float ccz = pz + dz * len * 0.5f;
+                    float halfLen = len / (2f * Cell);
+                    ok = WallSegOk(spec, route, ccx, ccz, halfLen, wx, wz, tx, tz);
+                    if (!ok) break;
+                    run.Add((ccx, ccz, wx, wz));
+                    px = ccx + dx * len * 0.5f;
+                    pz = ccz + dz * len * 0.5f;
+                    int s = rng.NextFloat() < 0.5f ? 1 : -1;
+                    int ndx = -dz * s, ndz = dx * s; // gira 90°
+                    dx = ndx; dz = ndz;
+                }
+                if (!ok || run.Count < 2) continue;
+                foreach (var r in run)
+                    spec.Blocks.Add(new MapBlock { CX = r.cx, CZ = r.cz, SX = r.sx, SZ = r.sz, Variant = VariantFor(r.cx, r.cz) });
+                spec.ParPieces += 2;
                 return;
             }
+        }
+
+        // Validade de 1 segmento: campo, trigger longe, fora da rota e dos
+        // pelotões, sem grudar noutro muro (corridas paralelas <1,8 m fundem).
+        static bool WallSegOk(MapSpec spec, List<(int gx, int gz, float deg)> route,
+            float bx, float bz, float halfLen, float wx, float wz, float tx, float tz)
+        {
+            if (!(System.Math.Abs(bx / Cell) + wx / (2f * Cell) < FieldHx
+                && System.Math.Abs(bz / Cell) + wz / (2f * Cell) < FieldHz)) return false;
+            if (DistCells(bx, bz, tx, tz) < halfLen + 8f) return false; // fora do trigger
+            foreach (var rp in route)
+                if (DistCells(bx, bz, rp.gx * Cell, rp.gz * Cell) < halfLen + 6f) return false;
+            foreach (var s in spec.Soldiers)
+                if (DistCells(bx, bz, s.X, s.Z) < halfLen + 7f) return false;
+            foreach (var b in spec.Blocks)
+            {
+                float bh = (b.SX > b.SZ ? b.SX : b.SZ) / (2f * Cell);
+                if (DistCells(bx, bz, b.CX, b.CZ) < halfLen + bh + 4f) return false;
+            }
+            return true;
         }
 
         // Variante do muro por posição (determinística, sem consumir o rng).
@@ -441,15 +484,16 @@ namespace Topple.Core
             for (int i = 0; i < checkBlocks && i < spec.Blocks.Count; i++)
             {
                 var b = spec.Blocks[i];
-                if (DistCells(bx, bz, b.CX, b.CZ) < half + b.SX / (2f * Cell) + 4f) return false;
+                float bh = (b.SX > b.SZ ? b.SX : b.SZ) / (2f * Cell);
+                if (DistCells(bx, bz, b.CX, b.CZ) < half + bh + 4f) return false;
             }
             return true;
         }
 
-        // Muro-porteira (dono, Ex.1/Ex.2 do sketch): nasce EM CIMA da rota
-        // (±0,15 m do ponto), forçando curva. Campo aberto + bloco sem encostar
-        // na borda = contorno sempre possível (nunca sela o mapa). Prof 3+,
-        // +2 de par por bloco (desvio custa peças).
+        // Muro-porteira (dono, Ex.1/Ex.2 do sketch): barra fina EM CIMA da rota
+        // (±0,15 m do ponto), atravessada ao corredor, forçando curva. Campo
+        // aberto + barra sem encostar na borda = contorno sempre possível
+        // (nunca sela o mapa). Prof 3+, +2 de par por bloco (desvio custa peças).
         static void TryGateWall(ref ToppleRng rng, MapSpec spec, List<(int gx, int gz, float deg)> route, float tx, float tz)
         {
             if (route.Count < 8) return;
@@ -458,28 +502,41 @@ namespace Topple.Core
                 var s = route[RngInt(ref rng, route.Count / 4, route.Count * 3 / 4)];
                 float bx = s.gx * Cell + RngRange(ref rng, -3f, 3f) * Cell;
                 float bz = s.gz * Cell + RngRange(ref rng, -3f, 3f) * Cell;
-                float half = RngRange(ref rng, 8f, 12f); // 0,8-1,2 m
-                if (!GateSpotOk(spec, bx, bz, half, tx, tz, spec.Blocks.Count, 7f)) continue;
-                spec.Blocks.Add(new MapBlock { CX = bx, CZ = bz, SX = half * 2f * Cell, SZ = half * 2f * Cell, Variant = VariantFor(bx, bz), Gate = true });
+                // Barra atravessada: eixo perpendicular à direção da rota aqui.
+                float rr = s.deg * (float)System.Math.PI / 180f;
+                bool alongX = System.Math.Abs((float)System.Math.Cos(rr)) > System.Math.Abs((float)System.Math.Sin(rr));
+                float len = RngRange(ref rng, 30f, 44f) * Cell; // 1,5-2,2 m
+                float thick = RngRange(ref rng, 6f, 8f) * Cell; // 0,3-0,4 m
+                float swx = alongX ? len : thick, swz = alongX ? thick : len;
+                float halfLen = len / (2f * Cell);
+                if (!GateSpotOk(spec, bx, bz, halfLen, tx, tz, spec.Blocks.Count, 7f)) continue;
+                spec.Blocks.Add(new MapBlock { CX = bx, CZ = bz, SX = swx, SZ = swz, Variant = VariantFor(bx, bz), Gate = true });
                 spec.ParPieces += 2;
-                // Composição em L (60%, Ex.1): 2º bloco adjacente, também na rota.
-                if (rng.NextFloat() < 0.6f) TryGatePartner(ref rng, spec, route, bx, bz, half, tx, tz);
+                // Composição em L (60%, Ex.1): 2º trecho fino da ponta, virando 90°.
+                if (rng.NextFloat() < 0.6f) TryGatePartner(ref rng, spec, route, bx, bz, swx, swz, alongX, tx, tz);
                 return;
             }
         }
 
-        static void TryGatePartner(ref ToppleRng rng, MapSpec spec, List<(int gx, int gz, float deg)> route, float bx, float bz, float half, float tx, float tz)
+        static void TryGatePartner(ref ToppleRng rng, MapSpec spec, List<(int gx, int gz, float deg)> route,
+            float bx, float bz, float swx, float swz, bool alongX, float tx, float tz)
         {
-            int dir = RngInt(ref rng, 0, 4);
-            float step = half * 2f * Cell;
-            float px = bx + (dir == 0 ? step : dir == 1 ? -step : 0f);
-            float pz = bz + (dir == 2 ? step : dir == 3 ? -step : 0f);
-            if (!GateSpotOk(spec, px, pz, half, tx, tz, spec.Blocks.Count - 1, 7f)) return;
+            float plen = RngRange(ref rng, 16f, 24f) * Cell; // 0,8-1,2 m
+            float thick = (alongX ? swz : swx); // mesma espessura da barra
+            int end = rng.NextFloat() < 0.5f ? 1 : -1;
+            int side = rng.NextFloat() < 0.5f ? 1 : -1;
+            // Vira 90° a partir da ponta: trecho perpendicular encostando nela.
+            float pwx = alongX ? thick : plen, pwz = alongX ? plen : thick;
+            float px, pz;
+            if (alongX) { px = bx + end * (swx * 0.5f - thick * 0.5f); pz = bz + side * (plen * 0.5f); }
+            else { px = bx + side * (plen * 0.5f); pz = bz + end * (swz * 0.5f - thick * 0.5f); }
+            float halfLen = plen / (2f * Cell);
+            if (!GateSpotOk(spec, px, pz, halfLen, tx, tz, spec.Blocks.Count - 1, 7f)) return;
             bool crosses = false;
             foreach (var rp in route)
-                if (DistCells(px, pz, rp.gx * Cell, rp.gz * Cell) < half + 10f) { crosses = true; break; }
+                if (DistCells(px, pz, rp.gx * Cell, rp.gz * Cell) < halfLen + 10f) { crosses = true; break; }
             if (!crosses) return; // parceiro fora da rota não é porteira
-            spec.Blocks.Add(new MapBlock { CX = px, CZ = pz, SX = half * 2f * Cell, SZ = half * 2f * Cell, Variant = VariantFor(px, pz), Gate = true });
+            spec.Blocks.Add(new MapBlock { CX = px, CZ = pz, SX = pwx, SZ = pwz, Variant = VariantFor(px, pz), Gate = true });
             spec.ParPieces += 2;
         }
 

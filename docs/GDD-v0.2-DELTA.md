@@ -632,3 +632,13 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
 - Validade justa p/ barra longa: colar de círculos rente (`ForbiddenCircles`,
   fonte única jogo+harness+LEGS); cubo segue círculo único (provas intactas).
 - Piso anti-stillborn mede LANÇAMENTO (<15 caídas sem vitória), não kills.
+
+## 47. Buraco removido do jogo (15/out/2026, pedido do dono)
+- Sem buraco em nenhum mapa: fora geração (`TryVoid` + `MapVoid` + bloco
+  prof 6+), validade (`VoidRects`/`NearVoid`/hint), render (`RebuildGround`
+  virou laje única + `BuildVoidDressing`/saias/filete fora) e simulação
+  (`SpawnGroundTiled` fora — só `SpawnGround`). Chão sempre inteiro 24×16.
+  Provas removidas (`MapGen_VoidRules`, `ConvertPreservesVoids`,
+  `Void_PieceFallsThroughHole`, `Void_BlocksPlacement`); `Terrain_*` agora
+  trava laje+grama e ausência de `VoidDressing`. `KillY=-5` segue (segurança
+  p/ peça lançada p/ fora da mesa).

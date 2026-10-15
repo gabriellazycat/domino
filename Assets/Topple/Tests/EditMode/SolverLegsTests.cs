@@ -23,10 +23,6 @@ namespace Topple.Tests
             (7u, 11), (8u, 11), (9u, 11), (10u, 11), (11u, 11), (12u, 11),
         };
 
-        static bool InVoid(float wx, float wz, TutorialSetup.VoidDef v)
-            => wx > v.Center.x - v.Size.x * 0.5f - 0.1f && wx < v.Center.x + v.Size.x * 0.5f + 0.1f
-            && wz > v.Center.z - v.Size.z * 0.5f - 0.1f && wz < v.Center.z + v.Size.z * 0.5f + 0.1f;
-
         static bool Blocked(TutorialSetup.PhaseDef ph, float wx, float wz, PieceId piece, float deg)
         {
             foreach (var s in ph.Soldiers)
@@ -37,9 +33,6 @@ namespace Topple.Tests
                     float dx = wx - g.Center.x, dz = wz - g.Center.z;
                     if (dx * dx + dz * dz < g.R * g.R) return true;
                 }
-            if (ph.Voids != null)
-                foreach (var v in ph.Voids)
-                    if (InVoid(wx, wz, v)) return true;
             // Validade idêntica ao jogo (colar de círculos — fonte única).
             foreach (var b in ph.Blocks)
                 foreach (var (c, r) in PlanningController.ForbiddenCircles(b.Center, b.Size))

@@ -246,10 +246,6 @@ namespace Topple.Game
         [System.Serializable]
         public struct GapDef { public Vector3 Center; public float R; public float NeedReach; }
 
-        // Buraco: retângulo sem chão (a linha morre ali — contorne).
-        [System.Serializable]
-        public struct VoidDef { public Vector3 Center; public Vector3 Size; }
-
         public struct PhaseDef
         {
             public string Name;
@@ -260,7 +256,6 @@ namespace Topple.Game
             public List<EnemySpot> Soldiers;
             public List<BlockDef> Blocks;
             public List<GapDef> Gaps; // null nas 10 artesanais (sem ponte-vão)
-            public List<VoidDef> Voids; // null nas 10 artesanais (sem buraco)
         }
 
         public static readonly List<PhaseDef> Phases = new()
@@ -427,17 +422,10 @@ namespace Topple.Game
             var gaps = new List<GapDef>();
             foreach (var g in m.Gaps)
                 gaps.Add(new GapDef { Center = new Vector3(g.X, 0f, g.Z), R = g.RadiusCells * 0.05f, NeedReach = g.NeedReach });
-            var voids = new List<VoidDef>();
-            foreach (var v in m.Voids)
-                voids.Add(new VoidDef
-                {
-                    Center = new Vector3((v.X0 + v.X1) * 0.5f, 0f, (v.Z0 + v.Z1) * 0.5f),
-                    Size = new Vector3(v.X1 - v.X0, 0.5f, v.Z1 - v.Z0),
-                });
             return new PhaseDef
             {
                 Name = m.Name, TriggerGx = m.TriggerGx, TriggerGz = m.TriggerGz, TriggerDeg = m.TriggerDeg,
-                ParPieces = m.ParPieces, Soldiers = soldiers, Blocks = blocks, Gaps = gaps, Voids = voids,
+                ParPieces = m.ParPieces, Soldiers = soldiers, Blocks = blocks, Gaps = gaps,
             };
         }
 
@@ -471,7 +459,6 @@ namespace Topple.Game
             Planning.Forbidden = new List<PlanningController.ForbiddenZone>();
             Planning.PatrolSegs.Clear();
             Planning.GapDiscs.Clear();
-            Planning.VoidRects.Clear();
             foreach (var b in ph.Blocks)
             {
                 // Validade justa (colar de círculos p/ barra longa — ver
@@ -486,12 +473,8 @@ namespace Topple.Game
                     Planning.Forbidden.Add(new PlanningController.ForbiddenZone { C = new Vector3(g.Center.x, 0f, g.Center.z), R = g.R });
                     Planning.GapDiscs.Add((new Vector3(g.Center.x, 0f, g.Center.z), g.R, g.NeedReach));
                 }
-            // Buraco: sem chão (a linha morre ali) — lajes + validade.
-            RebuildGround(ph.Voids);
-            if (ph.Voids != null)
-                foreach (var v in ph.Voids)
-                    Planning.VoidRects.Add((new Vector3(v.Center.x - v.Size.x * 0.5f, 0f, v.Center.z - v.Size.z * 0.5f),
-                        new Vector3(v.Center.x + v.Size.x * 0.5f, 0f, v.Center.z + v.Size.z * 0.5f)));
+            // Chão sempre inteiro (sem buraco) — laje única.
+            RebuildGround();
             foreach (var s in ph.Soldiers)
             {
                 if (s.Kind != EnemyKind.Patroller || s.Waypoints.Count < 2) continue;
@@ -500,7 +483,7 @@ namespace Topple.Game
             }
             SpawnSoldierPreviews();
             SpawnBlockPreviews();
-            // Terreno fake da fase (saias de buraco + sujidade): artesanal usa
+            // Terreno fake da fase (sujidade): artesanal usa
             // semente da fase (estável entre runs); gerada deriva da run.
             uint seedEff = (ProceduralFromStart || PhaseIndex >= Phases.Count) && Run != null
                 ? Run.Seed ^ (uint)(PhaseIndex * 7919 + 1)
@@ -739,90 +722,48 @@ namespace Topple.Game
         }
 
         GameObject _blockPreviews;
-        bool _hadVoids;
 
-        // Chão por fase: laje única sem buraco; lajes 1 m pulando buracos.
-        // (Laje estática = só colisor; visual da grama em tiles separados.)
-        void RebuildGround(List<VoidDef> voids)
+        // Chão por fase: laje única 24×16 (topo y=0), sempre inteira.
+        // (Laje estática = só colisor; visual da grama em cubo separado.)
+        void RebuildGround()
         {
-            bool want = voids != null && voids.Count > 0;
-            if (want == _hadVoids)
-            {
-                var keep = transform.Find(want ? "GroundTiles" : "GroundPhysics");
-                if (keep != null) return; // já está certo (cena salva tem laje assada)
-            }
+            var keep = transform.Find("GroundPhysics");
+            if (keep != null) return; // já está certo (cena salva tem laje assada)
             foreach (var n in new[] { "GroundPhysics", "GrassVisual", "GroundTiles", "GrassTiles" })
             {
                 var o = transform.Find(n);
                 if (o != null) Destroy(o.gameObject);
             }
-            _hadVoids = want;
-            if (!want)
+            var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ground.name = "GroundPhysics";
+            ground.transform.SetParent(transform, false);
+            ground.transform.localScale = new Vector3(24f, 0.5f, 16f);
+            ground.transform.position = new Vector3(0f, -0.25f, 0f);
+            var grb = ground.GetComponent<Rigidbody>();
+            if (grb == null) grb = ground.AddComponent<Rigidbody>();
+            grb.isKinematic = true;
+            var gcol = ground.GetComponent<Collider>();
+            if (gcol != null)
             {
-                var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                ground.name = "GroundPhysics";
-                ground.transform.SetParent(transform, false);
-                ground.transform.localScale = new Vector3(24f, 0.5f, 16f);
-                ground.transform.position = new Vector3(0f, -0.25f, 0f);
-                var grb = ground.GetComponent<Rigidbody>();
-                if (grb == null) grb = ground.AddComponent<Rigidbody>();
-                grb.isKinematic = true;
-                var gcol = ground.GetComponent<Collider>();
-                if (gcol != null)
-                {
-                    var box = gcol as BoxCollider;
-                    if (box != null) box.material = SimBuilder.Wood;
-                }
-                Object.Destroy(ground.GetComponent<Renderer>());
-                var grass = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                grass.name = "GrassVisual";
-                grass.transform.SetParent(transform, false);
-                grass.transform.localScale = new Vector3(24f, 0.1f, 16f);
-                grass.transform.position = new Vector3(0f, -0.05f, 0f);
-                grass.GetComponent<Renderer>().sharedMaterial = GrassMat();
-                Object.Destroy(grass.GetComponent<Collider>());
-                return;
+                var box = gcol as BoxCollider;
+                if (box != null) box.material = SimBuilder.Wood;
             }
-            var gtiles = new GameObject("GroundTiles");
-            gtiles.transform.SetParent(transform, false);
-            var grtiles = new GameObject("GrassTiles");
-            grtiles.transform.SetParent(transform, false);
-            for (int ix = -12; ix < 12; ix++)
-                for (int iz = -8; iz < 8; iz++)
-                {
-                    float cx = ix + 0.5f, cz = iz + 0.5f;
-                    bool hole = false;
-                    foreach (var v in voids)
-                    {
-                        float x0 = v.Center.x - v.Size.x * 0.5f, x1 = v.Center.x + v.Size.x * 0.5f;
-                        float z0 = v.Center.z - v.Size.z * 0.5f, z1 = v.Center.z + v.Size.z * 0.5f;
-                        if (cx > x0 && cx < x1 && cz > z0 && cz < z1) { hole = true; break; }
-                    }
-                    if (hole) continue;
-                    var tile = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    tile.transform.SetParent(gtiles.transform, false);
-                    tile.transform.localScale = new Vector3(1f, 0.5f, 1f);
-                    tile.transform.position = new Vector3(cx, -0.25f, cz);
-                    var tcol = tile.GetComponent<Collider>() as BoxCollider;
-                    if (tcol != null) tcol.material = SimBuilder.Wood;
-                    Object.Destroy(tile.GetComponent<Renderer>());
-                    var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    g.transform.SetParent(grtiles.transform, false);
-                    g.transform.localScale = new Vector3(1f, 0.1f, 1f);
-                    g.transform.position = new Vector3(cx, -0.05f, cz);
-                    var gm = new Material(GrassMat());
-                    gm.color = new Color(0.16f, 0.30f, 0.16f, 1f); // feltro escuro (instância)
-                    g.GetComponent<Renderer>().material = gm;
-                    Object.Destroy(g.GetComponent<Collider>());
-                }
+            Object.Destroy(ground.GetComponent<Renderer>());
+            var grass = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            grass.name = "GrassVisual";
+            grass.transform.SetParent(transform, false);
+            grass.transform.localScale = new Vector3(24f, 0.1f, 16f);
+            grass.transform.position = new Vector3(0f, -0.05f, 0f);
+            grass.GetComponent<Renderer>().sharedMaterial = GrassMat();
+            Object.Destroy(grass.GetComponent<Collider>());
         }
 
         Transform FindOrNull(string name) => transform.Find(name);
 
         // ---- Terreno fake (dono, gameplay > visual): SÓ visual, física plana.
-        // Saias/borda de buraco, sujidade do feltro (vales) e colinas de fundo.
+        // Sujidade do feltro (vales) e colinas de fundo.
         // Sem collider, sem Rigidbody, sem efeito em validade ou simulação.
-        static Material _voidSkirtMat, _voidRimMat, _dirtPatchMat, _stonePatchMat;
+        static Material _dirtPatchMat, _stonePatchMat;
 
         static Material DressMat(ref Material slot, Color c)
         {
@@ -846,33 +787,8 @@ namespace Topple.Game
             return 1;
         }
 
-        // Saias internas + filete de alerta do buraco (abismo aberto: sem fundo,
-        // a peça cai no escuro e some no KillY=-5). Estático p/ teste PlayMode.
-        public static int BuildVoidDressing(Transform parent, List<VoidDef> voids)
-        {
-            int n = 0;
-            if (parent == null || voids == null) return 0;
-            var skirt = DressMat(ref _voidSkirtMat, new Color(0.23f, 0.15f, 0.10f));
-            var rim = DressMat(ref _voidRimMat, new Color(0.55f, 0.16f, 0.12f));
-            foreach (var v in voids)
-            {
-                float x0 = v.Center.x - v.Size.x * 0.5f, x1 = v.Center.x + v.Size.x * 0.5f;
-                float z0 = v.Center.z - v.Size.z * 0.5f, z1 = v.Center.z + v.Size.z * 0.5f;
-                float sx = x1 - x0, sz = z1 - z0, mx = (x0 + x1) * 0.5f, mz = (z0 + z1) * 0.5f;
-                n += AddDressBox(parent, "VoidSkirt", new Vector3(mx, -0.75f, z0), new Vector3(sx, 1.5f, 0.06f), skirt);
-                n += AddDressBox(parent, "VoidSkirt", new Vector3(mx, -0.75f, z1), new Vector3(sx, 1.5f, 0.06f), skirt);
-                n += AddDressBox(parent, "VoidSkirt", new Vector3(x0, -0.75f, mz), new Vector3(0.06f, 1.5f, sz), skirt);
-                n += AddDressBox(parent, "VoidSkirt", new Vector3(x1, -0.75f, mz), new Vector3(0.06f, 1.5f, sz), skirt);
-                n += AddDressBox(parent, "VoidRim", new Vector3(mx, 0.02f, z0), new Vector3(sx + 0.12f, 0.02f, 0.12f), rim);
-                n += AddDressBox(parent, "VoidRim", new Vector3(mx, 0.02f, z1), new Vector3(sx + 0.12f, 0.02f, 0.12f), rim);
-                n += AddDressBox(parent, "VoidRim", new Vector3(x0, 0.02f, mz), new Vector3(0.12f, 0.02f, sz + 0.12f), rim);
-                n += AddDressBox(parent, "VoidRim", new Vector3(x1, 0.02f, mz), new Vector3(0.12f, 0.02f, sz + 0.12f), rim);
-            }
-            return n;
-        }
-
         // Sujidade do feltro (vales fake, só pintura): quads 4mm acima da grama,
-        // longe de trigger/soldados/blocos/vãos/buracos. Semente própria —
+        // longe de trigger/soldados/blocos/vãos. Semente própria —
         // nunca consome o Run.Rng dos drafts.
         void SpawnGroundDressing(uint seedEff)
         {
@@ -882,9 +798,6 @@ namespace Topple.Game
             if (oldV != null) Destroy(oldV.gameObject);
             var dress = new GameObject("GroundDressing");
             dress.transform.SetParent(transform, false);
-            var vdress = new GameObject("VoidDressing");
-            vdress.transform.SetParent(transform, false);
-            if (_current.Voids != null) BuildVoidDressing(vdress.transform, _current.Voids);
 
             var rng = new ToppleRng(seedEff ^ 0xD1CEu);
             var spots = new List<(float x, float z, float r)>();
@@ -925,13 +838,6 @@ namespace Topple.Game
                 {
                     dx = x - g.Center.x; dz = z - g.Center.z;
                     if (dx * dx + dz * dz < (r + g.R + 0.3f) * (r + g.R + 0.3f)) return false;
-                }
-            if (_current.Voids != null)
-                foreach (var v in _current.Voids)
-                {
-                    float h = Mathf.Max(v.Size.x, v.Size.z) * 0.5f;
-                    dx = x - v.Center.x; dz = z - v.Center.z;
-                    if (dx * dx + dz * dz < (r + h + 0.3f) * (r + h + 0.3f)) return false;
                 }
             foreach (var p in spots)
             {

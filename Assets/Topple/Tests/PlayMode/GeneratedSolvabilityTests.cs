@@ -10,7 +10,7 @@
 // Fork-split: o gerador separa pelotões em lados opostos (fork-útil, F6) —
 // cadeia única não cobre 2 direções; o split planta 1 fork no trigger
 // (2 cabeças provadas) e leva 1 ramo p/ cada lado (metade angular).
-// Amostras: profundidades 10–11 (ponte-vão 4+, buraco/pesadão/patrulha 6+:
+// Amostras: profundidades 10–11 (ponte-vão 4+, pesadão/patrulha 6+:
 // todos os mecanismos ativos) × seeds fixas, FILTRADAS por escala (geração é
 // determinística: o filtro escolhe sempre as mesmas). Mapas gigantes (20+
 // corpos em prof. 11+) existem e o solver parcial os alcança em ~85% — mas
@@ -49,10 +49,6 @@ namespace Topple.Tests
             return true;
         }
 
-        static bool InVoid(float wx, float wz, TutorialSetup.VoidDef v)
-            => wx > v.Center.x - v.Size.x * 0.5f - 0.1f && wx < v.Center.x + v.Size.x * 0.5f + 0.1f
-            && wz > v.Center.z - v.Size.z * 0.5f - 0.1f && wz < v.Center.z + v.Size.z * 0.5f + 0.1f;
-
         static bool Blocked(TutorialSetup.PhaseDef ph, float wx, float wz, PieceId piece, float deg)
         {
             foreach (var s in ph.Soldiers)
@@ -63,9 +59,6 @@ namespace Topple.Tests
                     float dx = wx - g.Center.x, dz = wz - g.Center.z;
                     if (dx * dx + dz * dz < g.R * g.R) return true;
                 }
-            if (ph.Voids != null)
-                foreach (var v in ph.Voids)
-                    if (InVoid(wx, wz, v)) return true;
             // Validade idêntica ao jogo (colar de círculos — fonte única).
             foreach (var b in ph.Blocks)
                 foreach (var (c, r) in PlanningController.ForbiddenCircles(b.Center, b.Size))
@@ -137,16 +130,7 @@ namespace Topple.Tests
             var world = SimWorld.Create(simSeed, $"GenSolve_{_worldSeq++}");
             try
             {
-                if (ph.Voids == null || ph.Voids.Count == 0)
-                    world.SpawnGround(new Vector2(24, 16));
-                else
-                {
-                    var voids = new List<(float x0, float z0, float x1, float z1)>();
-                    foreach (var v in ph.Voids)
-                        voids.Add((v.Center.x - v.Size.x * 0.5f, v.Center.z - v.Size.z * 0.5f,
-                                   v.Center.x + v.Size.x * 0.5f, v.Center.z + v.Size.z * 0.5f));
-                    world.SpawnGroundTiled(new Vector2(24, 16), voids);
-                }
+                world.SpawnGround(new Vector2(24, 16)); // chão sempre inteiro
                 world.KeepLeanersAwake = true;
                 foreach (var b in ph.Blocks)
                     world.SpawnStaticBox(b.Center, b.Size);

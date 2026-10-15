@@ -117,28 +117,6 @@ namespace Topple.Sim
             SceneManager.MoveGameObjectToScene(go, _scene);
         }
 
-        // Chão em lajes 1 m pulando buracos (paridade com TutorialSetup.RebuildGround).
-        public void SpawnGroundTiled(Vector2 size, System.Collections.Generic.List<(float x0, float z0, float x1, float z1)> voids)
-        {
-            int hx = (int)(size.x * 0.5f), hz = (int)(size.y * 0.5f);
-            for (int ix = -hx; ix < hx; ix++)
-                for (int iz = -hz; iz < hz; iz++)
-                {
-                    float cx = ix + 0.5f, cz = iz + 0.5f;
-                    bool hole = false;
-                    if (voids != null)
-                        foreach (var v in voids)
-                            if (cx > v.x0 && cx < v.x1 && cz > v.z0 && cz < v.z1) { hole = true; break; }
-                    if (hole) continue;
-                    var go = new GameObject("GroundTile");
-                    var col = go.AddComponent<BoxCollider>();
-                    col.size = new Vector3(1f, 0.5f, 1f);
-                    col.material = SimBuilder.Wood;
-                    go.transform.position = new Vector3(cx, -0.25f, cz);
-                    SceneManager.MoveGameObjectToScene(go, _scene);
-                }
-        }
-
         // Obstáculo estático do cenário (muros, plataformas). Só colisor, sem corpo.
         public void SpawnStaticBox(Vector3 center, Vector3 size)
         {

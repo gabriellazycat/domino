@@ -38,12 +38,6 @@ namespace Topple.Core
         public float X, Z, RadiusCells, NeedReach;
     }
 
-    // Buraco: retângulo SEM chão (a linha morre ali — contorne). Metros, grade 1 m.
-    public struct MapVoid
-    {
-        public float X0, Z0, X1, Z1;
-    }
-
     public sealed class MapSpec
     {
         public string Name = "";
@@ -53,7 +47,6 @@ namespace Topple.Core
         public readonly List<MapSoldier> Soldiers = new();
         public readonly List<MapBlock> Blocks = new();
         public readonly List<MapGap> Gaps = new();
-        public readonly List<MapVoid> Voids = new();
         public readonly List<MapPt> ClusterCenters = new(); // 1 por pelotão (fork-útil)
         public readonly List<MapPt> RefRoute = new(); // rota de referência (provas/solver)
     }
@@ -288,13 +281,6 @@ namespace Topple.Core
                 for (int g = 0; g < gaps; g++)
                     if (rng.NextFloat() < 0.55f) TryGap(ref rng, spec, route, tx, tz);
             }
-            // Buraco (prof 6+): retângulo sem chão no corredor da rota (contorne).
-            if (depth >= 6)
-            {
-                int voids = depth >= 12 && rng.NextFloat() < 0.35f ? 2 : 1;
-                for (int v = 0; v < voids; v++)
-                    if (rng.NextFloat() < 0.6f) TryVoid(ref rng, spec, route, tx, tz);
-            }
             // Antidegeneração: sempre ≥1 pelotão (fim da rota, fora do caminho).
             if (spec.Soldiers.Count == 0 && route.Count > 0)
             {
@@ -325,7 +311,7 @@ namespace Topple.Core
                 spec.ParPieces = System.Math.Max(8, spec.ParPieces - 2 * n);
             }
             // Muros do sketch (dono): porteira EM CIMA da rota + escudo atrás
-            // do pelotão. Vêm por último: não deslocam soldados/vãos/buracos.
+            // do pelotão. Vêm por último: não deslocam soldados nem vãos.
             // Telas de corredor primeiro (eixo de cada pelotão final).
             if (depth >= 3)
             {
@@ -362,43 +348,6 @@ namespace Topple.Core
             spec.ParPieces += 2; // peça longa custa atenção
         }
 
-        // Buraco: quadrado 1-2 m sem chão perto da rota (a linha morre ali).
-        static void TryVoid(ref ToppleRng rng, MapSpec spec, List<(int gx, int gz, float deg)> route, float tx, float tz)
-        {
-            if (route.Count < 6) return;
-            var s = route[RngInt(ref rng, route.Count / 3, route.Count * 2 / 3)];
-            float r = s.deg * (float)System.Math.PI / 180f;
-            float side = rng.NextFloat() < 0.5f ? 1f : -1f;
-            float off = RngRange(ref rng, 10f, 30f); // 0,5-1,5 m da rota
-            float cx = s.gx * Cell + (float)System.Math.Cos(r) * side * off * Cell;
-            float cz = s.gz * Cell - (float)System.Math.Sin(r) * side * off * Cell;
-            float half = RngRange(ref rng, 0.5f, 1.0f);
-            // Grade 1 m: retângulo alinhado, 1–2 m (Floor/Ceiling em fração
-            // estourava p/ 3 m em alguns alinhamentos — corta o lado longe).
-            float x0 = (float)System.Math.Floor(cx - half), x1 = (float)System.Math.Ceiling(cx + half);
-            float z0 = (float)System.Math.Floor(cz - half), z1 = (float)System.Math.Ceiling(cz + half);
-            float sx = s.gx * Cell, sz = s.gz * Cell;
-            while (x1 - x0 > 2f) { if (x1 - sx > sx - x0) x1 -= 1f; else x0 += 1f; }
-            while (z1 - z0 > 2f) { if (z1 - sz > sz - z0) z1 -= 1f; else z0 += 1f; }
-            if (x0 < -11f || x1 > 11f || z0 < -7f || z1 > 7f) return;
-            float mx = (x0 + x1) * 0.5f, mz = (z0 + z1) * 0.5f;
-            float mhalf = System.Math.Max(x1 - x0, z1 - z0) * 0.5f + 0.3f;
-            if (DistCells(mx, mz, tx, tz) < mhalf / Cell + 8f) return; // fora do trigger
-            foreach (var sl in spec.Soldiers)
-                if (DistCells(mx, mz, sl.X, sl.Z) < mhalf / Cell + 10f) return; // fora de pelotão
-            foreach (var b in spec.Blocks)
-                if (DistCells(mx, mz, b.CX, b.CZ) < mhalf / Cell + b.SX / (2f * Cell) + 2f) return;
-            foreach (var gp in spec.Gaps)
-                if (DistCells(mx, mz, gp.X, gp.Z) < mhalf / Cell + gp.RadiusCells + 2f) return;
-            foreach (var vd in spec.Voids)
-            {
-                float ox = (vd.X0 + vd.X1) * 0.5f, oz = (vd.Z0 + vd.Z1) * 0.5f;
-                float oh = System.Math.Max(vd.X1 - vd.X0, vd.Z1 - vd.Z0) * 0.5f;
-                if (DistCells(mx, mz, ox, oz) < (mhalf + oh) / Cell + 4f) return;
-            }
-            spec.Voids.Add(new MapVoid { X0 = x0, Z0 = z0, X1 = x1, Z1 = z1 });
-            spec.ParPieces += 2; // contorno custa peças
-        }
         static void TryWall(ref ToppleRng rng, MapSpec spec, List<(int gx, int gz, float deg)> route, float cx, float cz, float tx, float tz, float tdeg)
         {
             // Muro corrido NO EIXO (dono): nasce atravessado no segmento reto
@@ -544,7 +493,7 @@ namespace Topple.Core
 
         // Validade da porteira/escudo: campo, trigger longe (início respira),
         // sem cobrir soldado (anel de engajamento, como no veto), sem
-        // sobrepor vão/buraco/muro.
+        // sobrepor vão/muro.
         static bool GateSpotOk(MapSpec spec, float bx, float bz, float wx, float wz, float tx, float tz, int checkBlocks, bool strict = true)
         {
             float halfLen = (wx > wz ? wx : wz) / (2f * Cell);
@@ -572,12 +521,6 @@ namespace Topple.Core
             }
             foreach (var gp in spec.Gaps)
                 if (DistCells(bx, bz, gp.X, gp.Z) < halfLen + gp.RadiusCells + 4f) return false;
-            foreach (var vd in spec.Voids)
-            {
-                float ox = (vd.X0 + vd.X1) * 0.5f, oz = (vd.Z0 + vd.Z1) * 0.5f;
-                float oh = System.Math.Max(vd.X1 - vd.X0, vd.Z1 - vd.Z0) * 0.5f;
-                if (DistCells(bx, bz, ox, oz) < halfLen + oh / Cell + 4f) return false;
-            }
             for (int i = 0; i < checkBlocks && i < spec.Blocks.Count; i++)
             {
                 var b = spec.Blocks[i];

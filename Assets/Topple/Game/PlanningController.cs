@@ -58,7 +58,6 @@ namespace Topple.Game
         // faz o patrulheiro passar por cima das peças.
         public List<(Vector3 a, Vector3 b)> PatrolSegs = new();
         public List<(Vector3 c, float r, float reach)> GapDiscs = new();
-        public List<(Vector3 min, Vector3 max)> VoidRects = new();
         const float PatrolMargin = 0.45f;
         public List<EnemySpot> Soldiers = new();
         // Raio de exclusão por tipo (base Ø0,50 soldado; Ø0,70 pesadão).
@@ -116,9 +115,6 @@ namespace Topple.Game
                 float dx = wx - f.C.x, dz = wz - f.C.z;
                 if (dx * dx + dz * dz < f.R * f.R) return false;
             }
-            // Buraco: sem chão (a peça cairia) — não constrói.
-            foreach (var v in VoidRects)
-                if (wx > v.min.x - 0.1f && wx < v.max.x + 0.1f && wz > v.min.z - 0.1f && wz < v.max.z + 0.1f) return false;
             // Caminho da patrulha é CONSTRUÍVEL (por sua conta e risco: ela
             // empurra peça em pé — ver SimEnemy.TryBulldoze). Só o corpo do
             // inimigo barra (OverlapsSoldier abaixo).
@@ -537,13 +533,6 @@ namespace Topple.Game
             return false;
         }
 
-        public bool NearVoid(float wx, float wz)
-        {
-            foreach (var v in VoidRects)
-                if (wx > v.min.x && wx < v.max.x && wz > v.min.z && wz < v.max.z) return true;
-            return false;
-        }
-
         // Fantasma sempre visível antes do início (verde/vermelho): o jogador vê
         // onde nasce e se a célula vale — entende o snap sem explicação.
         void UpdateHoverGhost(int gx, int gz, Vector3 world)
@@ -569,7 +558,6 @@ namespace Topple.Game
                 bool ok = Data.HandCount(Selected) > 0 && IsValidCell(gx, gz, Selected, RotDeg) && !CrowdsExisting(gx, gz, RotDeg);
                 SetGhostValid(ok);
                 if (Data.HandCount(Selected) <= 0) Hint = "Sem peças — Recarregar (Ctrl+Y)";
-                else if (!ok && NearVoid(PlanningData.ToWorld(gx), PlanningData.ToWorld(gz))) Hint = "Buraco: contorne!";
                 else if (!ok && NearGap(PlanningData.ToWorld(gx), PlanningData.ToWorld(gz))) Hint = "Ponte: atravessa com Grande/Torre";
                 else if (!ok) Hint = "Célula bloqueada";
                 else if (NearPatrolSeg(PlanningData.ToWorld(gx), PlanningData.ToWorld(gz))) Hint = "Trilha: clique o início (na rota da patrulha!)";

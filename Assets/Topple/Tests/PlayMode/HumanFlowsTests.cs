@@ -540,27 +540,6 @@ namespace Topple.Tests
             finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
             yield return null;
         }
-        [UnityTest] public IEnumerator Void_BlocksPlacement()
-        {
-            TutorialSetup setup = null;
-            try
-            {
-                setup = TutorialSetup.Build("HumanVoid");
-                yield return null;
-                yield return null;
-                // Retângulo injetado (mesma forma do conversor): barra dentro, libera fora.
-                setup.Planning.VoidRects.Add((new Vector3(6f, 0f, -1f), new Vector3(7f, 0f, 1f)));
-                Assert.IsFalse(setup.Planning.IsValidCell(130, -10, Topple.Core.PieceId.Common, 90f),
-                    "no buraco não constrói");
-                Assert.IsTrue(setup.Planning.IsValidCell(150, -10, Topple.Core.PieceId.Common, 90f),
-                    "fora do buraco constrói");
-                Assert.IsTrue(setup.Planning.NearVoid(6.5f, 0f));
-                Assert.IsFalse(setup.Planning.NearVoid(7.5f, 0f));
-                Debug.Log("[TOPPLE][HUMAN] buraco ok (barra + avisa)");
-            }
-            finally { Time.timeScale = 1f; if (setup != null) Object.Destroy(setup.gameObject); }
-            yield return null;
-        }
         // Câmera/HUD da sim (dono, opção B + enxuta total): na sim some bandeja
         // e ações (ficam objetivo + banner), câmera 100% manual (ToppleCam não
         // sobrescreve o Target, C morto); no retry a HUD cheia volta.
@@ -740,11 +719,10 @@ namespace Topple.Tests
             yield return null;
         }
         // Terreno fake (dono, gameplay > visual): P2 com 3 pinturas de muro,
-        // saias do buraco sem collider, sujidade e colinas presentes.
-        [UnityTest] public IEnumerator Terrain_WallVariantsVoidDressingHills()
+        // laje única sem buraco, sujidade e colinas presentes.
+        [UnityTest] public IEnumerator Terrain_WallVariantsHillsNoVoids()
         {
             TutorialSetup setup = null;
-            GameObject holder = null;
             try
             {
                 setup = TutorialSetup.Build("HumanTerrain");
@@ -761,29 +739,20 @@ namespace Topple.Tests
                     if (r != null && r.sharedMaterial != null) colors.Add(r.sharedMaterial.color);
                 }
                 Assert.AreEqual(3, colors.Count, "1 pintura por variante (sem telhado)");
-                // Saias do buraco: 1 buraco 2×2 → 4 saias + 4 filetes, sem colliders.
-                holder = new GameObject("VoidTestHolder");
-                var voids = new System.Collections.Generic.List<TutorialSetup.VoidDef>
-                {
-                    new TutorialSetup.VoidDef { Center = new Vector3(0f, 0f, 0f), Size = new Vector3(2f, 0.5f, 2f) },
-                };
-                int n = TutorialSetup.BuildVoidDressing(holder.transform, voids);
-                Assert.AreEqual(8, n, "4 saias + 4 filetes por buraco");
-                Assert.AreEqual(8, holder.transform.childCount);
-                yield return null; // Destroy de collider é fim-de-frame
-                Assert.AreEqual(0, holder.GetComponentsInChildren<Collider>().Length, "vitrine sem física");
+                // Chão sempre inteiro (sem buraco): laje única + grama.
+                Assert.IsNotNull(setup.transform.Find("GroundPhysics"), "laje ausente");
+                Assert.IsNotNull(setup.transform.Find("GrassVisual"), "grama ausente");
                 // Fase com sujidade + fundo: grupos presentes e feltro manchado.
                 Assert.IsNotNull(setup.transform.Find("GroundDressing"), "sujidade ausente");
-                Assert.IsNotNull(setup.transform.Find("VoidDressing"), "grupo do buraco ausente");
+                Assert.IsNull(setup.transform.Find("VoidDressing"), "buraco removido do jogo");
                 Assert.IsNotNull(setup.transform.Find("BackdropHills"), "colinas ausentes");
                 Assert.AreEqual(10, setup.transform.Find("BackdropHills").childCount, "anel de 10 colinas");
                 Assert.Greater(setup.transform.Find("GroundDressing").childCount, 0, "feltro com sujidade");
-                Debug.Log("[TOPPLE][HUMAN] terreno fake ok (muros/buraco/colinas)");
+                Debug.Log("[TOPPLE][HUMAN] terreno fake ok (muros/colinas, sem buraco)");
             }
             finally
             {
                 Time.timeScale = 1f;
-                if (holder != null) Object.Destroy(holder);
                 if (setup != null) Object.Destroy(setup.gameObject);
             }
             yield return null;

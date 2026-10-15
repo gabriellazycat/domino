@@ -56,18 +56,12 @@ namespace Topple.Tests
             return n;
         }
 
-        [UnityTest] public IEnumerator Void_PieceFallsThroughHole()
+        [UnityTest] public IEnumerator Ground_SingleSlabHoldsPieces()
         {
             _world = SimWorld.Create(41008);
-            var voids = new System.Collections.Generic.List<(float x0, float z0, float x1, float z1)>
-            {
-                (2f, 0f, 3f, 1f),
-            };
-            _world.SpawnGroundTiled(new Vector2(24, 16), voids);
-            var hole = _world.SpawnPiece(PieceId.Common, new Vector3(2.5f, 0f, 0.5f), 0f);
+            _world.SpawnGround(new Vector2(24, 16)); // chão sempre inteiro
             var floor = _world.SpawnPiece(PieceId.Common, new Vector3(5f, 0f, 5f), 0f);
             for (int i = 0; i < 60; i++) _world.Step(); // 1 s de gravidade
-            Assert.Less(hole.transform.position.y, -0.3f, "peça no buraco cai (sem chão)");
             Assert.Greater(floor.transform.position.y, -0.05f, "peça no chão fica");
             yield break;
         }

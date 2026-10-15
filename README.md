@@ -31,12 +31,11 @@ Opções: volume, brilho/vinheta, zoom). Auto-save por fase (checkpoint no
     que continua de onde estava ao DISPARAR);
     muros = pedra/casa/cerca em trechos finos conectados (só pintura, bloqueiam
     igual); porteira = barra EM CIMA do caminho (força a curva, +2 de par); trigger = verde;
-    ponte-vão = disco **azul** (só Grande/Torre atravessa); buraco = sem chão
-    (com saia + borda de alerta). Times narrativos (só visual): mal **vermelho**,
+    ponte-vão = disco **azul** (só Grande/Torre atravessa); chão sempre inteiro.
+    Times narrativos (só visual): mal **vermelho**,
     bem **ciano** (P1–P3 tudo mal).
     Pode construir NO caminho da patrulha (o hint avisa) — mas ela EMPURRA peça
-   em pé e estraga o caminho; só peça CAINDO mata patrulheiro. No buraco não
-   constrói (`Buraco: contorne!`).
+    em pé e estraga o caminho; só peça CAINDO mata patrulheiro.
 3. A 1ª peça que VOCÊ colocar recebe o impulso e cai primeiro (dominó = peça).
     Run deckbuilder INFINITA: procedural (`MapGen`, mesma run = mesmos mapas;
     teto de corpos pelo deck, pelotões opostos pedindo bifurcação),
@@ -51,8 +50,8 @@ Opções: volume, brilho/vinheta, zoom). Auto-save por fase (checkpoint no
 
 ## Regenerar / testar (com a Unity FECHADA)
 - `Tools/GenerateAll.ps1` — regenera `Assets/Generated/` (66 arquivos, idempotente).
-- `Tools/TestEditMode.ps1` — esperado tudo verde (74).
-- `Tools/TestPlayMode.ps1` — esperado 48/48.
+- `Tools/TestEditMode.ps1` — esperado tudo verde (72).
+- `Tools/TestPlayMode.ps1` — esperado 47/47.
 - `Tools/BuildWindows.ps1` — build `Builds/Windows/Topple.exe`.
 - Não rode `.ps1` com a Unity aberta (lockfile). Feche o Editor antes.
 

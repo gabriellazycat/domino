@@ -108,36 +108,6 @@ namespace Topple.Tests
                 }
         }
 
-        [Test] public void MapGen_VoidRules()
-        {
-            // Prof 0-5: sem buraco.
-            for (uint s = 0; s < 10; s++)
-                for (int d = 0; d <= 5; d++)
-                    Assert.AreEqual(0, Topple.Core.MapGen.Generate(s, d).Voids.Count, $"seed {s} prof {d}");
-            // Prof 6+: 1-2 m, dentro do campo, longe de trigger/pelotão.
-            for (uint s = 0; s < 20; s++)
-                for (int d = 6; d < 16; d++)
-                {
-                    var m = Topple.Core.MapGen.Generate(s, d);
-                    float tx = m.TriggerGx * 0.05f, tz = m.TriggerGz * 0.05f;
-                    foreach (var v in m.Voids)
-                    {
-                        Assert.GreaterOrEqual(v.X0, -11f); Assert.LessOrEqual(v.X1, 11f);
-                        Assert.GreaterOrEqual(v.Z0, -7f); Assert.LessOrEqual(v.Z1, 7f);
-                        Assert.LessOrEqual(v.X1 - v.X0, 2.01f); Assert.LessOrEqual(v.Z1 - v.Z0, 2.01f);
-                        float mx = (v.X0 + v.X1) * 0.5f, mz = (v.Z0 + v.Z1) * 0.5f;
-                        float mh = System.Math.Max(v.X1 - v.X0, v.Z1 - v.Z0) * 0.5f;
-                        float dx = (mx - tx) / 0.05f, dz = (mz - tz) / 0.05f;
-                        Assert.Greater(System.Math.Sqrt(dx * dx + dz * dz), mh / 0.05f + 8.0, "buraco fora do trigger");
-                        foreach (var sl in m.Soldiers)
-                        {
-                            float sx = (mx - sl.X) / 0.05f, sz = (mz - sl.Z) / 0.05f;
-                            Assert.Greater(System.Math.Sqrt(sx * sx + sz * sz), mh / 0.05f + 10.0, "buraco fora de pelotão");
-                        }
-                    }
-                }
-        }
-
         [Test] public void MapGen_ConvertPreservesGaps()
         {
             var m = new Topple.Core.MapSpec { Name = "t", TriggerGx = 0, TriggerGz = 0, TriggerDeg = 90f, ParPieces = 8 };
@@ -147,19 +117,6 @@ namespace Topple.Tests
             Assert.AreEqual(1, ph.Gaps.Count);
             Assert.AreEqual(8f * 0.05f, ph.Gaps[0].R, 1e-6f);
             Assert.AreEqual(1.0f, ph.Gaps[0].NeedReach);
-        }
-
-        [Test] public void MapGen_ConvertPreservesVoids()
-        {
-            var m = new Topple.Core.MapSpec { Name = "t", TriggerGx = 0, TriggerGz = 0, TriggerDeg = 90f, ParPieces = 8 };
-            m.Soldiers.Add(new Topple.Core.MapSoldier { Kind = Topple.Core.MapEnemyKind.Soldier, X = 5f, Z = 0f });
-            m.Voids.Add(new Topple.Core.MapVoid { X0 = 1f, Z0 = -1f, X1 = 3f, Z1 = 1f });
-            var ph = TutorialSetup.ConvertMap(m);
-            Assert.AreEqual(1, ph.Voids.Count);
-            Assert.AreEqual(2f, ph.Voids[0].Center.x, 1e-6f);
-            Assert.AreEqual(0f, ph.Voids[0].Center.z, 1e-6f);
-            Assert.AreEqual(2f, ph.Voids[0].Size.x, 1e-6f);
-            Assert.AreEqual(2f, ph.Voids[0].Size.z, 1e-6f);
         }
 
         [Test] public void MapGen_StructuralInvariants()

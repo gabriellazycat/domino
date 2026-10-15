@@ -261,12 +261,18 @@ namespace Topple.Core
                     spec.ClusterCenters.Add(new MapPt(cx, cz));
                     placed = true;
 
-                    // Veto do cluster: muro OU patrulha (nunca os dois, nunca no 1º grupo;
-                    // prof 0-1 sem veto, 2-3 só muro; prof 6+ veta mais (ramo alternativo)).
-                    if (c > 0 && (allowWall || allowPatrol) && rng.NextFloat() < (depth >= 6 ? 0.8f : 0.7f))
+                    // Veto do cluster: muro OU patrulha (nunca os dois; patrulha
+                    // nunca no 1º grupo; muro vale em todos — quase toda linha
+                    // trigger→pelotão cruza um muro, pedido do dono).
+                    // prof 0-1 sem veto, 2-3 só muro; prof 6+ veta mais.
+                    if (c > 0 && (allowWall || allowPatrol) && rng.NextFloat() < (depth >= 6 ? 0.85f : 0.8f))
                     {
-                        if (!allowPatrol || (allowWall && rng.NextFloat() < 0.5f)) TryWall(ref rng, spec, route, cx, cz, tx, tz);
+                        if (!allowPatrol || (allowWall && rng.NextFloat() < 0.5f)) TryWall(ref rng, spec, route, cx, cz, tx, tz, tdeg);
                         else TryPatrol(ref rng, spec, cx, cz, tx, tz, depth, team);
+                    }
+                    else if (c == 0 && allowWall && rng.NextFloat() < 0.8f)
+                    {
+                        TryWall(ref rng, spec, route, cx, cz, tx, tz, tdeg);
                     }
                 }
                 if (placed) clusterSizes.Add(spec.Soldiers.Count - before);
@@ -320,11 +326,17 @@ namespace Topple.Core
             }
             // Muros do sketch (dono): porteira EM CIMA da rota + escudo atrás
             // do pelotão. Vêm por último: não deslocam soldados/vãos/buracos.
+            // Telas de corredor primeiro (eixo de cada pelotão final).
             if (depth >= 3)
             {
-                int gates = depth >= 8 && rng.NextFloat() < 0.35f ? 2 : 1;
+                foreach (var cc in spec.ClusterCenters)
+                    if (rng.NextFloat() < 0.9f) TryCorridorScreen(ref rng, spec, tx, tz, tdeg, cc.X, cc.Z);
+            }
+            if (depth >= 3)
+            {
+                int gates = depth >= 8 && rng.NextFloat() < 0.5f ? 2 : 1;
                 for (int g = 0; g < gates; g++)
-                    if (rng.NextFloat() < 0.8f) TryGateWall(ref rng, spec, route, tx, tz);
+                    if (rng.NextFloat() < 0.9f) TryGateWall(ref rng, spec, route, tx, tz);
             }
             if (depth >= 4 && spec.ClusterCenters.Count > 0 && rng.NextFloat() < 0.5f)
                 TryShieldWall(ref rng, spec, route, tx, tz);
@@ -387,35 +399,43 @@ namespace Topple.Core
             spec.Voids.Add(new MapVoid { X0 = x0, Z0 = z0, X1 = x1, Z1 = z1 });
             spec.ParPieces += 2; // contorno custa peças
         }
-        static void TryWall(ref ToppleRng rng, MapSpec spec, List<(int gx, int gz, float deg)> route, float cx, float cz, float tx, float tz)
+        static void TryWall(ref ToppleRng rng, MapSpec spec, List<(int gx, int gz, float deg)> route, float cx, float cz, float tx, float tz, float tdeg)
         {
-            // Muro corrido (dono): 2–3 paralelepípedos finos conectados em L/Z
-            // (juntas de 90°), como o sketch. Eixo-alinhado: sem rotação,
-            // collider exato, validade idêntica (raio pela maior dimensão).
-            // 1 veto = 1 corrida (+2 de par).
+            // Muro corrido NO EIXO (dono): nasce atravessado no segmento reto
+            // trigger→centroide (40–65% do caminho) — quase toda linha de ataque
+            // cruza um muro. 2–3 trechos finos em L/Z a partir da travessa.
+            // Eixo-alinhado: sem rotação, collider exato. 1 veto = 1 corrida (+2).
             for (int i = 0; i < 6; i++)
             {
-                float a = RngRange(ref rng, 0f, (float)System.Math.PI * 2f);
-                float d = RngRange(ref rng, 22f, 30f); // 1,1-1,5 m do centro
-                float sx = cx + (float)System.Math.Cos(a) * d * Cell;
-                float sz = cz + (float)System.Math.Sin(a) * d * Cell;
+                float ax = cx - tx, az = cz - tz;
+                float alen = (float)System.Math.Sqrt(ax * ax + az * az);
+                if (alen < 1e-4f) return;
+                float frac = RngRange(ref rng, 0.40f, 0.65f);
+                // Perpendicular ao eixo (a barra atravessa o caminho).
+                int dx, dz;
+                if (System.Math.Abs(ax) > System.Math.Abs(az)) { dx = 0; dz = rng.NextFloat() < 0.5f ? 1 : -1; }
+                else { dx = rng.NextFloat() < 0.5f ? 1 : -1; dz = 0; }
+                float jx = -az / alen, jz = ax / alen;
+                float jit = RngRange(ref rng, -4f, 4f); // ±0,2 m fora do eixo
+                float len0 = RngRange(ref rng, 16f, 32f) * Cell;
+                float thick0 = RngRange(ref rng, 6f, 9f) * Cell;
+                float qx = tx + ax * frac + jx * jit * Cell;
+                float qz = tz + az * frac + jz * jit * Cell;
+                float px = qx - dx * len0 * 0.5f, pz = qz - dz * len0 * 0.5f;
                 int segs = 2 + (rng.NextFloat() < 0.5f ? 1 : 0);
-                int dx = 0, dz = 0;
-                if (rng.NextFloat() < 0.5f) dx = rng.NextFloat() < 0.5f ? 1 : -1;
-                else dz = rng.NextFloat() < 0.5f ? 1 : -1;
                 var run = new List<(float cx, float cz, float sx, float sz)>();
-                float px = sx, pz = sz;
                 bool ok = true;
                 for (int k = 0; k < segs && ok; k++)
                 {
-                    float len = RngRange(ref rng, 16f, 32f) * Cell; // 0,8-1,6 m
-                    float thick = RngRange(ref rng, 6f, 9f) * Cell; // 0,3-0,45 m
+                    float len, thick;
+                    if (k == 0) { len = len0; thick = thick0; }
+                    else { len = RngRange(ref rng, 16f, 32f) * Cell; thick = RngRange(ref rng, 6f, 9f) * Cell; }
                     float wx = dx != 0 ? len : thick;
                     float wz = dz != 0 ? len : thick;
                     float ccx = px + dx * len * 0.5f;
                     float ccz = pz + dz * len * 0.5f;
                     float halfLen = len / (2f * Cell);
-                    ok = WallSegOk(spec, route, ccx, ccz, halfLen, wx, wz, tx, tz);
+                    ok = WallSegOk(spec, ccx, ccz, halfLen, wx, wz, tx, tz, tdeg);
                     if (!ok) break;
                     run.Add((ccx, ccz, wx, wz));
                     px = ccx + dx * len * 0.5f;
@@ -432,18 +452,34 @@ namespace Topple.Core
             }
         }
 
-        // Validade de 1 segmento: campo, trigger longe, fora da rota e dos
-        // pelotões, sem grudar noutro muro (corridas paralelas <1,8 m fundem).
-        static bool WallSegOk(MapSpec spec, List<(int gx, int gz, float deg)> route,
-            float bx, float bz, float halfLen, float wx, float wz, float tx, float tz)
+        // Validade de 1 segmento: campo, fora dos pelotões, sem grudar noutro
+        // muro. Trigger em 2 faixas: colado (1 m) nunca; no CONE de lançamento
+        // (±30° da facing) 2 m (muro no cone sufoca a saída — gramática do P2).
+        // Fora do cone, 1 m basta e o corredor curto continua guardado.
+        static bool WallSegOk(MapSpec spec,
+            float bx, float bz, float halfLen, float wx, float wz, float tx, float tz, float tdeg)
         {
             if (!(System.Math.Abs(bx / Cell) + wx / (2f * Cell) < FieldHx
                 && System.Math.Abs(bz / Cell) + wz / (2f * Cell) < FieldHz)) return false;
-            if (DistCells(bx, bz, tx, tz) < halfLen + 8f) return false; // fora do trigger
-            foreach (var rp in route)
-                if (DistCells(bx, bz, rp.gx * Cell, rp.gz * Cell) < halfLen + 6f) return false;
+            float tdist = DistCells(bx, bz, tx, tz);
+            if (tdist < halfLen + 20f) return false; // colado no trigger: 1 m
+            if (tdist < halfLen + 40f)
+            {
+                float ang = (float)System.Math.Atan2(bx - tx, bz - tz);
+                float dd = (float)System.Math.Abs(ang - tdeg * (float)System.Math.PI / 180f) % ((float)System.Math.PI * 2f);
+                if (dd > System.Math.PI) dd = (float)System.Math.PI * 2f - dd;
+                if (dd < 0.52f) return false; // no cone: 2 m (lançamento respira)
+            }
             foreach (var s in spec.Soldiers)
-                if (DistCells(bx, bz, s.X, s.Z) < halfLen + 7f) return false;
+            {
+                // Anel de engajamento: a onda precisa chegar a 0,5 m do soldado
+                // fora de qualquer bolha (vale jogo, harness e humano).
+                float ban = WallBanRadius(wx, wz);
+                if (RectDistCells(s.X, s.Z, bx, bz, wx, wz) < ban) return false;
+                if (s.Loop != null)
+                    foreach (var w in s.Loop)
+                        if (RectDistCells(w.X, w.Z, bx, bz, wx, wz) < ban) return false;
+            }
             foreach (var b in spec.Blocks)
             {
                 float bh = (b.SX > b.SZ ? b.SX : b.SZ) / (2f * Cell);
@@ -452,40 +488,101 @@ namespace Topple.Core
             return true;
         }
 
-        // Variante do muro por posição (determinística, sem consumir o rng).
+        // Distância ponto–retângulo em células (muros eixo-alinhados).
+        static float RectDistCells(float px, float pz, float cx, float cz, float sx, float sz)
+        {
+            float dx = System.Math.Max(0f, System.Math.Abs(px - cx) - sx * 0.5f) / Cell;
+            float dz = System.Math.Max(0f, System.Math.Abs(pz - cz) - sz * 0.5f) / Cell;
+            return (float)System.Math.Sqrt(dx * dx + dz * dz);
+        }
+
+        // Folga soldado–muro (dono): aresta do muro a ≥0,5 m do soldado (10
+        // células) ALÉM do raio proibido do próprio muro — assim sempre existe
+        // anel de engajamento (a onda chega a 0,5 m e mata; nem humano mataria
+        // sem isso). r = mesma fórmula da validade do jogo (segmentado fino).
+        // Pública p/ as provas conferirem a mesma régua da construção.
+        public static float WallBanRadius(float wx, float wz)
+        {
+            float thin = (wx < wz ? wx : wz) / Cell;
+            float len = (wx > wz ? wx : wz) / Cell;
+            return (len <= 28f ? len * 0.5f + 4f : thin * 0.5f + 5f) + 10f;
+        }
         public static BlockVariant VariantFor(float x, float z)
         {
             long h = (long)(System.Math.Abs(x * 12.915 + z * 78.233) * 100.0);
             return (BlockVariant)(h % 3);
         }
 
-        // Validade da porteira/escudo: campo, trigger longe (início respira),
-        // sem cobrir soldado (sem pop; patrulha vale o loop todo), sem
-        // sobrepor vão/buraco/muro. soldierClear em células, além da meia-peça.
-        static bool GateSpotOk(MapSpec spec, float bx, float bz, float half, float tx, float tz, int checkBlocks, float soldierClear)
+        // Tela de corredor (dono): 1 barra atravessada no eixo trigger→centro.
+        // As corridas do veto dobram (L/Z); a tela é reta. 4 tentativas
+        // variando a fração (cone e folgas rejeitam — tenta outro ponto).
+        // Vale WallSegOk com cone (lançamento respira). +2 de par.
+        static void TryCorridorScreen(ref ToppleRng rng, MapSpec spec, float tx, float tz, float tdeg, float cx, float cz)
         {
-            if (!(System.Math.Abs(bx / Cell) + half < FieldHx && System.Math.Abs(bz / Cell) + half < FieldHz)) return false;
-            if (DistCells(bx, bz, tx, tz) < half + 30f) return false; // 1,5 m+ do trigger
+            float ax = cx - tx, az = cz - tz;
+            float alen = (float)System.Math.Sqrt(ax * ax + az * az);
+            if (alen < 1e-4f) return;
+            for (int i = 0; i < 4; i++)
+            {
+                float frac = RngRange(ref rng, 0.40f, 0.65f);
+                float jx = -az / alen, jz = ax / alen;
+                float jit = RngRange(ref rng, -4f, 4f);
+                // Barra perpendicular ao eixo (eixo-alinhada: maior projeção manda).
+                bool alongX = System.Math.Abs(az) > System.Math.Abs(ax);
+                float len = RngRange(ref rng, 24f, 40f) * Cell; // 1,2-2,0 m
+                float thick = RngRange(ref rng, 6f, 8f) * Cell;
+                float swx = alongX ? len : thick, swz = alongX ? thick : len;
+                float bx = tx + ax * frac + jx * jit * Cell;
+                float bz = tz + az * frac + jz * jit * Cell;
+                float halfLen = len / (2f * Cell);
+                if (!WallSegOk(spec, bx, bz, halfLen, swx, swz, tx, tz, tdeg)) continue;
+                spec.Blocks.Add(new MapBlock { CX = bx, CZ = bz, SX = swx, SZ = swz, Variant = VariantFor(bx, bz), Gate = false });
+                spec.ParPieces += 2;
+                return;
+            }
+        }
+
+        // Validade da porteira/escudo: campo, trigger longe (início respira),
+        // sem cobrir soldado (anel de engajamento, como no veto), sem
+        // sobrepor vão/buraco/muro.
+        static bool GateSpotOk(MapSpec spec, float bx, float bz, float wx, float wz, float tx, float tz, int checkBlocks, bool strict = true)
+        {
+            float halfLen = (wx > wz ? wx : wz) / (2f * Cell);
+            float ban = WallBanRadius(wx, wz);
+            if (!(System.Math.Abs(bx / Cell) + wx / (2f * Cell) < FieldHx && System.Math.Abs(bz / Cell) + wz / (2f * Cell) < FieldHz)) return false;
+            if (DistCells(bx, bz, tx, tz) < halfLen + 30f) return false; // 1,5 m+ do trigger
             foreach (var sl in spec.Soldiers)
             {
-                if (DistCells(bx, bz, sl.X, sl.Z) < half + soldierClear) return false;
-                if (sl.Loop != null)
-                    foreach (var w in sl.Loop)
-                        if (DistCells(bx, bz, w.X, w.Z) < half + soldierClear) return false;
+                // Estrito (corredor/porteira): anel de engajamento. Escudo usa
+                // a folga legada (fica atrás do pelotão, fora do engajamento).
+                if (strict)
+                {
+                    if (RectDistCells(sl.X, sl.Z, bx, bz, wx, wz) < ban) return false;
+                    if (sl.Loop != null)
+                        foreach (var w in sl.Loop)
+                            if (RectDistCells(w.X, w.Z, bx, bz, wx, wz) < ban) return false;
+                }
+                else
+                {
+                    if (DistCells(bx, bz, sl.X, sl.Z) < halfLen + 6f) return false;
+                    if (sl.Loop != null)
+                        foreach (var w in sl.Loop)
+                            if (DistCells(bx, bz, w.X, w.Z) < halfLen + 6f) return false;
+                }
             }
             foreach (var gp in spec.Gaps)
-                if (DistCells(bx, bz, gp.X, gp.Z) < half + gp.RadiusCells + 4f) return false;
+                if (DistCells(bx, bz, gp.X, gp.Z) < halfLen + gp.RadiusCells + 4f) return false;
             foreach (var vd in spec.Voids)
             {
                 float ox = (vd.X0 + vd.X1) * 0.5f, oz = (vd.Z0 + vd.Z1) * 0.5f;
                 float oh = System.Math.Max(vd.X1 - vd.X0, vd.Z1 - vd.Z0) * 0.5f;
-                if (DistCells(bx, bz, ox, oz) < half + oh / Cell + 4f) return false;
+                if (DistCells(bx, bz, ox, oz) < halfLen + oh / Cell + 4f) return false;
             }
             for (int i = 0; i < checkBlocks && i < spec.Blocks.Count; i++)
             {
                 var b = spec.Blocks[i];
                 float bh = (b.SX > b.SZ ? b.SX : b.SZ) / (2f * Cell);
-                if (DistCells(bx, bz, b.CX, b.CZ) < half + bh + 4f) return false;
+                if (DistCells(bx, bz, b.CX, b.CZ) < halfLen + bh + 4f) return false;
             }
             return true;
         }
@@ -497,7 +594,7 @@ namespace Topple.Core
         static void TryGateWall(ref ToppleRng rng, MapSpec spec, List<(int gx, int gz, float deg)> route, float tx, float tz)
         {
             if (route.Count < 8) return;
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 10; i++)
             {
                 var s = route[RngInt(ref rng, route.Count / 4, route.Count * 3 / 4)];
                 float bx = s.gx * Cell + RngRange(ref rng, -3f, 3f) * Cell;
@@ -509,7 +606,7 @@ namespace Topple.Core
                 float thick = RngRange(ref rng, 6f, 8f) * Cell; // 0,3-0,4 m
                 float swx = alongX ? len : thick, swz = alongX ? thick : len;
                 float halfLen = len / (2f * Cell);
-                if (!GateSpotOk(spec, bx, bz, halfLen, tx, tz, spec.Blocks.Count, 7f)) continue;
+                if (!GateSpotOk(spec, bx, bz, swx, swz, tx, tz, spec.Blocks.Count)) continue;
                 spec.Blocks.Add(new MapBlock { CX = bx, CZ = bz, SX = swx, SZ = swz, Variant = VariantFor(bx, bz), Gate = true });
                 spec.ParPieces += 2;
                 // Composição em L (60%, Ex.1): 2º trecho fino da ponta, virando 90°.
@@ -531,7 +628,7 @@ namespace Topple.Core
             if (alongX) { px = bx + end * (swx * 0.5f - thick * 0.5f); pz = bz + side * (plen * 0.5f); }
             else { px = bx + side * (plen * 0.5f); pz = bz + end * (swz * 0.5f - thick * 0.5f); }
             float halfLen = plen / (2f * Cell);
-            if (!GateSpotOk(spec, px, pz, halfLen, tx, tz, spec.Blocks.Count - 1, 7f)) return;
+            if (!GateSpotOk(spec, px, pz, pwx, pwz, tx, tz, spec.Blocks.Count - 1)) return;
             bool crosses = false;
             foreach (var rp in route)
                 if (DistCells(px, pz, rp.gx * Cell, rp.gz * Cell) < halfLen + 10f) { crosses = true; break; }
@@ -560,10 +657,11 @@ namespace Topple.Core
             float bx = c.X + dx / len * dist * Cell;
             float bz = c.Z + dz / len * dist * Cell;
             float half = RngRange(ref rng, 8f, 12f);
-            if (!GateSpotOk(spec, bx, bz, half, tx, tz, spec.Blocks.Count, 6f)) return;
+            float sw = half * 2f * Cell;
+            if (!GateSpotOk(spec, bx, bz, sw, sw, tx, tz, spec.Blocks.Count, false)) return;
             foreach (var rp in route)
                 if (DistCells(bx, bz, rp.gx * Cell, rp.gz * Cell) < half + 6f) return;
-            spec.Blocks.Add(new MapBlock { CX = bx, CZ = bz, SX = half * 2f * Cell, SZ = half * 2f * Cell, Variant = VariantFor(bx, bz), Gate = false });
+            spec.Blocks.Add(new MapBlock { CX = bx, CZ = bz, SX = sw, SZ = sw, Variant = VariantFor(bx, bz), Gate = false });
             spec.ParPieces += 2;
         }
 

@@ -23,10 +23,6 @@ namespace Topple.Tests
             (7u, 11), (8u, 11), (9u, 11), (10u, 11), (11u, 11), (12u, 11),
         };
 
-        static bool InBlock(float wx, float wz, TutorialSetup.BlockDef b)
-            => wx > b.Center.x - b.Size.x * 0.5f - 0.15f && wx < b.Center.x + b.Size.x * 0.5f + 0.15f
-            && wz > b.Center.z - b.Size.z * 0.5f - 0.15f && wz < b.Center.z + b.Size.z * 0.5f + 0.15f;
-
         static bool InVoid(float wx, float wz, TutorialSetup.VoidDef v)
             => wx > v.Center.x - v.Size.x * 0.5f - 0.1f && wx < v.Center.x + v.Size.x * 0.5f + 0.1f
             && wz > v.Center.z - v.Size.z * 0.5f - 0.1f && wz < v.Center.z + v.Size.z * 0.5f + 0.1f;
@@ -44,8 +40,13 @@ namespace Topple.Tests
             if (ph.Voids != null)
                 foreach (var v in ph.Voids)
                     if (InVoid(wx, wz, v)) return true;
+            // Validade idêntica ao jogo (colar de círculos — fonte única).
             foreach (var b in ph.Blocks)
-                if (InBlock(wx, wz, b)) return true;
+                foreach (var (c, r) in PlanningController.ForbiddenCircles(b.Center, b.Size))
+                {
+                    float dx = wx - c.x, dz = wz - c.z;
+                    if (dx * dx + dz * dz < r * r) return true;
+                }
             return false;
         }
 

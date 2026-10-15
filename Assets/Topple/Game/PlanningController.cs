@@ -25,6 +25,35 @@ namespace Topple.Game
         // Blocos: círculos conservadores. Raios viram dados na T5.
         public struct ForbiddenZone { public Vector3 C; public float R; }
         public List<ForbiddenZone> Forbidden = new();
+
+        // Validade justa p/ muro fino (dono): barra longa vira colar de
+        // círculos rente à barra (r = espessura/2 + 0,25, passo 0,5) — um
+        // círculo único (raio = metade do comprimento) criava bolha de
+        // exclusão que empurrava as pernas p/ além do alcance de kill
+        // (nem humano mataria ali). Cubo (≤1,4 m) segue círculo único
+        // max/2 + 0,2 (provas artesanais intactas, bit a bit). Fonte única:
+        // LoadPhase, harness e LEGS usam esta função.
+        public static List<(Vector3 c, float r)> ForbiddenCircles(Vector3 center, Vector3 size)
+        {
+            var zones = new List<(Vector3 c, float r)>();
+            float len = size.x >= size.z ? size.x : size.z;
+            bool alongX = size.x >= size.z;
+            if (len <= 1.4f)
+            {
+                zones.Add((new Vector3(center.x, 0f, center.z), len * 0.5f + 0.2f));
+                return zones;
+            }
+            float thick = alongX ? size.z : size.x;
+            float r = thick * 0.5f + 0.25f;
+            int n = System.Math.Max(2, (int)System.Math.Ceiling(len / 0.5f));
+            for (int i = 0; i < n; i++)
+            {
+                float t = n == 1 ? 0f : (i / (float)(n - 1) - 0.5f) * (len - r * 2f);
+                float ox = alongX ? t : 0f, oz = alongX ? 0f : t;
+                zones.Add((new Vector3(center.x + ox, 0f, center.z + oz), r));
+            }
+            return zones;
+        }
         // Corredores de patrulha proibidos (segmentos + margem): construir na rota
         // faz o patrulheiro passar por cima das peças.
         public List<(Vector3 a, Vector3 b)> PatrolSegs = new();

@@ -51,8 +51,8 @@ Opções: volume, brilho/vinheta, zoom). Auto-save por fase (checkpoint no
 
 ## Regenerar / testar (com a Unity FECHADA)
 - `Tools/GenerateAll.ps1` — regenera `Assets/Generated/` (66 arquivos, idempotente).
-- `Tools/TestEditMode.ps1` — esperado tudo verde (69).
-- `Tools/TestPlayMode.ps1` — esperado 47/47.
+- `Tools/TestEditMode.ps1` — esperado tudo verde (74).
+- `Tools/TestPlayMode.ps1` — esperado 48/48.
 - `Tools/BuildWindows.ps1` — build `Builds/Windows/Topple.exe`.
 - Não rode `.ps1` com a Unity aberta (lockfile). Feche o Editor antes.
 

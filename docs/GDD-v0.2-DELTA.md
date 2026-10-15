@@ -619,3 +619,16 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
   collider exato, validade idêntica (raio pela maior dimensão).
   Provas `Walls_RunsAreThinAndConnected` (finos + juntas) + porteira fina;
   harness re-verde (2/6 integrais, 55/67 = 82%).
+
+## 46. Corredor guardado + validade justa (15/out/2026, pedido do dono)
+- Dono: linha reta spawn→inimigo quase nunca cruzava muro. Veto agora nasce
+  atravessado no eixo trigger→centroide (40–65%) + telas de corredor por
+  pelotão (prof 3+): teste `Walls_GuardTriggerCorridors` (qualquer muro a
+  ≤0,8 m do segmento).
+- Lançamento respira: 2 m no cone ±30° da facing (gramática do P2), 1 m fora.
+- Anel de engajamento: aresta do muro a ≥0,5 m do soldado além do raio
+  proibido (`WallBanRadius`, mesma fórmula da validade) — sem isso nem humano
+  mataria (bolha empurrava a perna p/ além do alcance).
+- Validade justa p/ barra longa: colar de círculos rente (`ForbiddenCircles`,
+  fonte única jogo+harness+LEGS); cubo segue círculo único (provas intactas).
+- Piso anti-stillborn mede LANÇAMENTO (<15 caídas sem vitória), não kills.

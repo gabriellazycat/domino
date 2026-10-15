@@ -474,8 +474,10 @@ namespace Topple.Game
             Planning.VoidRects.Clear();
             foreach (var b in ph.Blocks)
             {
-                float r = Mathf.Max(b.Size.x, b.Size.z) * 0.5f + 0.2f;
-                Planning.Forbidden.Add(new PlanningController.ForbiddenZone { C = new Vector3(b.Center.x, 0f, b.Center.z), R = r });
+                // Validade justa (colar de círculos p/ barra longa — ver
+                // PlanningController.ForbiddenCircles, fonte única com o harness).
+                foreach (var (c, r) in PlanningController.ForbiddenCircles(b.Center, b.Size))
+                    Planning.Forbidden.Add(new PlanningController.ForbiddenZone { C = c, R = r });
             }
             // Ponte-vão: disco sem construção (a queda atravessa com peça longa).
             if (ph.Gaps != null)

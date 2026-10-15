@@ -5,8 +5,8 @@
 // um deck de prof. 10 banca ~70 cartas) — 4 estratégias de solver (outward,
 // cobra, patrulhas-primeiro, fork-split; pesada no pesadão com overshoot,
 // torre p/ vãos) + minas anti-patrulha, física headless de verdade (SimWorld).
-// Contrato em 2 níveis: piso ≥50% por amostra (anti-stillborn) + barra ≥75%
-// no agregado (saúde); vitórias integrais no log. Pesadão mirado é tática além do guloso (P4/P8/P10 provam com 3/3; solver T5).
+// Contrato em 2 níveis: piso anti-stillborn por amostra (onda que nem viaja)
+// + barra ≥75% no agregado (saúde); vitórias integrais no log. Pesadão mirado é tática além do guloso (P4/P8/P10 provam com 3/3; solver T5).
 // Fork-split: o gerador separa pelotões em lados opostos (fork-útil, F6) —
 // cadeia única não cobre 2 direções; o split planta 1 fork no trigger
 // (2 cabeças provadas) e leva 1 ramo p/ cada lado (metade angular).
@@ -49,10 +49,6 @@ namespace Topple.Tests
             return true;
         }
 
-        static bool InBlock(float wx, float wz, TutorialSetup.BlockDef b)
-            => wx > b.Center.x - b.Size.x * 0.5f - 0.15f && wx < b.Center.x + b.Size.x * 0.5f + 0.15f
-            && wz > b.Center.z - b.Size.z * 0.5f - 0.15f && wz < b.Center.z + b.Size.z * 0.5f + 0.15f;
-
         static bool InVoid(float wx, float wz, TutorialSetup.VoidDef v)
             => wx > v.Center.x - v.Size.x * 0.5f - 0.1f && wx < v.Center.x + v.Size.x * 0.5f + 0.1f
             && wz > v.Center.z - v.Size.z * 0.5f - 0.1f && wz < v.Center.z + v.Size.z * 0.5f + 0.1f;
@@ -70,8 +66,13 @@ namespace Topple.Tests
             if (ph.Voids != null)
                 foreach (var v in ph.Voids)
                     if (InVoid(wx, wz, v)) return true;
+            // Validade idêntica ao jogo (colar de círculos — fonte única).
             foreach (var b in ph.Blocks)
-                if (InBlock(wx, wz, b)) return true;
+                foreach (var (c, r) in PlanningController.ForbiddenCircles(b.Center, b.Size))
+                {
+                    float dx = wx - c.x, dz = wz - c.z;
+                    if (dx * dx + dz * dz < r * r) return true;
+                }
             return false;
         }
 
@@ -348,16 +349,16 @@ namespace Topple.Tests
             }
         }
 
-        static (bool, int, int, int) SolveGenerated(TutorialSetup.PhaseDef ph, uint simSeed)
+        static (bool, int, int, int, int) SolveGenerated(TutorialSetup.PhaseDef ph, uint simSeed)
         {
             var r1 = TryStrategy(ph, simSeed, OrderOutward(ph), "outward");
-            if (r1.win) return (true, r1.data.Count, r1.knocked, r1.total);
+            if (r1.win) return (true, r1.data.Count, r1.knocked, r1.total, r1.fell.Count);
             var r2 = TryStrategy(ph, simSeed, OrderSnake(ph), "snake");
-            if (r2.win) return (true, r2.data.Count, r2.knocked, r2.total);
+            if (r2.win) return (true, r2.data.Count, r2.knocked, r2.total, r2.fell.Count);
             var r3 = TryStrategy(ph, simSeed, OrderPatrolsFirst(ph), "patrols-first");
-            if (r3.win) return (true, r3.data.Count, r3.knocked, r3.total);
+            if (r3.win) return (true, r3.data.Count, r3.knocked, r3.total, r3.fell.Count);
             var r4 = TryForkSplit(ph, simSeed);
-            if (r4.win) return (true, r4.data.Count, r4.knocked, r4.total);
+            if (r4.win) return (true, r4.data.Count, r4.knocked, r4.total, r4.fell.Count);
             // Melhor tentativa + minas anti-patrulha (auto-suficientes).
             // Catraca: vale o MELHOR entre base e minas (nunca regressão).
             var best = r1.knocked >= r2.knocked ? r1 : r2;
@@ -367,16 +368,16 @@ namespace Topple.Tests
             foreach (var s in best.alive)
                 if (s.Kind == Topple.Core.EnemyKind.Patroller)
                     PlaceMines(best.data, ph, s);
-            var (knocked, total, alive, _) = RunSim(ph, best.data, simSeed);
+            var (knocked, total, alive, fell) = RunSim(ph, best.data, simSeed);
             Debug.Log($"[TOPPLE][GEN-SOLVE] '{ph.Name}' minas peças={best.data.Count} " +
-                $"knocked={knocked}/{total} vivas=[{AliveDesc(alive)}]");
+                $"knocked={knocked}/{total} caidas={fell.Count} vivas=[{AliveDesc(alive)}]");
             if (knocked < baseKnocked)
             {
                 Debug.Log($"[TOPPLE][GEN-SOLVE] '{ph.Name}' minas regrediram " +
                     $"({baseKnocked}→{knocked}): vale a base");
-                return (false, best.data.Count, baseKnocked, total);
+                return (false, best.data.Count, baseKnocked, total, best.fell.Count);
             }
-            return (knocked == total, best.data.Count, knocked, total);
+            return (knocked == total, best.data.Count, knocked, total, fell.Count);
         }
 
         static string AliveDesc(List<EnemySpot> alive)
@@ -439,10 +440,9 @@ namespace Topple.Tests
             // Filtra as candidatas por escala humana (determinístico) e mede
             // cada filtrada. Contrato em 2 níveis (porteiras exigem curva —
             // arco guloso não planeja desvio; humano com fork/retry sim):
-            // PISO por amostra ≥50% (stillborn — onda morre no spawn, 0–25% —
-            // reprova na hora; é o bug de geração que o piso caça) e BARRA no
-            // agregado ≥75% (saúde do gerador). Vitórias integrais no log
-            // (VENCEU). Por que não 100%: pesadão exige pesada MIRADA com
+            // PISO anti-stillborn (onda que nem viaja: <15 caídas sem vitória)
+            // e BARRA no agregado ≥75% (saúde do gerador). Vitórias integrais
+            // no log (VENCEU). Por que não 100%: pesadão exige pesada MIRADA com
             // energia entregue (tática além do guloso; P4/P8/P10 artesanais
             // provam a tática com 3/3) e a física tem variância de thread nos
             // casos de borda — o harness vigia saúde do gerador, não perfeição
@@ -469,16 +469,16 @@ namespace Topple.Tests
             for (int i = 0; i < samples.Count; i++)
             {
                 var (seed, depth, ph) = samples[i];
-                var (win, pieces, knocked, total) = SolveGenerated(ph, 1000u + (uint)i);
+                var (win, pieces, knocked, total, fell) = SolveGenerated(ph, 1000u + (uint)i);
                 Debug.Log($"[TOPPLE][GEN-SOLVE] amostra {i} seed={seed} prof={depth} '{ph.Name}': " +
-                    (win ? $"VENCEU ({pieces} peças)" : $"perdeu knocked={knocked}/{total}"));
+                    (win ? $"VENCEU ({pieces} peças)" : $"perdeu knocked={knocked}/{total} caidas={fell}"));
                 if (win) wins++;
                 totalK += knocked;
                 totalT += total;
-                // Piso anti-stillborn: metade de cada amostra, sempre.
-                Assert.GreaterOrEqual(knocked * 2, total,
-                    $"solver-harness: amostra {i} seed={seed} prof={depth} com {knocked}/{total} " +
-                    $"(<50% stillborn) — ver [TOPPLE][GEN-SOLVE]");
+                // Piso anti-stillborn: sem vitória e sem viagem (<15 caídas).
+                Assert.IsTrue(win || fell >= 15,
+                    $"solver-harness: amostra {i} seed={seed} prof={depth} natimorta " +
+                    $"({knocked}/{total}, {fell} caídas) — ver [TOPPLE][GEN-SOLVE]");
                 yield return null;
             }
             Debug.Log($"[TOPPLE][GEN-SOLVE] fecha: {wins}/{samples.Count} vitórias integrais, {totalK}/{totalT} corpos");

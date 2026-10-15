@@ -614,10 +614,13 @@ namespace Topple.Tests
                         float tdx = (b.CX - tx) / 0.05f, tdz = (b.CZ - tz) / 0.05f;
                         Assert.GreaterOrEqual((float)System.Math.Sqrt(tdx * tdx + tdz * tdz), halfCells + 29f,
                             $"seed {s} prof {d}: porteira no trigger");
+                        // Folga da aresta (mesma régua da construção: WallBanRadius).
+                        float ban = Topple.Core.MapGen.WallBanRadius(b.SX, b.SZ);
                         foreach (var sl in m.Soldiers)
                         {
-                            float sdx = (b.CX - sl.X) / 0.05f, sdz = (b.CZ - sl.Z) / 0.05f;
-                            Assert.GreaterOrEqual((float)System.Math.Sqrt(sdx * sdx + sdz * sdz), halfCells + 5f,
+                            float sdx = System.Math.Max(0f, System.Math.Abs(sl.X - b.CX) - b.SX * 0.5f) / 0.05f;
+                            float sdz = System.Math.Max(0f, System.Math.Abs(sl.Z - b.CZ) - b.SZ * 0.5f) / 0.05f;
+                            Assert.GreaterOrEqual((float)System.Math.Sqrt(sdx * sdx + sdz * sdz), ban - 1e-3f,
                                 $"seed {s} prof {d}: porteira em cima de soldado");
                         }
                     }
@@ -686,6 +689,39 @@ namespace Topple.Tests
                 }
             Assert.GreaterOrEqual(withThin, maps / 2, $"só {withThin}/{maps} mapas com trecho fino");
             Assert.GreaterOrEqual(withJoint, maps / 2, $"só {withJoint}/{maps} mapas com junta conectada");
+        }
+
+        [Test] public void Walls_GuardTriggerCorridors()
+        {
+            // Dono: a linha reta trigger→pelotão quase sempre cruza um muro
+            // (≤0,8 m de algum bloco). Qualquer muro conta (veto, porteira, escudo).
+            int guarded = 0, total = 0;
+            for (uint s = 0; s < 16; s++)
+                for (int d = 2; d <= 15; d++)
+                {
+                    var m = Topple.Core.MapGen.Generate(s, d);
+                    if (m.ClusterCenters.Count == 0) continue;
+                    float tx = m.TriggerGx * 0.05f, tz = m.TriggerGz * 0.05f;
+                    foreach (var c in m.ClusterCenters)
+                    {
+                        total++;
+                        bool hit = false;
+                        foreach (var b in m.Blocks)
+                        {
+                            // Distância ponto-segmento (trigger→centro) em células.
+                            float vx = c.X - tx, vz = c.Z - tz;
+                            float wx = b.CX - tx, wz = b.CZ - tz;
+                            float len2 = vx * vx + vz * vz;
+                            float t = len2 < 1e-6f ? 0f : (wx * vx + wz * vz) / len2;
+                            t = System.Math.Max(0f, System.Math.Min(1f, t));
+                            float dx = (tx + vx * t - b.CX) / 0.05f;
+                            float dz = (tz + vz * t - b.CZ) / 0.05f;
+                            if (System.Math.Sqrt(dx * dx + dz * dz) <= 16f) { hit = true; break; }
+                        }
+                        if (hit) guarded++;
+                    }
+                }
+            Assert.GreaterOrEqual(guarded, total / 2, $"só {guarded}/{total} corredores com muro no caminho");
         }
     }
 }

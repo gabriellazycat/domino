@@ -30,7 +30,17 @@ function nearestMember(t: Target, x: number, z: number): EnemySpec {
   return best;
 }
 
-const OFFS = [0, 20, -20, 40, -40, 60, -60, 85, -85, 110, -110].map((d) => (d * Math.PI) / 180);
+/**
+ * Alvo final dentro do pelotão: se há Brutamontes/General e a mão tem Pesada ou Explosiva, mira nele
+ * (derruba de uma vez e o pelotão cai junto em cadeia); senão, o membro mais próximo.
+ */
+function targetMember(L: Layout, t: Target, x: number, z: number): EnemySpec {
+  const big = t.members.filter((m) => m.kind === 'brute' || m.kind === 'general');
+  if (big.length && (L.hand.heavy > 0 || L.hand.blast > 0)) return nearestMember({ ...t, members: big }, x, z);
+  return nearestMember(t, x, z);
+}
+
+const OFFS =[0, 20, -20, 40, -40, 60, -60, 85, -85, 110, -110].map((d) => (d * Math.PI) / 180);
 
 function pickType(L: Layout, prefer: PieceId[]): PieceId | null {
   for (const t of prefer) if (L.hand[t] > 0) return t;
@@ -49,7 +59,6 @@ function blockedGrid(L: Layout, goal: { x: number; z: number }, headId: number):
     const x = -BOARD.w / 2 + (i + 0.5) * CELL, z = -BOARD.d / 2 + (j + 0.5) * CELL;
     let b = Math.abs(x) > BOARD.w / 2 - 0.45 || Math.abs(z) > BOARD.d / 2 - 0.45;
     if (!b) for (const w of s.walls) if (rectDist(x, z, w) < 0.5) { b = true; break; }
-    if (!b) for (const l of s.lava) if (Math.hypot(l.x - x, l.z - z) < l.r + 0.42) { b = true; break; }
     if (!b) for (const e of s.enemies) {
       if (e.patrol) continue;
       const d = Math.hypot(e.x - x, e.z - z);
@@ -162,11 +171,12 @@ export function autoPlanTree(L: Layout): { ok: boolean; note: string } {
   const b = L.begin(spec.trigger.x, spec.trigger.z, firstType);
   if (!b.stroke) return { ok: false, note: 'gatilho' };
   let st = b.stroke;
-  // perto do alvo: pesada/torre derrubam brutamontes de uma vez
+  // perto do alvo: Pesada/Explosiva (4 de dano) derrubam qualquer um; Torre (3) só o Brutamontes
   const finisher = (t: Target) => (h: Placed): PieceId[] => {
-    const m = nearestMember(t, h.x, h.z);
+    const m = targetMember(L, t, h.x, h.z);
     const near = Math.hypot(m.x - h.x, m.z - h.z) < 1.0;
-    if (near && (m.kind === 'brute' || m.kind === 'general')) return ['heavy', 'tower', 'blast', 'common'];
+    if (near && m.kind === 'general') return ['heavy', 'blast', 'tower', 'common'];
+    if (near && m.kind === 'brute') return ['heavy', 'tower', 'blast', 'common'];
     return ['common'];
   };
   const notes: string[] = [];
@@ -181,7 +191,7 @@ export function autoPlanTree(L: Layout): { ok: boolean; note: string } {
         const h = L.get(s.head)!;
         rest.sort((a, b) => Math.hypot(a.x - h.x, a.z - h.z) - Math.hypot(b.x - h.x, b.z - h.z));
         const t = rest.shift()!;
-        const m = nearestMember(t, h.x, h.z);
+        const m = targetMember(L, t, h.x, h.z);
         const r = drive(L, s, m.x, m.z, 0.3, finisher(t));
         if (r !== 'arrived') notes.push(`${tag}: ${r}`);
         if (rest.length) {
@@ -247,11 +257,12 @@ export function autoPlanComb(L: Layout): { ok: boolean; note: string } {
   const b = L.begin(spec.trigger.x, spec.trigger.z, firstType);
   if (!b.stroke) return { ok: false, note: 'gatilho' };
   let st = b.stroke;
-  // perto do alvo: pesada/torre derrubam brutamontes de uma vez
+  // perto do alvo: Pesada/Explosiva (4 de dano) derrubam qualquer um; Torre (3) só o Brutamontes
   const finisher = (t: Target) => (h: Placed): PieceId[] => {
-    const m = nearestMember(t, h.x, h.z);
+    const m = targetMember(L, t, h.x, h.z);
     const near = Math.hypot(m.x - h.x, m.z - h.z) < 1.0;
-    if (near && (m.kind === 'brute' || m.kind === 'general')) return ['heavy', 'tower', 'blast', 'common'];
+    if (near && m.kind === 'general') return ['heavy', 'blast', 'tower', 'common'];
+    if (near && m.kind === 'brute') return ['heavy', 'tower', 'blast', 'common'];
     return ['common'];
   };
   const notes: string[] = [];
@@ -289,7 +300,8 @@ export function autoPlanComb(L: Layout): { ok: boolean; note: string } {
         const dq = Math.hypot(q.x - m.x, q.z - m.z) + Math.hypot(p.x - next.x, p.z - next.z);
         const A = dp <= dq ? p : q, B = dp <= dq ? q : p;
         const sa: Stroke = { head: A.id, done: false, id: st.id };
-        const ra = drive(L, sa, m.x, m.z, 0.3, finisher(t));
+        const ma = targetMember(L, t, A.x, A.z);
+        const ra = drive(L, sa, ma.x, ma.z, 0.3, finisher(t));
         if (ra !== 'arrived') notes.push(`ramo ${i}: ${ra}`);
         st = { head: B.id, done: false, id: st.id };
         continue;
@@ -298,7 +310,7 @@ export function autoPlanComb(L: Layout): { ok: boolean; note: string } {
       st.done = false;
     }
     const h = L.get(st.head)!;
-    const m = nearestMember(t, h.x, h.z);
+    const m = targetMember(L, t, h.x, h.z);
     const r = drive(L, st, m.x, m.z, 0.3, finisher(t));
     if (r !== 'arrived') notes.push(`alvo ${i}: ${r}`);
   }

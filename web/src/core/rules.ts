@@ -6,8 +6,8 @@ export const RULES = {
   startingCommons: 14,
   startingForks: 1,
   attemptsPerPhase: 3,
+  handSize: 7,
   damagePerSurvivor: 1,
-  shopEvery: 3,
   shopPriceMult: 4,
   shopRerollBase: 8,
   shopRerollStep: 4,
@@ -18,10 +18,6 @@ export const RULES = {
   draftRerollCost: 6,
   bossEvery: 5,
 } as const;
-
-export function isShopPhase(depth: number): boolean {
-  return (depth + 1) % RULES.shopEvery === 0;
-}
 
 export function isBossPhase(depth: number): boolean {
   return (depth + 1) % RULES.bossEvery === 0;

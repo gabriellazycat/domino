@@ -169,7 +169,8 @@ export class FaceRig {
   private nextDart = Math.random() * 0.5;
   private startleUntil = -1;
 
-  constructor(public type: PieceId) {
+  /** `calm`: em vez de preocupada, só corre os olhos de um lado pro outro (sem sobrancelhas). */
+  constructor(public type: PieceId, private calm = false) {
     this.mesh = new THREE.Mesh(faceGeometry(type, 'worriedC'), faceMaterial(type));
     this.mesh.receiveShadow = true;
   }
@@ -190,6 +191,7 @@ export class FaceRig {
         this.nextDart = this.t + (this.dart === 'worriedC' ? 0.15 + Math.random() * 0.2 : 0.25 + Math.random() * 0.45);
       }
       ex = this.dart;
+      if (this.calm) ex = ex === 'worriedL' ? 'lookL' : ex === 'worriedR' ? 'lookR' : 'neutral';
     } else ex = b;
     // piscar (não nas expressões de olho fechado/arregalado de susto)
     if (b === 'neutral' || b === 'nervous' || b === 'sad' || b === 'worried') {
@@ -205,7 +207,7 @@ export class FaceRig {
     if (startled) ex = 'scared';
     if (ex !== this.shown) { this.shown = ex; this.mesh.geometry = faceGeometry(this.type, ex); }
     // tremedeira de medo
-    const shake = b === 'scared' || startled ? 0.006 : b === 'scream' ? 0.004 : b === 'nervous' || b === 'worried' ? 0.0015 : 0;
+    const shake = b === 'scared' || startled ? 0.006 : b === 'scream' ? 0.004 : b === 'nervous' || (b === 'worried' && !this.calm) ? 0.0015 : 0;
     this.mesh.position.set(shake ? (Math.random() - 0.5) * shake : 0, shake ? (Math.random() - 0.5) * shake : 0, 0);
   }
 }

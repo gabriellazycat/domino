@@ -10,6 +10,8 @@ export class CameraRig {
   dist = 16; goalDist = 16;
   trauma = 0;
   shakeScale = 1;
+  /** tempo restante do empurrão de câmera (aproxima e volta no disparo) */
+  private punchT = 0;
   userMoved = false;
   keys = new Set<string>();
   private t = 0;
@@ -73,6 +75,9 @@ export class CameraRig {
 
   addTrauma(a: number) { this.trauma = Math.min(1, this.trauma + a); }
 
+  /** Empurrão no disparo: a câmera aproxima ~8% e volta em 0,6 s (sente-se o peso da corrente). */
+  punchIn() { this.punchT = 0.6; }
+
   update(dt: number, inputEnabled: boolean) {
     this.t += dt;
     if (inputEnabled) {
@@ -99,10 +104,13 @@ export class CameraRig {
     this.dist += (this.goalDist - this.dist) * k;
 
     const sinP = Math.sin(this.pol), cosP = Math.cos(this.pol);
+    if (this.punchT > 0) this.punchT = Math.max(0, this.punchT - dt);
+    const pk = this.punchT > 0 ? Math.sin((1 - this.punchT / 0.6) * Math.PI) * 0.08 : 0;
+    const d = this.dist * (1 - pk);
     this.cam.position.set(
-      this.target.x + this.dist * sinP * Math.sin(this.az),
-      this.target.y + this.dist * cosP,
-      this.target.z + this.dist * sinP * Math.cos(this.az),
+      this.target.x + d * sinP * Math.sin(this.az),
+      this.target.y + d * cosP,
+      this.target.z + d * sinP * Math.cos(this.az),
     );
     this.cam.lookAt(this.target);
     // respiração: a câmera nunca fica 100% parada (alguém segurando)

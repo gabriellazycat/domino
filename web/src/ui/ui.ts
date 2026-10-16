@@ -1,7 +1,14 @@
-import { PIECES, PIECE_ORDER, PieceId, Deck } from '../core/pieces';
+import { PIECES, PieceId } from '../core/pieces';
+import { Card, Kind, kindOf, kindRank, kindType } from '../core/cards';
+import { Buffs, BUFF_ORDER, BUFFS, buffLevel } from '../core/buffs';
+import { sealImg, buffImg } from '../game/sigils';
 import { PhaseSpec } from '../core/mapgen';
 import { RewardOption } from '../core/rewards';
 import { audio } from '../game/audio';
+import { icon } from './icons';
+import { HandView } from './handview';
+import { HandRender } from '../game/handrender';
+import { RULES } from '../core/rules';
 
 // Interface em DOM. Sem lógica de jogo: recebe dados e devolve escolhas por callback.
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -36,7 +43,7 @@ const PIPS: Record<number, [number, number][]> = {
   6: [[.28, .22], [.72, .22], [.28, .5], [.72, .5], [.28, .78], [.72, .78]],
 };
 
-/** Ilustração SVG de cada peça (cartas, bandeja, loja). */
+/** Ilustração SVG de cada peça (recompensas, loja, visor das peças). */
 export function pieceSvg(id: PieceId): string {
   const d = PIECES[id];
   const W = 40, H = id === 'tower' ? 88 : id === 'big' ? 80 : 72;
@@ -64,10 +71,11 @@ export function pieceSvg(id: PieceId): string {
 }
 
 export interface HudCallbacks {
-  select(id: PieceId): void;
+  select(kind: Kind): void;
   fire(): void;
   undo(): void;
   clear(): void;
+  newHand(): void;
   pause(): void;
   deck(): void;
   speed(): void;
@@ -86,7 +94,6 @@ export class UI {
   private goldEl = h('div', 'stat box gold');
   private attEl = h('div', 'stat box att');
   private skipEl = h('div', 'skip-hint off', 'clique para pular');
-  private tray = h('div', 'tray');
   private actions = h('div', 'actions');
   private fireBtn!: HTMLButtonElement;
   private coachEl = h('div', 'coach off');
@@ -95,34 +102,55 @@ export class UI {
   private simbar = h('div', 'simbar hidden');
   private speedBtn!: HTMLButtonElement;
   private comboEl = h('div', 'combo');
-  private leftActions = h('div', 'left-actions');
   private screenEl: HTMLElement | null = null;
   private toastT = 0;
   private comboT = 0;
-  private cards = new Map<PieceId, HTMLElement>();
+  /** a mão (caixa de peças, suporte, pote de descarte) */
+  hand: HandView;
+  /** letreiro dos eventos (texto + botões, embaixo no meio) */
+  private evBar = h('div', 'ev-bar off');
+  /** bênçãos que você tem (canto de cima, à direita) */
+  private buffsEl = h('div', 'buffs');
+  private buffsKey = '';
+  private fireW = 265;
 
-  constructor(private cb: HudCallbacks) {
-    this.root.append(this.hud, this.comboEl);
+  private vigEl = h('div', 'vig');
+  private speedEl = h('div', 'speedlines');
+  private speechEl = h('div', 'speech');
+  private speechT = 0;
+
+  constructor(cb: HudCallbacks) {
+    this.root.append(this.vigEl, this.speedEl, this.hud, this.comboEl, this.speechEl);
     const tl = h('div', 'top-left');
     this.obj.append(h('div', 'row', '<span>Inimigos</span>'), this.enemyIcons, this.piecesPar);
     tl.append(this.phaseBadge, this.obj);
     const tr = h('div', 'top-right');
-    const pauseBtn = this.btn('⏸', 'btn dark icon-btn', () => cb.pause());
+    const pauseBtn = this.btn(icon('pause'), 'btn dark icon-btn', () => cb.pause());
     pauseBtn.title = 'Pausa (Esc)';
-    tr.append(this.lifeEl, this.goldEl, this.attEl, pauseBtn);
+    tr.append(this.lifeEl, this.goldEl, this.attEl, pauseBtn, this.buffsEl);
     this.fireBtn = this.btn('DISPARAR!', 'btn red fire', () => cb.fire()) as HTMLButtonElement;
     this.fireBtn.addEventListener('mouseenter', () => cb.fireHover?.(true));
     this.fireBtn.addEventListener('mouseleave', () => cb.fireHover?.(false));
-    const row = h('div', 'row');
-    row.append(
-      this.btn('↶ Desfazer<span class="kbd">Ctrl+Z</span>', 'btn dark small', () => cb.undo()),
-      this.btn('✕ Limpar<span class="kbd">R</span>', 'btn dark small', () => cb.clear()),
-    );
-    this.actions.append(row, this.fireBtn);
-    this.leftActions.append(this.btn('🂠 Baralho', 'btn dark small', () => cb.deck()));
-    this.speedBtn = this.btn('⏩ 1×', 'btn dark small', () => cb.speed()) as HTMLButtonElement;
-    this.simbar.append(this.speedBtn, this.btn('⏭ Pular', 'btn dark small', () => cb.skipSim()));
-    this.hud.append(tl, tr, this.tray, this.actions, this.leftActions, this.coachEl, this.toastEl, this.tipEl);
+    this.actions.append(this.fireBtn);
+    this.hand = new HandView({
+      select: (id) => cb.select(id),
+      newHand: () => cb.newHand(),
+      undo: () => cb.undo(),
+      clear: () => cb.clear(),
+      deck: () => cb.deck(),
+      tip: (html) => this.tipHtml(html),
+      // o DISPARAR sobe para cima da mão quando o descarte encostaria nele
+      layoutChanged: (right) => {
+        const w = this.fireBtn?.getBoundingClientRect().width ?? 0;
+        if (w > 0) this.fireW = w;
+        this.actions.classList.toggle('raised', right > window.innerWidth - this.fireW - 26);
+      },
+    });
+    // os dominós da mão em 3D (mesmos modelos e rostos do tabuleiro), por cima da interface
+    new HandRender(this.hand.root, this.root);
+    this.speedBtn = this.btn(`${icon('fast')} 1×`, 'btn dark small', () => cb.speed()) as HTMLButtonElement;
+    this.simbar.append(this.speedBtn, this.btn(`${icon('skip')} Pular`, 'btn dark small', () => cb.skipSim()));
+    this.hud.append(tl, tr, this.hand.root, this.actions, this.coachEl, this.toastEl, this.tipEl, this.evBar);
     this.root.append(this.simbar, this.skipEl);
     this.comboEl.innerHTML = `<span class="n">0</span><span class="l wob">${wob('COMBO')}</span>`;
   }
@@ -139,17 +167,73 @@ export class UI {
   // ---------- HUD ----------
   setVisible(on: boolean) { this.hud.classList.toggle('hidden', !on); }
   setSimMode(on: boolean) {
-    this.tray.style.display = on ? 'none' : '';
+    this.hand.hide(on);
     this.actions.style.display = on ? 'none' : '';
-    this.leftActions.style.display = on ? 'none' : '';
     this.simbar.classList.toggle('hidden', !on);
     if (on) this.coach(null);
   }
-  setSpeed(x: number) { this.speedBtn.innerHTML = `⏩ ${x}×`; }
+  setSpeed(x: number) { this.speedBtn.innerHTML = `${icon('fast')} ${x}×`; }
+
+  // ---------- eventos entre as fases ----------
+  /** Mesa de evento: some o que é de fase (objetivos, mão, DISPARAR); entra o nome do evento. */
+  eventStart(title: string, sub: string) {
+    this.hud.classList.add('event');
+    this.hand.hide(true);
+    this.actions.style.display = 'none';
+    this.coach(null);
+    this.phaseBadge.className = 'phase-badge box hit event';
+    this.phaseBadge.innerHTML = `<div class="t wob">${wob(title)}</div><div class="s">${sub}</div>`;
+    const b = h('div', 'banner event');
+    b.innerHTML = `<div class="bn-rule"></div><div class="bn-tag">EVENTO</div><div class="bn-title">${title}</div><div class="bn-sub">${sub}</div><div class="bn-rule"></div>`;
+    this.root.append(b);
+    setTimeout(() => b.remove(), 2600);
+  }
+  eventEnd() {
+    this.hud.classList.remove('event');
+    this.actions.style.display = '';
+    this.eventBar(null);
+  }
+  /** Letreiro do evento: texto e botões (null esconde). */
+  eventBar(html: string | null, buttons: { label: string; cls: string; fn: () => void }[] = []) {
+    this.evBar.classList.toggle('off', html === null);
+    if (html === null) return;
+    this.evBar.innerHTML = '';
+    this.evBar.append(h('div', 'txt', html));
+    if (buttons.length) {
+      const row = h('div', 'btns');
+      for (const b of buttons) row.append(this.btn(b.label, `${b.cls} small`, b.fn));
+      this.evBar.append(row);
+    }
+  }
+  /** Ícones das bênçãos (com explicação no hover). */
+  setBuffs(b: Buffs) {
+    const key = BUFF_ORDER.map((id) => buffLevel(b, id)).join(',');
+    if (key === this.buffsKey) return;
+    this.buffsKey = key;
+    this.buffsEl.innerHTML = '';
+    for (const id of BUFF_ORDER) {
+      const n = buffLevel(b, id);
+      if (!n) continue;
+      const el = h('div', 'buff hit', `${buffImg(id)}${n > 1 ? `<i>${n}</i>` : ''}`);
+      el.addEventListener('mouseenter', () => this.tip(`<b>${BUFFS[id].name}${n > 1 ? ` ×${n}` : ''}</b>${BUFFS[id].desc}`));
+      el.addEventListener('mouseleave', () => this.tip(null));
+      this.buffsEl.append(el);
+      el.classList.add('pop');
+    }
+  }
+  tip(html: string | null) { this.tipHtml(html); }
+
+  /** Faixa de entrada da fase no meio da tela ("FASE 3 — Campo ..."); some sozinha em ~2,4 s. */
+  phaseBanner(spec: PhaseSpec) {
+    const b = h('div', `banner${spec.boss ? ' boss' : ''}`);
+    b.innerHTML = `<div class="bn-rule"></div>${spec.boss ? `<div class="bn-tag">${icon('sword')} CHEFE ${icon('sword')}</div>` : ''}<div class="bn-title">${spec.title}</div><div class="bn-sub">${spec.subtitle}</div><div class="bn-rule"></div>`;
+    this.root.append(b);
+    setTimeout(() => b.remove(), 2600);
+  }
 
   setPhase(spec: PhaseSpec) {
     this.phaseBadge.className = `phase-badge box hit${spec.boss ? ' boss' : ''}`;
-    this.phaseBadge.innerHTML = `<div class="t wob">${wob(spec.title)}</div><div class="s">${spec.subtitle}${spec.shop ? ' · próxima: ★ LOJA' : ''}</div>`;
+    this.phaseBadge.innerHTML = `<div class="t wob">${wob(spec.title)}</div><div class="s">${spec.subtitle}</div>`;
     this.enemyIcons.innerHTML = spec.enemies.map((e) => `<i class="${e.kind}"></i>`).join('');
   }
   enemyDown(i: number) { this.enemyIcons.children[i]?.classList.add('down'); }
@@ -160,49 +244,21 @@ export class UI {
   }
   setStats(life: number, maxLife: number, gold: number, attLeft: number, attMax: number) {
     const bump = (el: HTMLElement, v: string) => { if (el.dataset.v !== v) { el.dataset.v = v; el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } };
-    this.lifeEl.innerHTML = `<span class="ico">❤</span>${life}<small style="opacity:.5;font-size:15px">/${maxLife}</small>`;
+    this.lifeEl.innerHTML = `${icon('heart')}${life}<small style="opacity:.5;font-size:15px">/${maxLife}</small>`;
     bump(this.lifeEl, String(life));
-    this.goldEl.innerHTML = `<span class="ico">◉</span>${gold}`;
+    this.goldEl.innerHTML = `${icon('coin')}${gold}`;
     bump(this.goldEl, String(gold));
     this.attEl.innerHTML = `<div class="att-pips" title="Tentativas">${Array.from({ length: attMax }, (_, i) => `<i class="${i < attMax - attLeft ? 'used' : ''}"></i>`).join('')}</div>`;
     this.attEl.title = `${attLeft} tentativa(s) restante(s)`;
   }
-  setHand(hand: Deck, start: Deck, selected: PieceId) {
-    const ids = PIECE_ORDER.filter((k) => start[k] > 0);
-    const key = ids.join(',');
-    if (this.tray.dataset.k !== key) {
-      this.tray.dataset.k = key;
-      this.tray.innerHTML = '';
-      this.cards.clear();
-      ids.forEach((id, i) => {
-        const c = h('div', 'card hit', `<span class="key">${i + 1}</span>${pieceSvg(id)}<span class="nm">${PIECES[id].name}</span><span class="cnt"></span>`);
-        c.style.setProperty('--i', String(i));
-        tiltable(c, 24);
-        c.addEventListener('pointerdown', (e) => { e.stopPropagation(); audio.unlock(); this.cb.select(id); });
-        c.addEventListener('mouseenter', () => { audio.ui('hover'); this.tip(id); });
-        c.addEventListener('mouseleave', () => this.tip(null));
-        c.dataset.id = id;
-        this.tray.append(c);
-        this.cards.set(id, c);
-      });
-    }
-    for (const [id, c] of this.cards) {
-      c.classList.toggle('sel', id === selected);
-      c.classList.toggle('empty', hand[id] <= 0);
-      const cnt = c.querySelector('.cnt')!;
-      if (cnt.textContent !== String(hand[id])) {
-        cnt.textContent = String(hand[id]);
-      }
-    }
-  }
-  trayIds(): PieceId[] { return [...this.cards.keys()]; }
-  flashCard(id: PieceId) { const c = this.cards.get(id); if (c) { c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash'); } }
-  private tip(id: PieceId | null) {
-    if (!id) { this.tipEl.classList.remove('on'); return; }
-    this.tipEl.innerHTML = `<b>${PIECES[id].name}</b>${PIECES[id].desc}`;
+  private tipHtml(html: string | null) {
+    if (!html) { this.tipEl.classList.remove('on'); return; }
+    this.tipEl.innerHTML = html;
     this.tipEl.classList.add('on');
   }
   setFireEnabled(on: boolean) { this.fireBtn.disabled = !on; }
+  /** Sem peças para colocar: o DISPARAR pulsa chamando o clique. */
+  setFireReady(on: boolean) { this.fireBtn.classList.toggle('ready', on); }
 
   coach(text: string | null) {
     if (!text) { this.coachEl.classList.add('off'); return; }
@@ -224,11 +280,53 @@ export class UI {
     void (this.comboEl as HTMLElement).offsetWidth;
     this.comboEl.classList.add('pump');
     (this.comboEl as HTMLElement).style.fontSize = `${Math.min(1.6, 1 + n * 0.05)}em`;
+    // combo alto: as bordas da tela pulsam em vermelho e linhas de velocidade explodem do centro
+    this.vigEl.classList.toggle('on', n >= 5);
+    if (n >= 3) { this.speedEl.classList.remove('on'); void this.speedEl.offsetWidth; this.speedEl.classList.add('on'); }
     clearTimeout(this.comboT);
-    this.comboT = window.setTimeout(() => this.comboEl.classList.remove('on'), 1600);
+    this.comboT = window.setTimeout(() => { this.comboEl.classList.remove('on'); this.vigEl.classList.remove('on'); }, 1600);
+  }
+
+  /** Balão de tinta do "dono da mesa": aparece perto da máscara e some sozinho. */
+  speak(x: number, y: number, text: string, ms = 3400) {
+    const el = this.speechEl;
+    el.textContent = text;
+    el.style.left = `${Math.min(window.innerWidth - 330, Math.max(20, x - 150))}px`;
+    el.style.top = `${y + 64}px`;
+    el.classList.remove('on');
+    void el.offsetWidth;
+    el.classList.add('on');
+    clearTimeout(this.speechT);
+    this.speechT = window.setTimeout(() => el.classList.remove('on'), ms);
   }
 
   // ---------- telas ----------
+  /**
+   * Transição de tinta: uma mancha escura cresce até cobrir a tela, `mid` troca a cena por baixo
+   * (já coberta) e a mancha encolhe revelando a nova. Bloqueia cliques enquanto dura.
+   */
+  inkWipe(mid: () => void) {
+    const el = h('div', 'ink-wipe');
+    this.root.append(el);
+    const dur = 480;
+    const ease = (k: number) => 1 - Math.pow(1 - k, 3);
+    const t0 = performance.now();
+    const grow = (now: number) => {
+      const k = Math.min(1, (now - t0) / dur);
+      el.style.clipPath = `circle(${(ease(k) * 150).toFixed(1)}% at 50% 50%)`;
+      if (k < 1) { requestAnimationFrame(grow); return; }
+      mid();
+      const t1 = performance.now();
+      const shrink = (now2: number) => {
+        const j = Math.min(1, (now2 - t1) / dur);
+        el.style.clipPath = `circle(${((1 - ease(j)) * 150).toFixed(1)}% at 50% 50%)`;
+        if (j < 1) requestAnimationFrame(shrink); else el.remove();
+      };
+      requestAnimationFrame(shrink);
+    };
+    requestAnimationFrame(grow);
+  }
+
   closeScreen() { this.screenEl?.remove(); this.screenEl = null; }
   private screen(cls = ''): HTMLElement {
     this.closeScreen();
@@ -241,12 +339,24 @@ export class UI {
 
   showMenu(hasSave: boolean, on: { play(): void; cont(): void; howto(): void; options(): void }) {
     const s = this.screen('clear');
+    // brasas subindo (a mesma luz de vela do jogo, em DOM): só no menu principal
+    const embers = h('div', 'embers');
+    for (let i = 0; i < 26; i++) {
+      const e = h('i', 'ember');
+      e.style.left = `${Math.random() * 100}%`;
+      e.style.animationDuration = `${7 + Math.random() * 9}s`;
+      e.style.animationDelay = `${-Math.random() * 14}s`;
+      e.style.setProperty('--dx', `${(Math.random() - 0.5) * 120}px`);
+      e.style.setProperty('--sz', `${2 + Math.random() * 3}px`);
+      embers.append(e);
+    }
+    s.append(embers);
     const m = h('div', 'menu');
     const logo = h('div', 'logo');
     'TOPPLE'.split('').forEach((ch, i) => { const sp = h('span', '', ch); sp.style.animationDelay = `${i * 0.12}s`; logo.append(sp); });
     m.append(logo, h('div', 'tagline', 'Monte a corrente. Aperte o gatilho. Derrube o exército.'));
-    if (hasSave) m.append(this.btn('▶ Continuar run', 'btn big', on.cont));
-    m.append(this.btn(hasSave ? 'Nova run' : '▶ Jogar', hasSave ? 'btn teal' : 'btn big', on.play));
+    if (hasSave) m.append(this.btn(`${icon('play')} Continuar run`, 'btn big', on.cont));
+    m.append(this.btn(hasSave ? 'Nova run' : `${icon('play')} Jogar`, hasSave ? 'btn teal' : 'btn big', on.play));
     m.append(this.btn('Como jogar', 'btn dark', on.howto), this.btn('Opções', 'btn dark', on.options));
     s.append(m, h('div', 'menu-foot', 'TOPPLE — ideia original do Gamonga · remake web (Three.js + Rapier) · todo visual e som gerados por código'));
   }
@@ -254,14 +364,17 @@ export class UI {
   showHowTo(back: () => void) {
     const s = this.screen();
     const p = h('div', 'panel');
-    p.innerHTML = `<h1 class="wob">${wob('Como jogar')}</h1><ol class="howto">
+    // a onda de dominós caindo mostra o que o jogo faz antes de ler a lista
+    const demo = Array.from({ length: 9 }, (_, i) => `<i style="--i:${i}"></i>`).join('');
+    p.innerHTML = `<h1 class="wob">${wob('Como jogar')}</h1><div class="how-demo" aria-hidden="true">${demo}</div><p class="how-cap">trilha → disparar → derrube</p><ol class="howto">
       <li><b>Clique</b> no <b>marcador VERDE</b> e mova o mouse: aparece uma <b>trilha fantasma</b>. <b>Clique no chão</b> para colocar as peças de uma vez. Depois, continue de qualquer <b>ponta brilhante</b>.</li>
-      <li>Escolha a peça nas <b>cartas</b> de baixo (teclas <b>1–7</b>). Cada carta é uma peça; a mão volta cheia a cada fase.</li>
+      <li>Embaixo fica a sua <b>mão</b>: ${RULES.handSize} peças tiradas da <b>caixa</b>, sem olhar. Clique numa peça (ou teclas <b>1–7</b>) para escolher o tipo. Só dá para colocar o que está na mão.</li>
+      <li>Usou tudo? Você pega mais da caixa sozinho. Quer trocar? <b>Nova mão</b> (<b>D</b>) joga o resto no <b>pote de descarte</b> e pega mais. Ao pegar, as peças já colocadas <b>ficam fixas</b> na mesa (desfazer só vale para a mão atual). Quando a caixa esvazia, é hora de disparar.</li>
       <li>Aperte <b>DISPARAR</b> (Espaço): a 1ª peça cai e a corrente faz o resto. Derrube <b>todos</b> os inimigos!</li>
-      <li><b>3 tentativas</b> por fase — o desenho fica salvo entre tentativas. Sobrou inimigo de pé no fim? Cada um tira <b>1 ❤</b>.</li>
-      <li><b>Brutamontes</b> aguentam 2 golpes, o <b>General</b> 4 — <b>Pesada/Torre</b> derrubam na hora; <b>Explosiva</b> derruba tudo em volta.</li>
-      <li><b>Lava</b>: só uma <b>Grande</b> ou <b>Torre</b> logo antes do poço consegue pular. <b>Patrulheiros</b> empurram peças em pé no caminho deles.</li>
-      <li>Vencer dá <b>ouro</b> e uma carta nova. A cada 3 fases tem <b>LOJA</b>. ★ extra por usar ≤ par de peças e por vencer de primeira.</li>
+      <li><b>3 tentativas</b> por fase. Errou? A fase recomeça do zero com todas as peças <b>misturadas de novo</b> na caixa. Sobrou inimigo de pé no fim? Cada um tira <b>1 ${icon('heart')}</b>.</li>
+      <li><b>Brutamontes</b> têm 2 de vida, o <b>General</b> 4. Cada dominó ou inimigo que bate neles tira <b>1</b>; a <b>Pesada</b> e a <b>Explosiva</b> tiram <b>4</b> (derrubam na hora) e a <b>Torre</b> tira 3.</li>
+      <li><b>Patrulheiros</b> empurram peças em pé no caminho deles. <b>Muros</b> podem ser retos, em L ou curvos: contorne!</li>
+      <li>Vencer dá <b>ouro</b> e peças novas. Entre as fases, às vezes a mesa recebe um <b>evento</b>: a <b>Loja</b>, a <b>Prensa de Selos</b> (carimba um poder numa peça: Guardada, Dupla, Sortuda, Primeira, Dourada — até 2 por peça) ou o <b>Altar Místico</b> (bênçãos que valem a run inteira). Você escolhe comprar ou ir embora. ${icon('star')} extra por usar ≤ par de peças e por vencer de primeira.</li>
       <li>Câmera: <b>botão direito</b> gira, <b>roda</b> dá zoom, <b>WASD</b> move, <b>Q/E</b> giram. Botão direito numa ponta remove a peça.</li></ol>`;
     const b = h('div', 'btns');
     b.append(this.btn('Entendi!', 'btn', back));
@@ -269,7 +382,7 @@ export class UI {
     s.append(p);
   }
 
-  showOptions(st: { master: number; music: number; sfx: number; shake: number; post: boolean; tilt: boolean; crt: boolean }, change: (k: string, v: number | boolean) => void, back: () => void) {
+  showOptions(st: { master: number; music: number; sfx: number; shake: number; post: boolean; tilt: boolean; crt: boolean; ao: boolean; ink: boolean; dof: boolean }, change: (k: string, v: number | boolean) => void, back: () => void) {
     const s = this.screen();
     const p = h('div', 'panel');
     p.append(title('Opções'));
@@ -293,6 +406,9 @@ export class UI {
     slider('Efeitos', 'sfx');
     slider('Tremor de tela', 'shake');
     check('Brilho (bloom) e pós-efeitos', 'post');
+    check('Sombras de contato (AO, mais pesado)', 'ao');
+    check('Estilo gravura (tinta e papel)', 'ink');
+    check('Foco cinematográfico (bordas desfocadas na simulação)', 'dof');
     check('Efeito TV antiga (CRT)', 'crt');
     check('Efeito maquete (tilt-shift)', 'tilt');
     p.append(g);
@@ -313,17 +429,38 @@ export class UI {
     s.append(p);
   }
 
-  showDeck(deck: Deck, back: () => void) {
+  showDeck(cards: readonly Card[], back: () => void, piles?: { draw: readonly Card[]; hand: readonly Card[]; table: readonly Card[]; discard: readonly Card[] }) {
     const s = this.screen();
     const p = h('div', 'panel');
-    const total = PIECE_ORDER.reduce((a, k) => a + deck[k], 0);
-    p.append(title('Seu baralho'), h('p', '', `${total} cartas — a mão de cada fase é o baralho inteiro.`));
-    const g = h('div', 'deck-grid');
-    for (const id of PIECE_ORDER) {
-      if (!deck[id]) continue;
-      g.append(h('div', 'card', `${pieceSvg(id)}<span class="nm">${PIECES[id].name}</span><span class="cnt">${deck[id]}</span>`));
-    }
-    p.append(g);
+    p.append(title('Suas peças'), h('p', '', `${cards.length} peças na sua caixa. Em cada fase elas são misturadas e você pega ${RULES.handSize} por vez, sem olhar.`));
+    const grid = (list: readonly Card[], cls = '') => {
+      const g = h('div', `deck-grid ${cls}`);
+      const groups = new Map<Kind, number>();
+      for (const c of list) groups.set(kindOf(c), (groups.get(kindOf(c)) ?? 0) + 1);
+      for (const k of [...groups.keys()].sort((x, y) => kindRank(x) - kindRank(y))) {
+        const t = kindType(k);
+        const seals = k.split('+').slice(1) as Card['seals'];
+        const card = h('div', 'card', `${pieceSvg(t)}<span class="nm">${PIECES[t].name}</span><span class="cnt">${groups.get(k)}</span>${seals.length ? `<span class="seals">${seals.map((x) => sealImg(x)).join('')}</span>` : ''}`);
+        g.append(card);
+      }
+      return g;
+    };
+    if (piles) {
+      // onde está cada peça agora, nesta tentativa
+      const row = h('div', 'deck-piles');
+      for (const [name, list, hint] of [
+        ['Na caixa', piles.draw, 'você ainda vai pegar (sem saber a ordem)'],
+        ['Na mão', piles.hand, 'prontas para colocar'],
+        ['Na mesa', piles.table, 'já colocadas'],
+        ['Descartadas', piles.discard, 'fora desta tentativa'],
+      ] as const) {
+        const col = h('div', 'deck-pile');
+        col.append(h('div', 'hd', `${name} <b>${list.length}</b>`), h('div', 'sub', hint));
+        col.append(list.length ? grid(list, 'mini') : h('div', 'none', '—'));
+        row.append(col);
+      }
+      p.append(row);
+    } else p.append(grid(cards));
     const b = h('div', 'btns');
     b.append(this.btn('Voltar', 'btn', back));
     p.append(b);
@@ -335,7 +472,7 @@ export class UI {
     const art = o.items.map((it) => pieceSvg(it.piece)).join('');
     const star = o.items.find((it) => it.piece !== 'common') ?? o.items[0];
     const desc = PIECES[star.piece].desc;
-    c.innerHTML = `<div class="rar">${o.rarity}</div><div class="art">${art}</div><div class="lbl">${o.label}</div><div class="desc">${desc}</div>${price !== null ? `<div class="price">◉ ${price}</div>` : ''}`;
+    c.innerHTML = `<div class="rar">${o.rarity}</div><div class="art">${art}</div><div class="lbl">${o.label}</div><div class="desc">${desc}</div>${price !== null ? `<div class="price">${icon('coin')} ${price}</div>` : ''}`;
     c.addEventListener('mouseenter', () => audio.ui('hover'));
     tiltable(c, 18);
     return c;
@@ -343,6 +480,13 @@ export class UI {
 
   showDraft(heading: string, sub: string, opts: RewardOption[], gold: number, rerollCost: number, on: { pick(i: number): void; reroll(): void; skip(): void }) {
     const s = this.screen();
+    // a cor do tipo de carta explode por um instante: azul para rara, roxa para épica
+    const rar = opts[0]?.rarity;
+    if (rar && rar !== 'comum') {
+      const fl = h('div', `rar-flash ${rar}`);
+      this.root.append(fl);
+      setTimeout(() => fl.remove(), 1000);
+    }
     const p = h('div', 'panel');
     p.append(title(heading), h('p', '', sub));
     const row = h('div', 'offers');
@@ -353,51 +497,22 @@ export class UI {
     });
     p.append(row);
     const b = h('div', 'btns');
-    const rr = this.btn(`↻ Trocar opções (◉ ${rerollCost})`, 'btn dark small', on.reroll) as HTMLButtonElement;
+    const rr = this.btn(`↻ Trocar opções (${icon('coin')} ${rerollCost})`, 'btn dark small', on.reroll) as HTMLButtonElement;
     rr.disabled = gold < rerollCost;
     b.append(rr, this.btn('Pular', 'btn dark small', on.skip));
-    p.append(b, h('div', 'gold-line', `◉ ${gold}`));
-    s.append(p);
-  }
-
-  showShop(data: { gold: number; offers: { opt: RewardOption; price: number; sold: boolean }[]; rerollCost: number; healCost: number; healAmt: number; canHeal: boolean; attemptCost: number; canAttempt: boolean; life: number; maxLife: number },
-    on: { buy(i: number): void; reroll(): void; heal(): void; attempt(): void; leave(): void }) {
-    const s = this.screen();
-    const p = h('div', 'panel');
-    p.style.borderColor = '#b8913e';
-    p.append(title('★ LOJA ★'), h('div', 'gold-line', `◉ ${data.gold} ouro`));
-    const row = h('div', 'offers');
-    data.offers.forEach((o, i) => {
-      const c = this.offerCard(o.opt, o.price, data.gold >= o.price);
-      if (o.sold) c.classList.add('sold');
-      c.addEventListener('click', () => { audio.unlock(); if (data.gold >= o.price && !o.sold) on.buy(i); else audio.ui('deny'); });
-      row.append(c);
-    });
-    p.append(row);
-    const ex = h('div', 'shop-extras');
-    const heal = this.btn(`❤ +${data.healAmt} vida (◉ ${data.healCost}) — ${data.life}/${data.maxLife}`, 'btn teal small', on.heal) as HTMLButtonElement;
-    heal.disabled = !data.canHeal || data.gold < data.healCost;
-    const att = this.btn(`+1 tentativa na próxima (◉ ${data.attemptCost})`, 'btn teal small', on.attempt) as HTMLButtonElement;
-    att.disabled = !data.canAttempt || data.gold < data.attemptCost;
-    const rr = this.btn(`↻ Novas ofertas (◉ ${data.rerollCost})`, 'btn dark small', on.reroll) as HTMLButtonElement;
-    rr.disabled = data.gold < data.rerollCost;
-    ex.append(heal, att, rr);
-    p.append(ex);
-    const b = h('div', 'btns');
-    b.append(this.btn('Seguir viagem →', 'btn', on.leave));
-    p.append(b);
+    p.append(b, h('div', 'gold-line', `${icon('coin')} ${gold}`));
     s.append(p);
   }
 
   showResult(r: { win: boolean; title: string; stars: number; rows: [string, string, string?][]; gold: number; buttons: { label: string; cls: string; fn: () => void }[] }) {
     const s = this.screen();
     const p = h('div', 'panel');
-    const t = title(r.title, r.win ? 'win-title' : '');
+    const t = title(r.title, 'win-title');
     if (!r.win) t.style.color = '#e0543e';
     p.append(t);
     if (r.win) {
       const st = h('div', 'stars');
-      for (let i = 0; i < 3; i++) st.append(h('div', 'st', '★'));
+      for (let i = 0; i < 3; i++) st.append(h('div', 'st', icon('star')));
       p.append(st);
       for (let i = 0; i < r.stars; i++) setTimeout(() => { st.children[i].classList.add('on'); audio.stars(i); }, 350 + i * 300);
     }
@@ -405,14 +520,14 @@ export class UI {
     for (const [k, v, cls] of r.rows) rows.append(h('div', 'k', k), h('div', `v ${cls ?? ''}`, v));
     p.append(rows);
     if (r.gold > 0) {
-      const g = h('div', 'big-gold', '◉ +0');
+      const g = h('div', 'big-gold', `${icon('coin')} +0`);
       p.append(g);
       let n = 0;
       const start = performance.now() + 900;
       const tick = () => {
         const k = Math.min(1, Math.max(0, (performance.now() - start) / 700));
         const v = Math.round(r.gold * k);
-        if (v !== n) { n = v; g.textContent = `◉ +${v}`; g.classList.add('jit'); if (v % 3 === 0) audio.coin(); }
+        if (v !== n) { n = v; g.innerHTML = `${icon('coin')} +${v}`; g.classList.add('jit'); if (v % 3 === 0) audio.coin(); }
         if (k < 1) requestAnimationFrame(tick);
         else setTimeout(() => g.classList.remove('jit'), 250);
       };

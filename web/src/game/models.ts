@@ -5,9 +5,12 @@ import { PIECES, PieceId } from '../core/pieces';
 import { EnemyKind, WallSpec } from '../core/mapgen';
 import { ATLAS_CELLS, pipAtlas, hedgeTexture, crateTexture } from './textures';
 import { ENEMY_HEIGHT } from './sim';
+import { SealId, SEAL_ORDER } from '../core/cards';
+import { sealAtlas } from './sigils';
+import { EnemyFaceRig } from './enemyFaces';
 
 // Modelos procedurais: dominós (caixa arredondada + decalque de pips), soldadinhos de brinquedo,
-// muros, lava, gatilho. Geometrias e materiais são cacheados e compartilhados.
+// muros, gatilho. Geometrias e materiais são cacheados e compartilhados.
 
 const geoCache = new Map<string, THREE.BufferGeometry>();
 const matCache = new Map<string, THREE.Material | THREE.Material[]>();
@@ -51,12 +54,13 @@ export function dominoMaterials(type: PieceId, ghost = false): THREE.Material[] 
   const d = PIECES[type];
   const metal = type === 'heavy';
   // marfim/tinta velhos: um pouco mais escuros e foscos que as cores do catálogo
+  // verniz fraco: com o clearcoat alto, a luz da lâmpada estourava o topo branco de todo dominó
   const body = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(d.color).multiplyScalar(0.78),
-    roughness: metal ? 0.42 : 0.5,
+    color: new THREE.Color(d.color).multiplyScalar(metal ? 0.78 : 0.68),
+    roughness: metal ? 0.42 : 0.6,
     metalness: metal ? 0.65 : 0.0,
-    clearcoat: metal ? 0.25 : 0.35,
-    clearcoatRoughness: 0.4,
+    clearcoat: metal ? 0.25 : 0.1,
+    clearcoatRoughness: 0.5,
     transparent: ghost, opacity: ghost ? 0.38 : 1, depthWrite: !ghost,
   });
   if (type === 'blast') { body.emissive = new THREE.Color('#ff2a10'); body.emissiveIntensity = 0.18; }
@@ -89,11 +93,71 @@ export function pipsFor(type: PieceId, id: number): [number, number] {
   return [(h >>> 3) % 7, (h >>> 9) % 7];
 }
 
-export function makeDomino(type: PieceId, id: number): THREE.Mesh {
-  const [a, b] = pipsFor(type, id);
+// ---------- selos carimbados ----------
+/** Carimbos na metade de baixo da peça (frente e verso); dois selos ficam na diagonal, menores. */
+function stampGeometry(type: PieceId, seals: SealId[]): THREE.BufferGeometry {
+  const key = `stamp:${type}:${seals.join(',')}`;
+  const hit = geoCache.get(key);
+  if (hit) return hit;
+  const d = PIECES[type];
+  const fh = (d.h * 0.92) / 2;
+  const z = d.t / 2 + 0.0025;
+  const two = seals.length > 1;
+  const narrow = d.w < 0.3;
+  // logo abaixo da linha do meio (na mão, a ponta de baixo da peça fica escondida na borda da tela);
+  // dois selos ficam lado a lado (nas peças estreitas, um em cima do outro)
+  const size = two ? (narrow ? Math.min(d.w * 0.92, fh * 0.42) : Math.min(d.w * 0.47, fh * 0.5)) : Math.min(d.w * (narrow ? 0.95 : 0.74), fh * 0.72);
+  const spots: [number, number][] = two
+    ? (narrow ? [[0, -fh * 0.25], [0, -fh * 0.67]] : [[-d.w * 0.235, -fh * 0.34], [d.w * 0.235, -fh * 0.34]])
+    : [[0, -fh * 0.4]];
+  const parts: THREE.BufferGeometry[] = [];
+  seals.slice(0, 2).forEach((sid, i) => {
+    const cell = SEAL_ORDER.indexOf(sid);
+    for (const flip of [false, true]) {
+      const g = new THREE.PlaneGeometry(size, size);
+      const uv = g.attributes.uv as THREE.BufferAttribute;
+      for (let k = 0; k < uv.count; k++) uv.setX(k, (cell + uv.getX(k)) / SEAL_ORDER.length);
+      if (flip) g.rotateY(Math.PI);
+      const [x, y] = spots[i];
+      g.translate(flip ? -x : x, y, flip ? -z : z);
+      parts.push(g);
+    }
+  });
+  const geo = mergeGeometries(parts, false)!;
+  geo.computeBoundingSphere();
+  geoCache.set(key, geo);
+  return geo;
+}
+
+function stampMaterial(): THREE.Material {
+  const hit = matCache.get('stamp');
+  if (hit) return hit as THREE.Material;
+  // tinta com um brilho próprio fraco: o carimbo continua legível nas peças escuras (Pesada)
+  const m = new THREE.MeshStandardMaterial({
+    map: sealAtlas(), emissiveMap: sealAtlas(), emissive: new THREE.Color('#ffffff'), emissiveIntensity: 0.22,
+    transparent: true, alphaTest: 0.3, roughness: 0.55, polygonOffset: true, polygonOffsetFactor: -4,
+  });
+  matCache.set('stamp', m);
+  return m;
+}
+
+/** Malha dos carimbos de uma peça (null se não tem selo). */
+export function sealStamps(type: PieceId, seals: readonly SealId[]): THREE.Mesh | null {
+  if (!seals.length) return null;
+  const m = new THREE.Mesh(stampGeometry(type, [...seals]), stampMaterial());
+  m.name = 'stamps';
+  return m;
+}
+
+/** Dominó; com `seals`, a metade de baixo fica lisa (sem pips) e recebe os carimbos. */
+export function makeDomino(type: PieceId, id: number, seals: readonly SealId[] = []): THREE.Mesh {
+  const [a, b0] = pipsFor(type, id);
+  const b = seals.length ? 0 : b0;
   const m = new THREE.Mesh(dominoGeometry(type, a, b), dominoMaterials(type));
   m.castShadow = true;
   m.receiveShadow = true;
+  const st = sealStamps(type, seals);
+  if (st) m.add(st);
   if (type === 'blast') {
     const fuse = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.12, 6), std('#2a2a2a'));
     fuse.position.set(0.08, PIECES.blast.h / 2 + 0.05, 0);
@@ -165,7 +229,6 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
   const coat = std(pal.coat, 0.7), pants = std(pal.pants, 0.75), skin = std(pal.skin, 0.8);
   const hat = std(pal.hat, kind === 'general' ? 0.45 : 0.7, kind === 'general' ? 0.7 : 0);
   const trim = std(pal.trim, 0.55, 0.5);
-  const hollow = std('#020202', 0.95);
   // base
   part(new THREE.CylinderGeometry(0.2 * s * wide, 0.22 * s * wide, 0.05, 20), std('#17130f', 0.8), 0, 0.025, 0, g);
   // pernas
@@ -193,18 +256,11 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
   // cabeça
   const headY = bodyY + 0.17 * s + 0.1 * s;
   part(new THREE.SphereGeometry(0.105 * s, 18, 14), skin, 0, headY, 0, g);
-  // olhos ocos (órbitas pretas fundas) com um pontinho de luz no fundo
-  for (const sx of [-1, 1]) {
-    const socket = part(new THREE.SphereGeometry(0.03 * s, 10, 8), hollow, sx * 0.042 * s, headY + 0.012 * s, 0.084 * s, g);
-    socket.scale.set(1, 1.25, 0.55);
-    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.008 * s, 6, 4), glow(pal.glint, kind === 'brute' || kind === 'general' ? 6 : 4));
-    dot.position.set(sx * 0.042 * s, headY + 0.008 * s, 0.1 * s);
-    g.add(dot);
-  }
-  // boca: fenda costurada
-  const mouth = part(new THREE.BoxGeometry(0.06 * s, 0.008 * s, 0.01 * s), hollow, 0, headY - 0.05 * s, 0.098 * s, g);
-  mouth.rotation.x = -0.4;
-  for (let i = 0; i < 3; i++) part(new THREE.BoxGeometry(0.004 * s, 0.022 * s, 0.006 * s), hollow, (i - 1) * 0.02 * s, headY - 0.05 * s, 0.101 * s, g).rotation.x = -0.4;
+  // rosto expressivo (olhos ocos + boca costurada) numa calota na frente da cabeça; o Board controla as reações
+  const face = new EnemyFaceRig(kind, 0.105 * s, pal.glint);
+  face.mesh.position.set(0, headY, 0);
+  g.add(face.mesh);
+  pivot.userData.face = face;
   // chapéus
   if (kind === 'soldier') {
     part(new THREE.CylinderGeometry(0.085, 0.095, 0.17, 16), hat, 0, headY + 0.13, 0, g);
@@ -233,9 +289,6 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
       part(new THREE.ConeGeometry(0.022 * s, 0.07 * s, 6), hat, Math.sin(a) * 0.095 * s, headY + 0.18 * s, Math.cos(a) * 0.095 * s, g);
     }
     part(new THREE.SphereGeometry(0.025 * s, 8, 6), glow('#ff2a2a', 4), 0, headY + 0.13 * s, 0.1 * s, g);
-    // meia-máscara de porcelana rachada
-    const mask = part(new THREE.SphereGeometry(0.11 * s, 16, 10, -Math.PI * 0.45, Math.PI * 0.9, Math.PI * 0.25, Math.PI * 0.32), std('#d8d0bc', 0.35), 0, headY, 0.008 * s, g);
-    (mask.material as THREE.Material).side = THREE.DoubleSide;
     const cape = part(new THREE.CylinderGeometry(0.16 * s, 0.24 * s, 0.5 * s, 18, 1, true, Math.PI * 0.6, Math.PI * 0.8), std('#1c0a24', 0.85), 0, bodyY - 0.05 * s, 0, g);
     cape.rotation.y = Math.PI;
     (cape.material as THREE.Material).side = THREE.DoubleSide;
@@ -256,6 +309,7 @@ export function makeWall(w: WallSpec): THREE.Object3D {
   crateMat ??= new THREE.MeshStandardMaterial({ map: crateTexture(), roughness: 0.8 });
   const grp = new THREE.Group();
   grp.position.set(w.x, 0, w.z);
+  grp.rotation.y = w.yaw ?? 0; // segmentos de L/curva vêm girados
   if (w.style === 'crate') {
     const long = Math.max(w.w, w.d), along = w.w > w.d;
     const n = Math.max(1, Math.round(long / 0.42));
@@ -339,59 +393,13 @@ export function makeWall(w: WallSpec): THREE.Object3D {
   return grp;
 }
 
-export const lavaUniforms = { uTime: { value: 0 } };
-let lavaMat: THREE.ShaderMaterial | null = null;
-export function makeLava(r: number): THREE.Object3D {
-  lavaMat ??= new THREE.ShaderMaterial({
-    uniforms: lavaUniforms,
-    toneMapped: false,
-    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `
-      uniform float uTime; varying vec2 vUv;
-      float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
-      float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
-        return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
-      void main(){
-        vec2 p = (vUv-0.5)*6.0;
-        float t = uTime*0.35;
-        float v = n(p + vec2(t, -t*0.7)) * 0.6 + n(p*2.1 - vec2(t*1.3, t)) * 0.4;
-        float crust = smoothstep(0.55, 0.75, v);
-        float d = length(vUv-0.5)*2.0;
-        vec3 hot = mix(vec3(3.2,1.1,0.15), vec3(4.0,2.4,0.6), n(p*3.0+t));
-        vec3 col = mix(hot, vec3(0.18,0.05,0.02), crust*0.85);
-        col *= 1.0 - smoothstep(0.75, 1.0, d) * 0.7;
-        gl_FragColor = vec4(col, 1.0);
-      }`,
-  });
-  const grp = new THREE.Group();
-  const disc = new THREE.Mesh(new THREE.CircleGeometry(r, 40), lavaMat);
-  disc.rotation.x = -Math.PI / 2;
-  disc.position.y = 0.012;
-  grp.add(disc);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(r + 0.04, 0.06, 8, 40), std('#2a211d', 0.95));
-  rim.rotation.x = -Math.PI / 2;
-  rim.position.y = 0.02;
-  rim.scale.z = 0.6;
-  rim.receiveShadow = true;
-  grp.add(rim);
-  // pedrinhas
-  for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * Math.PI * 2 + i;
-    const s = new THREE.Mesh(new THREE.DodecahedronGeometry(0.04 + (i % 3) * 0.015), std('#3a302b', 0.9));
-    s.position.set(Math.cos(a) * (r + 0.1), 0.02, Math.sin(a) * (r + 0.1));
-    s.castShadow = true;
-    grp.add(s);
-  }
-  return grp;
-}
-
 export function makeTrigger(): THREE.Group {
   const g = new THREE.Group();
   const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 0.03, 40), std('#14201a', 0.6));
   pad.position.y = 0.015;
   pad.receiveShadow = true;
   g.add(pad);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 48), glow('#7dffc0', 3));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 48), glow('#7dffc0', 2.4));
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.035;
   ring.name = 'ring';
@@ -400,7 +408,7 @@ export function makeTrigger(): THREE.Group {
   const shape = new THREE.Shape();
   shape.moveTo(-0.09, -0.1); shape.lineTo(0.09, -0.1); shape.lineTo(0.09, 0.15); shape.lineTo(0.2, 0.15);
   shape.lineTo(0, 0.38); shape.lineTo(-0.2, 0.15); shape.lineTo(-0.09, 0.15); shape.closePath();
-  const arrow = new THREE.Mesh(new THREE.ShapeGeometry(shape), glow('#7dffc0', 2));
+  const arrow = new THREE.Mesh(new THREE.ShapeGeometry(shape), glow('#7dffc0', 1.6));
   arrow.rotation.set(-Math.PI / 2, 0, Math.PI); // forma aponta +Y → no chão aponta +Z (frente)
   arrow.position.set(0, 0.04, 0.45);
   arrow.name = 'arrow';
@@ -428,7 +436,7 @@ export function makeTrigger(): THREE.Group {
 }
 
 export function makeHeadRing(): THREE.Mesh {
-  const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffd36b').multiplyScalar(2.2), toneMapped: false, transparent: true, depthWrite: false });
+  const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffd36b').multiplyScalar(1.76), toneMapped: false, transparent: true, depthWrite: false });
   const m = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.27, 32), mat);
   m.rotation.x = -Math.PI / 2;
   m.position.y = 0.02;

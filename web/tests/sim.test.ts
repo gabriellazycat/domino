@@ -52,12 +52,13 @@ describe('física + bot', () => {
         const r = solve(spec, deck);
         total++;
         if (r.win) wins++;
-        rows.push(`s${seed} d${depth} en=${spec.enemies.length} walls=${spec.walls.length} lava=${spec.lava.length} par=${spec.par} used=${r.layout.cardsUsed()} alive=${r.alive} win=${r.win} [${r.strategy}] ${r.note}`);
+        rows.push(`s${seed} d${depth} en=${spec.enemies.length} walls=${spec.walls.length} par=${spec.par} used=${r.layout.cardsUsed()} alive=${r.alive} win=${r.win} [${r.strategy}] ${r.note}`);
       }
     }
     console.log(rows.join('\n'));
     console.log(`[BOT] ${wins}/${total}`);
-    // o bot é bem pior que um humano (não usa retry nem ajuste fino); serve de trava contra regressão
-    expect(wins / total).toBeGreaterThan(0.4);
+    // o bot é bem pior que um humano (não usa retry nem ajuste fino, nem espera o patrulheiro passar);
+    // serve de trava contra regressão
+    expect(wins / total).toBeGreaterThan(0.35);
   }, 300000);
 });

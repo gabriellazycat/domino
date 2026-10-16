@@ -1,4 +1,6 @@
-import { PIECES, PieceId, Deck, FORK_OFFSET } from './pieces';
+import { PIECES, PIECE_ORDER, PieceId, Deck, FORK_OFFSET, emptyDeck } from './pieces';
+import { DrawPile } from './draw';
+import { Card, Kind, kindOf, kindType, usesOf } from './cards';
 import { BOARD, BOARD_MARGIN, ENEMY_RADIUS, PhaseSpec, rectDist } from './mapgen';
 
 // Modelo do planejamento (puro): peças colocadas, mão, traçado por arrasto.
@@ -11,17 +13,19 @@ export interface Placed {
   parent: number; // -1 = raiz (gatilho)
   stroke: number;
   pair?: number; // meia-peça irmã (bifurcação)
-  jump?: boolean; // nasceu depois de um poço de lava
+  /** a peça da caixa que virou esta peça na mesa (selos, ouro da Dourada) */
+  card?: Card;
 }
 
-export type Fail = 'board' | 'wall' | 'enemy' | 'lava' | 'piece' | 'empty' | 'nohead' | 'trigger' | 'lavaJump';
+/** Uma peça na mão: a carta + quantas peças ela ainda põe na mesa (Dupla começa com 2). */
+export interface HandEntry { card: Card; kind: Kind; left: number }
+
+export type Fail = 'board' | 'wall' | 'enemy' | 'piece' | 'empty' | 'nohead' | 'trigger';
 
 export const FAIL_TEXT: Record<Fail, string> = {
   board: 'Fora da mesa!',
   wall: 'Bloqueado pelo muro — contorne!',
   enemy: 'Muito perto do inimigo.',
-  lava: 'Lava! Não dá pra construir aí.',
-  lavaJump: 'Lava! Coloque uma GRANDE ou TORRE logo antes do poço.',
   piece: 'Esbarra em outra peça.',
   empty: 'Acabaram as peças desse tipo!',
   nohead: 'Continue de uma ponta brilhante.',
@@ -41,15 +45,78 @@ export function wrapAngle(a: number): number {
 
 export class Layout {
   pieces: Placed[] = [];
-  hand: Deck;
-  readonly startHand: Deck;
+  /** peças na mão, na ordem em que chegaram */
+  entries: HandEntry[] = [];
+  /** usos disponíveis por TIPO (derivado de `entries`; o bot e o solver leem isto) */
+  hand: Deck = emptyDeck();
+  /** baralho de compra da fase; sem ele a mão é o baralho inteiro (bot, solver e testes) */
+  readonly pile: DrawPile | null;
+  /** bênção Reciclagem: a próxima Nova mão devolve as sobras para a caixa em vez de descartar */
+  recycle = false;
+  /** peças com id menor que este vieram de mãos anteriores: ficam fixas na mesa */
+  private lockId = 0;
+  private placedCards = 0;
   private nextId = 1;
   private strokeSeq = 0;
 
-  constructor(public spec: PhaseSpec, hand: Deck) {
-    this.hand = { ...hand };
-    this.startHand = { ...hand };
+  constructor(public spec: PhaseSpec, hand: Deck, pile?: DrawPile) {
+    this.pile = pile ?? null;
+    if (!pile) {
+      // sem caixa: a mão é o baralho inteiro, sem selos (uids negativos para não colidir com os da run)
+      let uid = -1;
+      for (const t of PIECE_ORDER) for (let i = 0; i < hand[t]; i++) this.entries.push({ card: { uid: uid--, type: t, seals: [] }, kind: t, left: 1 });
+      this.recount();
+    }
   }
+
+  private recount() {
+    const h = emptyDeck();
+    for (const e of this.entries) h[e.card.type] += e.left;
+    this.hand = h;
+  }
+
+  /** Quantas peças (cartas) estão na mão. */
+  handCount(): number { return this.entries.length; }
+  /** Quantas peças desse kind dá para colocar (Dupla conta 2). */
+  uses(kind: Kind): number { let n = 0; for (const e of this.entries) if (e.kind === kind) n += e.left; return n; }
+  has(kind: Kind): boolean { return this.entries.some((e) => e.kind === kind && e.left > 0); }
+  inHand(uid: number): boolean { return this.entries.some((e) => e.card.uid === uid); }
+  /** Kinds na mão, na ordem em que aparecem. */
+  kinds(): Kind[] {
+    const out: Kind[] = [];
+    for (const e of this.entries) if (!out.includes(e.kind)) out.push(e.kind);
+    return out;
+  }
+
+  /**
+   * Nova mão: as sobras vão para o descarte (ou de volta para a caixa, com Reciclagem) — menos as
+   * Guardadas, que ficam — e chegam `size` peças (cada Sortuda traz mais uma). Devolve as que
+   * chegaram, na ordem. Null se a caixa está vazia.
+   */
+  newHand(size: number): Card[] | null {
+    const pile = this.pile;
+    if (!pile || pile.size === 0) return null;
+    const keep = this.entries.filter((e) => e.card.seals.includes('guard'));
+    const rest = this.entries.filter((e) => !e.card.seals.includes('guard')).map((e) => e.card);
+    if (this.recycle && rest.length) { pile.returnShuffled(rest); this.recycle = false; } else pile.discardAll(rest);
+    this.entries = keep;
+    const drawn: Card[] = [];
+    let want = size;
+    while (want > 0 && pile.size > 0) {
+      const [c] = pile.draw(1);
+      drawn.push(c);
+      this.entries.push({ card: c, kind: kindOf(c), left: usesOf(c) });
+      want--;
+      if (c.seals.includes('lucky')) want++;
+    }
+    this.recount();
+    // comprou: o que já está na mesa não volta mais para a mão (senão a mão não teria limite)
+    this.lockId = this.nextId;
+    return drawn;
+  }
+
+  /** A peça veio de uma mão anterior (não pode ser removida nem desfeita). */
+  locked(p: Placed): boolean { return p.id < this.lockId; }
 
   get(id: number): Placed | undefined { return this.pieces.find((p) => p.id === id); }
   children(id: number): Placed[] { return this.pieces.filter((p) => p.parent === id); }
@@ -58,11 +125,7 @@ export class Layout {
     return this.pieces.filter((p) => !hasChild.has(p.id));
   }
   root(): Placed | undefined { return this.pieces.find((p) => p.parent === -1); }
-  cardsUsed(): number {
-    let n = 0;
-    for (const k of Object.keys(this.hand) as PieceId[]) n += this.startHand[k] - this.hand[k];
-    return n;
-  }
+  cardsUsed(): number { return this.placedCards; }
 
   /** Validade de um ponto para uma peça (raio de pegada aproximado). */
   check(x: number, z: number, ignore: Set<number>): Fail | null {
@@ -72,7 +135,6 @@ export class Layout {
       if (e.patrol) continue; // rota de patrulha é construível (ele empurra o que estiver em pé)
       if (Math.hypot(e.x - x, e.z - z) < ENEMY_RADIUS[e.kind] + 0.24) return 'enemy';
     }
-    for (const l of this.spec.lava) if (Math.hypot(l.x - x, l.z - z) < l.r + 0.14) return 'lava';
     for (const p of this.pieces) {
       if (ignore.has(p.id)) continue;
       if (Math.hypot(p.x - x, p.z - z) < PIECE_CLEAR) return 'piece';
@@ -81,12 +143,13 @@ export class Layout {
   }
 
   /** Ponto de partida de um traço: gatilho (vazio) ou ponta próxima. */
-  begin(x: number, z: number, type: PieceId): { stroke?: Stroke; placed?: Placed[]; fail?: Fail } {
+  begin(x: number, z: number, kind: Kind): { stroke?: Stroke; placed?: Placed[]; fail?: Fail } {
     const t = this.spec.trigger;
+    const type = kindType(kind);
     if (this.pieces.length === 0) {
       if (Math.hypot(x - t.x, z - t.z) > 0.8) return { fail: 'trigger' };
       const id = ++this.strokeSeq;
-      const placed = this.placeAt(type, t.x, t.z, t.yaw, -1, id, new Set());
+      const placed = this.placeAt(kind, t.x, t.z, t.yaw, -1, id, new Set());
       if ('fail' in placed) return { fail: placed.fail };
       const last = placed.list[placed.list.length - 1];
       return { stroke: { head: last.id, done: type === 'fork', id }, placed: placed.list };
@@ -106,8 +169,9 @@ export class Layout {
   }
 
   /** Estende o traço em direção ao cursor; devolve peças novas e, se travou, o motivo + fantasma. */
-  extend(st: Stroke, cx: number, cz: number, type: PieceId): { placed: Placed[]; fail?: Fail; ghost?: { x: number; z: number; yaw: number } } {
+  extend(st: Stroke, cx: number, cz: number, kind: Kind): { placed: Placed[]; fail?: Fail; ghost?: { x: number; z: number; yaw: number } } {
     const out: Placed[] = [];
+    const type = kindType(kind);
     for (let guard = 0; guard < 60 && !st.done; guard++) {
       const h = this.get(st.head);
       if (!h) { st.done = true; break; }
@@ -120,18 +184,7 @@ export class Layout {
       const diff = Math.max(-turn, Math.min(turn, wrapAngle(desired - h.yaw)));
       const yaw = wrapAngle(h.yaw + diff);
       const fx = Math.sin(yaw), fz = Math.cos(yaw);
-      let res = this.placeAt(type, h.x + fx * step, h.z + fz * step, yaw, h.id, st.id, new Set([h.id]));
-      if ('fail' in res && (res.fail === 'lava')) {
-        // pulo: procura o 1º ponto livre depois do poço, dentro do alcance da ponta
-        const reach = PIECES[h.type].reach;
-        let jumped: { list: Placed[] } | { fail: Fail } | null = null;
-        for (let d = step + 0.05; d <= reach + 1e-6; d += 0.04) {
-          const r2 = this.placeAt(type, h.x + fx * d, h.z + fz * d, yaw, h.id, st.id, new Set([h.id]), true);
-          if (!('fail' in r2)) { jumped = r2; break; }
-          if (r2.fail !== 'lava') break;
-        }
-        res = jumped ?? { fail: 'lavaJump' as Fail };
-      }
+      const res = this.placeAt(kind, h.x + fx * step, h.z + fz * step, yaw, h.id, st.id, new Set([h.id]));
       if ('fail' in res) return { placed: out, fail: res.fail, ghost: { x: h.x + fx * step, z: h.z + fz * step, yaw } };
       out.push(...res.list);
       st.head = res.list[res.list.length - 1].id;
@@ -141,55 +194,72 @@ export class Layout {
   }
 
   /** Traço completo: nasce em `anchor` (só se ainda não há ponta) e estende até `cur`. Muta o layout. */
-  trail(st: Stroke | null, anchor: { x: number; z: number }, cur: { x: number; z: number }, type: PieceId):
+  trail(st: Stroke | null, anchor: { x: number; z: number }, cur: { x: number; z: number }, kind: Kind):
     { stroke: Stroke | null; placed: Placed[]; fail?: Fail; ghost?: { x: number; z: number; yaw: number } } {
     const placed: Placed[] = [];
     let s = st;
     if (!s) {
-      const b = this.begin(anchor.x, anchor.z, type);
+      const b = this.begin(anchor.x, anchor.z, kind);
       if (b.fail) return { stroke: null, placed, fail: b.fail };
       s = b.stroke!;
       if (b.placed) placed.push(...b.placed);
     }
-    const r = this.extend(s, cur.x, cur.z, type);
+    const r = this.extend(s, cur.x, cur.z, kind);
     return { stroke: s, placed: [...placed, ...r.placed], fail: r.fail, ghost: r.ghost };
   }
 
   /** Prévia da trilha: o mesmo que `trail`, mas num clone — o layout real não muda. */
-  preview(st: Stroke | null, anchor: { x: number; z: number }, cur: { x: number; z: number }, type: PieceId) {
-    return this.clone().trail(st && { ...st }, anchor, cur, type);
+  preview(st: Stroke | null, anchor: { x: number; z: number }, cur: { x: number; z: number }, kind: Kind) {
+    return this.clone().trail(st && { ...st }, anchor, cur, kind);
   }
 
   private clone(): Layout {
-    const c = new Layout(this.spec, this.hand);
+    const c = new Layout(this.spec, emptyDeck());
+    c.entries = this.entries.map((e) => ({ ...e }));
+    c.hand = { ...this.hand };
+    c.placedCards = this.placedCards;
+    c.lockId = this.lockId;
     c.pieces = this.pieces.slice();
     c.nextId = this.nextId;
     c.strokeSeq = this.strokeSeq;
     return c;
   }
 
-  private placeAt(type: PieceId, x: number, z: number, yaw: number, parent: number, stroke: number, ignore: Set<number>, jump = false):
+  private placeAt(kind: Kind, x: number, z: number, yaw: number, parent: number, stroke: number, ignore: Set<number>):
     { list: Placed[] } | { fail: Fail } {
-    if (this.hand[type] <= 0) return { fail: 'empty' };
+    const e = this.entries.find((q) => q.kind === kind && q.left > 0);
+    if (!e) return { fail: 'empty' };
+    const type = e.card.type;
+    let list: Placed[];
     if (type === 'fork') {
       const px = Math.cos(yaw), pz = -Math.sin(yaw);
       const a = { x: x + px * FORK_OFFSET, z: z + pz * FORK_OFFSET };
       const b = { x: x - px * FORK_OFFSET, z: z - pz * FORK_OFFSET };
       const fa = this.check(a.x, a.z, ignore), fb = this.check(b.x, b.z, ignore);
       if (fa || fb) return { fail: (fa || fb)! };
-      const pa: Placed = { id: this.nextId++, type, x: a.x, z: a.z, yaw, parent, stroke, jump };
-      const pb: Placed = { id: this.nextId++, type, x: b.x, z: b.z, yaw, parent, stroke, jump };
+      const pa: Placed = { id: this.nextId++, type, x: a.x, z: a.z, yaw, parent, stroke, card: e.card };
+      const pb: Placed = { id: this.nextId++, type, x: b.x, z: b.z, yaw, parent, stroke, card: e.card };
       pa.pair = pb.id; pb.pair = pa.id;
-      this.pieces.push(pa, pb);
-      this.hand[type]--;
-      return { list: [pa, pb] };
+      list = [pa, pb];
+    } else {
+      const f = this.check(x, z, ignore);
+      if (f) return { fail: f };
+      list = [{ id: this.nextId++, type, x, z, yaw, parent, stroke, card: e.card }];
     }
-    const f = this.check(x, z, ignore);
-    if (f) return { fail: f };
-    const p: Placed = { id: this.nextId++, type, x, z, yaw, parent, stroke, jump };
-    this.pieces.push(p);
-    this.hand[type]--;
-    return { list: [p] };
+    this.pieces.push(...list);
+    e.left--;
+    if (e.left <= 0) this.entries.splice(this.entries.indexOf(e), 1);
+    this.recount();
+    this.placedCards++;
+    return { list };
+  }
+
+  /** Uma peça tirada da mesa volta para a mão (a Dupla recupera o uso que tinha gastado). */
+  private giveBack(card: Card) {
+    const e = this.entries.find((q) => q.card.uid === card.uid);
+    if (e) e.left++;
+    else this.entries.push({ card, kind: kindOf(card), left: 1 });
+    this.recount();
   }
 
   /** Remove uma ponta (bifurcação sai inteira). Devolve ids removidos. */
@@ -197,17 +267,20 @@ export class Layout {
     const p = this.get(id);
     if (!p) return [];
     const group = p.pair ? [p, this.get(p.pair)].filter(Boolean) as Placed[] : [p];
-    if (group.some((g) => this.children(g.id).length > 0)) return [];
+    if (group.some((g) => this.locked(g) || this.children(g.id).length > 0)) return [];
     const ids = group.map((g) => g.id);
     this.pieces = this.pieces.filter((q) => !ids.includes(q.id));
-    this.hand[p.type]++;
+    if (p.card) this.giveBack(p.card);
+    else { this.hand[p.type]++; }
+    this.placedCards--;
     return ids;
   }
 
   /** Desfaz o último traço inteiro (pontas primeiro). */
   undoStroke(): number[] {
-    if (!this.pieces.length) return [];
-    const last = Math.max(...this.pieces.map((p) => p.stroke));
+    const free = this.pieces.filter((p) => !this.locked(p));
+    if (!free.length) return [];
+    const last = Math.max(...free.map((p) => p.stroke));
     const removed: number[] = [];
     for (let guard = 0; guard < 500; guard++) {
       const heads = this.heads().filter((h) => h.stroke === last);
@@ -217,10 +290,17 @@ export class Layout {
     return removed;
   }
 
+  /** Devolve à mão tudo que foi colocado com a mão atual (peças de mãos anteriores ficam). */
   clear(): number[] {
-    const ids = this.pieces.map((p) => p.id);
-    this.pieces = [];
-    this.hand = { ...this.startHand };
-    return ids;
+    const removed: number[] = [];
+    for (let guard = 0; guard < 500; guard++) {
+      const heads = this.heads().filter((h) => !this.locked(h));
+      if (!heads.length) break;
+      let n = 0;
+      for (const h of heads) { const ids = this.removeHead(h.id); removed.push(...ids); n += ids.length; }
+      if (!n) break;
+    }
+    return removed;
   }
+
 }

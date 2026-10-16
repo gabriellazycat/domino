@@ -44,28 +44,39 @@ try {
   const b = await toScreen(ex - 0.5, ez);
   await trace(a, b, 40);
   assert((await page.evaluate(() => window.__topple.game.layout.pieces.length)) === 0, 'mover o mouse não coloca peças (só fantasma)');
-  await page.mouse.click(b.x, b.y);
+  const use = await page.evaluate(() => document.querySelectorAll('.hc.use').length);
+  assert(use > 0, `a trilha fantasma levanta as cartas que vai gastar (${use})`);
+  // trilha curta (a mão continua com cartas, nada é travado ainda)
+  const near = await toScreen(spec.t.x + 1.3, spec.t.z);
+  await page.mouse.click(near.x, near.y);
   let n = await page.evaluate(() => window.__topple.game.layout.pieces.length);
-  assert(n >= 8, `clique no chão colocou ${n} peças`);
+  assert(n >= 2 && n <= 7, `clique no chão colocou ${n} peças`);
+  const hand = await page.evaluate(() => window.__topple.game.layout.handCount());
+  assert(hand === 7 - n, `cada peça gastou uma carta da mão (sobraram ${hand})`);
   await page.screenshot({ path: path.join(out, 'h1-drawn.png') });
-  // botão direito numa ponta remove 1
+  // botão direito numa ponta remove 1 (e a carta volta)
   const head = await page.evaluate(() => { const h = window.__topple.game.layout.heads()[0]; return [h.x, h.z]; });
   const hs = await toScreen(head[0], head[1]);
   await page.mouse.click(hs.x, hs.y, { button: 'right' });
   const n2 = await page.evaluate(() => window.__topple.game.layout.pieces.length);
   assert(n2 === n - 1, `botão direito removeu a ponta (${n} → ${n2})`);
-  // Ctrl+Z desfaz o traço inteiro; desenha de novo
+  // Ctrl+Z desfaz o traço inteiro
   await page.keyboard.press('Control+z');
   const n3 = await page.evaluate(() => window.__topple.game.layout.pieces.length);
   assert(n3 === 0, `Ctrl+Z desfez o traço (${n3})`);
-  await trace(a, b, 40);
-  await page.mouse.click(b.x, b.y);
-  // estende da ponta até encostar
-  const h2 = await page.evaluate(() => { const h = window.__topple.game.layout.heads()[0]; return [h.x, h.z]; });
-  const p2 = await toScreen(h2[0], h2[1]);
+  // monta a corrente por partes, mão a mão, até encostar nos soldados
   const c = await toScreen(ex, ez);
-  await trace(p2, c, 15);
+  await trace(a, c, 30);
   await page.mouse.click(c.x, c.y);
+  for (let i = 0; i < 8; i++) {
+    await page.waitForTimeout(900);
+    const st = await page.evaluate(() => { const g = window.__topple.game; const h = g.layout.heads()[0]; return { h: [h.x, h.z], hand: g.layout.handCount(), pile: g.layout.pile.size }; });
+    if (Math.hypot(st.h[0] - ex, st.h[1] - ez) < 1.0 || (st.hand === 0 && st.pile === 0)) break;
+    if (st.hand === 0) { await page.keyboard.press('d'); continue; }
+    const p2 = await toScreen(st.h[0], st.h[1]);
+    await trace(p2, c, 15);
+    await page.mouse.click(c.x, c.y);
+  }
   n = await page.evaluate(() => window.__topple.game.layout.pieces.length);
   console.log('peças:', n);
   await page.screenshot({ path: path.join(out, 'h2-ready.png') });

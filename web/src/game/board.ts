@@ -2,16 +2,17 @@ import * as THREE from 'three';
 import { PIECES } from '../core/pieces';
 import { Placed } from '../core/layout';
 import { PhaseSpec, ENEMY_RADIUS } from '../core/mapgen';
-import { makeDomino, makeEnemy, makeWall, makeLava, makeTrigger, makeHeadRing, dominoGeometry, ghostMaterial, lavaUniforms, glow } from './models';
+import { makeDomino, makeEnemy, makeWall, makeTrigger, makeHeadRing, dominoGeometry, ghostMaterial, glow } from './models';
 import { Sim, patrolPos, ENEMY_HEIGHT, quatYaw } from './sim';
 import { FaceRig, FaceBase, tiltOfQuat } from './faces';
+import { EnemyFaceRig } from './enemyFaces';
 import type { SweepTarget } from './hand';
 
-// Visual do tabuleiro: cenário da fase, peças do plano (com rosto), inimigos; sincroniza com a física.
+// Visual do tabuleiro: cenário da fase, peças do plano (com rosto), inimigos (com rosto); sincroniza com a física.
 interface PieceView { mesh: THREE.Mesh; p: Placed; pop: number; face: FaceRig; simExpr: FaceBase | null }
 /** Humor geral das peças: preocupadas no planejamento (olhos correndo), suando antes do disparo, felizes/tristes no resultado. */
 export type Mood = 'calm' | 'nervous' | 'happy' | 'sad';
-interface EnemyView { pivot: THREE.Group; ring: THREE.Mesh; hpPips?: THREE.Group; bob: number; hitT: number }
+interface EnemyView { pivot: THREE.Group; ring: THREE.Mesh; hpPips?: THREE.Group; bob: number; hitT: number; face: EnemyFaceRig; down: boolean }
 
 export class Board {
   root = new THREE.Group();
@@ -37,7 +38,7 @@ export class Board {
     this.ghost.visible = false;
     scene.add(this.ghost);
     this.hoverRing = makeHeadRing();
-    (this.hoverRing.material as THREE.MeshBasicMaterial).color.set(new THREE.Color('#ffffff').multiplyScalar(2));
+    (this.hoverRing.material as THREE.MeshBasicMaterial).color.set(new THREE.Color('#ffffff').multiplyScalar(1.6));
     this.hoverRing.scale.setScalar(1.6);
     this.hoverRing.visible = false;
     scene.add(this.hoverRing);
@@ -47,12 +48,6 @@ export class Board {
     this.spec = spec;
     this.clearAll();
     for (const w of spec.walls) this.stat.add(makeWall(w));
-    for (const l of spec.lava) {
-      const m = makeLava(l.r);
-      m.position.set(l.x, 0, l.z);
-      m.userData.sweep = 'fade';
-      this.stat.add(m);
-    }
     this.trigger = makeTrigger();
     this.trigger.position.set(spec.trigger.x, 0, spec.trigger.z);
     this.trigger.rotation.y = spec.trigger.yaw;
@@ -78,11 +73,11 @@ export class Board {
     for (const e of spec.enemies) {
       const pivot = makeEnemy(e.kind);
       const ring = new THREE.Mesh(new THREE.RingGeometry(ENEMY_RADIUS[e.kind] + 0.03, ENEMY_RADIUS[e.kind] + 0.08, 32),
-        new THREE.MeshBasicMaterial({ color: new THREE.Color(e.patrol ? '#f2a93a' : '#ff5a4a').multiplyScalar(1.6), transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false }));
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(e.patrol ? '#f2a93a' : '#ff5a4a').multiplyScalar(1.28), transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false }));
       ring.rotation.x = -Math.PI / 2;
       this.root.add(pivot);
       this.root.add(ring);
-      const v: EnemyView = { pivot, ring, bob: Math.random() * 6, hitT: -1 };
+      const v: EnemyView = { pivot, ring, bob: Math.random() * 6, hitT: -1, face: pivot.userData.face as EnemyFaceRig, down: false };
       if (e.kind === 'brute' || e.kind === 'general') {
         v.hpPips = new THREE.Group();
         this.root.add(v.hpPips);
@@ -117,21 +112,29 @@ export class Board {
       v.ring.visible = true;
       v.ring.position.set(x, 0.015, z);
       v.hitT = -1;
+      v.down = false;
+      v.face.reset();
       if (v.hpPips) { v.hpPips.visible = true; this.setHp(i, e.kind === 'general' ? 4 : 2, e.kind === 'general' ? 4 : 2); }
     });
   }
 
   addPiece(p: Placed, animate = true) {
-    const mesh = makeDomino(p.type, p.id);
+    const mesh = makeDomino(p.type, p.id, p.card?.seals ?? []);
     const d = PIECES[p.type];
     mesh.position.set(p.x, d.h / 2, p.z);
     mesh.rotation.set(0, p.yaw, 0);
     if (animate) mesh.scale.setScalar(0.01);
-    const face = new FaceRig(p.type);
+    // ~1 em cada 4 peças é "calma": só olha para os lados, sem a sobrancelha de preocupação
+    const calm = ((p.id * 2654435761) >>> 0) % 4 === 0;
+    const face = new FaceRig(p.type, calm);
     if (animate) face.startle(); // acabou de ser posta na mesa: leva um susto
     mesh.add(face.mesh);
     this.root.add(mesh);
     this.pieceViews.set(p.id, { mesh, p, pop: animate ? 0 : 1, face, simExpr: null });
+    // a corrente chegando perto: o inimigo se assusta
+    if (animate) for (const v of this.enemyViews) {
+      if (Math.hypot(v.pivot.position.x - p.x, v.pivot.position.z - p.z) < 1.6) v.face.react('alarm', 0.8);
+    }
   }
 
   removePiece(id: number) {
@@ -236,6 +239,7 @@ export class Board {
       v.ring.position.set(t.x, 0.015, t.z);
       v.ring.visible = e.alive;
       if (v.hpPips) v.hpPips.visible = e.alive;
+      if (!e.alive && !v.down) { v.down = true; v.face.base = 'dizzy'; v.face.react('dizzy', 0); }
       // some num "puf" depois de cair
       if (!e.alive && sim.t - e.knockedAt > 1.6) {
         const k = Math.max(0, 1 - (sim.t - e.knockedAt - 1.6) / 0.35);
@@ -245,7 +249,11 @@ export class Board {
     });
   }
 
-  enemyHit(i: number) { this.enemyViews[i].hitT = this.t; }
+  /** Levou golpe sem cair (Brutamontes/General): amassa e faz cara de dor. */
+  enemyHit(i: number) { const v = this.enemyViews[i]; v.hitT = this.t; v.face.react('hurt', 0.7); }
+
+  /** Viu a onda chegando: pulinho + olhos arregalados. */
+  enemyAlarm(i: number) { const v = this.enemyViews[i]; v.hitT = this.t; v.face.react('alarm', 1.0); }
 
   /** Tudo que a mão vai varrer (peças, inimigos, cenário). Marcadores de UI somem na hora. */
   sweepTargets(): SweepTarget[] {
@@ -298,7 +306,11 @@ export class Board {
 
   update(dt: number, planning: boolean, patrolT: number) {
     this.t += dt;
-    lavaUniforms.uTime.value = this.t;
+    // rostos dos inimigos: derrubados ficam tontos; na derrota do jogador, quem ficou de pé debocha
+    for (const v of this.enemyViews) {
+      if (!v.down) v.face.base = this.mood === 'sad' ? 'smug' : v.face.kind === 'general' ? 'angry' : 'idle';
+      v.face.update(dt);
+    }
     // pop das peças novas (mola) + rosto
     for (const v of this.pieceViews.values()) {
       const se = v.simExpr;
@@ -331,6 +343,7 @@ export class Board {
     if (planning && this.spec) {
       this.spec.enemies.forEach((e, i) => {
         const v = this.enemyViews[i];
+        if (!v) return;
         const h = ENEMY_HEIGHT[e.kind];
         if (e.patrol) {
           const p = patrolPos(e.patrol.pts, patrolT * e.patrol.speed);
@@ -361,6 +374,9 @@ export class Board {
       for (const m of this.trailMeshes) if (m.visible) (m.material as THREE.MeshBasicMaterial).opacity = k;
     }
   }
+
+  /** Tira tudo da mesa (eventos entre as fases acontecem com a mesa vazia). */
+  clear() { this.clearAll(); this.trigger = undefined as unknown as THREE.Group; this.spec = undefined as unknown as PhaseSpec; }
 
   private clearAll() {
     this.spawning = [];

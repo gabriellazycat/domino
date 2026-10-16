@@ -18,6 +18,7 @@ const FALLEN = (50 * Math.PI) / 180;
 const SPLASH_R = 0.85;
 
 export type Cause = 'piece' | 'heavy' | 'blast' | 'body' | 'splash' | 'runner';
+type Owner = { kind: 'piece' | 'enemy'; i: number; v: number };
 
 export interface SimEvents {
   pieceFall?(i: number, x: number, y: number, z: number, chain: number): void;
@@ -28,6 +29,8 @@ export interface SimEvents {
   bulldoze?(x: number, z: number): void;
   runner?(i: number): void;
   allDown?(): void;
+  /** Impacto real entre dois corpos (velocidade antes do contato): dá o volume e o timbre do som. */
+  impact?(speed: number, x: number, y: number, z: number, material: 'wood' | 'metal' | 'toy'): void;
 }
 
 export interface SimPiece {
@@ -50,6 +53,15 @@ export interface SimEnemy {
   knockedAt: number;
   hitBy: Set<number>;
   lastHit: number;
+}
+
+/**
+ * Dano de uma peça num inimigo com vida (Brutamontes 2, General 4):
+ * Pesada tira 4 (derruba qualquer um), Torre 3 (esmaga Brutamontes), o resto 1.
+ * A Explosiva derruba todo mundo no raio direto (equivale a 4) — ver `explode`.
+ */
+export function pieceDamage(type: string): number {
+  return type === 'heavy' ? 4 : type === 'tower' ? 3 : 1;
 }
 
 export function quatYaw(yaw: number) { return { x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }; }
@@ -103,7 +115,8 @@ export class Sim {
   recentFalls: { x: number; z: number; t: number }[] = [];
   private acc = 0;
   private quietFor = 0;
-  private owner = new Map<number, { kind: 'piece' | 'enemy'; i: number }>();
+  /** collider → corpo; `v` = velocidade linear antes do passo (para medir o impacto). */
+  private owner = new Map<number, { kind: 'piece' | 'enemy'; i: number; v: number }>();
   private pendingSplash: { e: SimEnemy; at: number; fx: number; fz: number; src: number }[] = [];
   private pendingBlast: { i: number; at: number }[] = [];
 
@@ -118,7 +131,7 @@ export class Sim {
     const ground = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.25, 0));
     this.world.createCollider(RAPIER.ColliderDesc.cuboid(BOARD.w / 2 + 5, 0.25, BOARD.d / 2 + 4).setFriction(0.75), ground);
     for (const w of spec.walls) {
-      const b = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(w.x, w.h / 2, w.z));
+      const b = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(w.x, w.h / 2, w.z).setRotation(quatYaw(w.yaw ?? 0)));
       this.world.createCollider(RAPIER.ColliderDesc.cuboid(w.w / 2, w.h / 2, w.d / 2).setFriction(0.6), b);
     }
 
@@ -131,7 +144,7 @@ export class Sim {
       const col = this.world.createCollider(
         RAPIER.ColliderDesc.cuboid(d.w / 2, d.h / 2, d.t / 2).setFriction(0.6).setRestitution(0.02)
           .setDensity(p.type === 'heavy' ? 14 : 6).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), body);
-      this.owner.set(col.handle, { kind: 'piece', i });
+      this.owner.set(col.handle, { kind: 'piece', i, v: 0 });
       this.pieces.push({ p, body, touched: false, kicked: false, fallen: false, launched: -1, exploded: false, blastArm: -1 });
     });
 
@@ -151,7 +164,7 @@ export class Sim {
       const col = this.world.createCollider(
         RAPIER.ColliderDesc.cylinder(h / 2, r).setFriction(0.8).setDensity(ENEMY_DENSITY[e.kind])
           .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), body);
-      this.owner.set(col.handle, { kind: 'enemy', i });
+      this.owner.set(col.handle, { kind: 'enemy', i, v: 0 });
       this.enemies.push({ idx: i, spec: e, body, hp: ENEMY_HP[e.kind], alive: true, knockedAt: -1, hitBy: new Set(), lastHit: -9 });
     });
   }
@@ -207,10 +220,17 @@ export class Sim {
       e.body.setNextKinematicTranslation({ x: pp.x, y: ENEMY_HEIGHT[e.spec.kind] / 2 + 0.002, z: pp.z });
       e.body.setNextKinematicRotation(quatYaw(pp.yaw));
     }
+    // velocidade de cada corpo antes do passo (o impacto é medido com ela, não com a pós-colisão)
+    for (const o of this.owner.values()) {
+      const b = o.kind === 'piece' ? this.pieces[o.i].body : this.enemies[o.i].body;
+      const v = b.linvel();
+      o.v = Math.hypot(v.x, v.y, v.z);
+    }
     this.world.step(this.queue);
     this.queue.drainCollisionEvents((h1, h2, started) => {
       if (!started) return;
       const a = this.owner.get(h1), b = this.owner.get(h2);
+      if (this.fired && (a || b)) this.emitImpact(a, b);
       if (a) this.onContact(a, b);
       if (b) this.onContact(b, a);
     });
@@ -245,8 +265,8 @@ export class Sim {
           if (ty > ENEMY_HEIGHT[e.spec.kind] + 0.1) continue;
           if (Math.hypot(ep.x - tx, ep.z - tz) < ENEMY_RADIUS[e.spec.kind] + 0.1) {
             if (e.spec.patrol) { if (tilt < 0.6) continue; }
-            const heavyHit = s.p.type === 'heavy' || s.p.type === 'tower';
-            this.hit(e, i, heavyHit ? 3 : 1, tr, heavyHit ? 'heavy' : 'piece');
+            const dmg = pieceDamage(s.p.type);
+            this.hit(e, i, dmg, tr, dmg > 1 ? 'heavy' : 'piece');
             if (s.p.type === 'blast' && s.blastArm < 0) s.blastArm = this.t + 0.02;
           }
         }
@@ -267,7 +287,8 @@ export class Sim {
       if (!sp.e.alive) continue;
       // soldado cai junto; brutamontes/general levam 1 de dano por vizinho derrubado
       if (sp.e.spec.kind === 'soldier') this.knock(sp.e, sp.fx, sp.fz, 'splash', 0.8);
-      else this.hit(sp.e, 2000 + sp.src, 1, { x: sp.fx, z: sp.fz }, 'splash');
+      // mesma origem do "corpo arremessado" (1000 + idx): o mesmo vizinho só tira 1 de vida, mesmo se também bater voando
+      else this.hit(sp.e, 1000 + sp.src, 1, { x: sp.fx, z: sp.fz }, 'splash');
     }
     if (this.t - this.lastKnockT > 1.5) this.combo = 0;
 
@@ -297,7 +318,19 @@ export class Sim {
     if (this.t > 28) this.finish();
   }
 
-  private onContact(me: { kind: 'piece' | 'enemy'; i: number }, other: { kind: 'piece' | 'enemy'; i: number } | undefined) {
+  /** Emite o impacto do corpo mais rápido do contato (chão e muro contam como velocidade zero). */
+  private emitImpact(a: Owner | undefined, b: Owner | undefined) {
+    const sa = a?.v ?? 0, sb = b?.v ?? 0;
+    const speed = Math.max(sa, sb);
+    if (speed < 0.35 || !this.ev.impact) return;
+    const m = sa >= sb ? a! : b!;
+    const body = m.kind === 'piece' ? this.pieces[m.i].body : this.enemies[m.i].body;
+    const t = body.translation();
+    const material = m.kind === 'enemy' ? 'toy' : this.pieces[m.i].p.type === 'heavy' ? 'metal' : 'wood';
+    this.ev.impact(speed, t.x, t.y, t.z, material);
+  }
+
+  private onContact(me: Owner, other: Owner | undefined) {
     if (!this.fired) return;
     if (me.kind === 'piece') {
       const s = this.pieces[me.i];
@@ -323,15 +356,15 @@ export class Sim {
         const moving = s.kicked || s.fallen || s.launched >= 0;
         if (!moving) return;
         if (e.spec.patrol && !s.fallen && tiltOf(s.body.rotation()) < 0.25 && s.launched < 0) return;
-        const heavyHit = s.p.type === 'heavy' || s.p.type === 'tower';
-        this.hit(e, other.i, heavyHit ? 3 : 1, s.body.translation(), heavyHit ? 'heavy' : s.launched >= 0 ? 'runner' : 'piece');
+        const dmg = pieceDamage(s.p.type);
+        this.hit(e, other.i, dmg, s.body.translation(), dmg > 1 ? 'heavy' : s.launched >= 0 ? 'runner' : 'piece');
       } else {
         const o = this.enemies[other.i];
         if (o.alive) return;
         const v = o.body.linvel();
         if (Math.hypot(v.x, v.y, v.z) < 1.0) return;
-        const dmg = o.spec.kind === 'brute' || o.spec.kind === 'general' ? 2 : 1;
-        this.hit(e, 1000 + other.i, dmg, o.body.translation(), 'body');
+        // outro inimigo arremessado: sempre 1 de vida (pequeno ou grande)
+        this.hit(e, 1000 + other.i, 1, o.body.translation(), 'body');
       }
     }
   }

@@ -52,7 +52,8 @@ try {
   await shot('05-sim-a');
   await wait(1500);
   await shot('06-sim-b');
-  await page.waitForFunction(() => ['result', 'screen'].includes(window.__topple.state().mode), null, { timeout: 60000 });
+  // 240 s: com renderização por software (sem GPU) a física anda bem mais devagar que o relógio
+  await page.waitForFunction(() => ['result', 'screen'].includes(window.__topple.state().mode), null, { timeout: 240000 });
   await wait(1800);
   await shot('07-result');
   console.log('state', await page.evaluate(() => window.__topple.state()));

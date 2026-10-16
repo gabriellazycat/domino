@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { BOARD } from '../core/mapgen';
 
-// A mão do "dono da mesa": entre uma fase e outra ela desce do escuro, pousa na borda esquerda e
+// A mão de porcelana do "dono da mesa": entre uma fase e outra ela desce do escuro, pousa na borda esquerda e
 // varre o tabuleiro inteiro (o antebraço deitado cobre toda a profundidade da mesa). Tudo que ela
 // alcança voa pela borda; depois ela sobe e some, e a fase nova surge. Animação cinemática simples
 // (sem Rapier): cada objeto vira um "destroço" com velocidade, giro e gravidade.
@@ -52,21 +52,16 @@ export class Hand {
   get active() { return this.t >= 0; }
 
   private build() {
-    const skin = new THREE.MeshStandardMaterial({ color: '#4c5544', roughness: 0.78 });
-    const knuckle = new THREE.MeshStandardMaterial({ color: '#3c4336', roughness: 0.85 });
-    const nail = new THREE.MeshStandardMaterial({ color: '#2b231a', roughness: 0.35 });
+    // porcelana (combina com a máscara do dono da mesa): branco brilhante + juntas esféricas de boneca
+    const skin = new THREE.MeshPhysicalMaterial({ color: '#d9d3c6', roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.2 });
+    const knuckle = new THREE.MeshPhysicalMaterial({ color: '#9a9488', roughness: 0.35, clearcoat: 0.6 });
+    const nail = new THREE.MeshPhysicalMaterial({ color: '#c4bcab', roughness: 0.25, clearcoat: 1 });
     const cloth = new THREE.MeshStandardMaterial({ color: '#15100d', roughness: 0.95, side: THREE.DoubleSide });
     const add = (m: THREE.Mesh, parent: THREE.Object3D) => { m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
 
     // palma (achatada) + nós dos dedos
     add(new THREE.Mesh(new RoundedBoxGeometry(2.0, 0.5, 2.3, 4, 0.22), skin), this.root).position.set(0, 0, 0.1);
     for (const x of [-0.72, -0.24, 0.24, 0.7]) add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), knuckle), this.root).position.set(x, 0.14, 1.12);
-    // tendões no dorso
-    for (const x of [-0.6, -0.2, 0.2, 0.58]) {
-      const tendon = add(new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 1.6, 3, 6), knuckle), this.root);
-      tendon.rotation.x = Math.PI / 2;
-      tendon.position.set(x, 0.24, 0.2);
-    }
     // dedos compridos (3 falanges articuladas)
     const F = [
       { x: -0.72, len: [0.95, 0.72, 0.52], r: 0.16 },
@@ -81,10 +76,11 @@ export class Hand {
         const seg = new THREE.Group();
         if (i === 0) seg.position.set(f.x, 0, 1.15); else seg.position.set(0, 0, f.len[i - 1]);
         const r = f.r * (1 - i * 0.12);
-        const bone = add(new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 4, 10), skin), seg);
+        // falange um pouco mais fina que a junta, para a esfera da junta aparecer (boneca)
+        const bone = add(new THREE.Mesh(new THREE.CapsuleGeometry(r * 0.88, len - r * 0.4, 4, 10), skin), seg);
         bone.rotation.x = Math.PI / 2;
         bone.position.z = len / 2;
-        if (i > 0) add(new THREE.Mesh(new THREE.SphereGeometry(r * 1.12, 10, 8), knuckle), seg);
+        if (i > 0) add(new THREE.Mesh(new THREE.SphereGeometry(r * 1.02, 12, 10), knuckle), seg);
         if (i === f.len.length - 1) {
           const n = add(new THREE.Mesh(new RoundedBoxGeometry(r * 1.5, 0.06, r * 2.2, 2, 0.025), nail), seg);
           n.position.set(0, r * 0.7, len + r * 0.3);
@@ -114,12 +110,14 @@ export class Hand {
       tp = seg;
     });
     this.fingers.push(thumb);
-    // pulso ossudo + antebraço comprido deitado na mesa (cobre a profundidade inteira do tabuleiro)
-    for (const x of [-0.55, 0.55]) add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), knuckle), this.root).position.set(x, 0.05, -1.05);
+    // pulso = junta esférica de boneca + antebraço comprido deitado na mesa (cobre a profundidade inteira do tabuleiro)
+    const wrist = add(new THREE.Mesh(new THREE.SphereGeometry(0.62, 20, 14), knuckle), this.root);
+    wrist.position.set(0, 0, -1.05);
+    wrist.scale.set(1, 0.7, 0.8);
     const FORE = 9.6;
-    const fore = add(new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.92, FORE, 20), skin), this.root);
+    const fore = add(new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.88, FORE, 20), skin), this.root);
     fore.rotation.x = Math.PI / 2;
-    fore.position.z = -1.0 - FORE / 2;
+    fore.position.z = -1.45 - FORE / 2;
     // manga rasgada
     const SLEEVE = 6.2;
     const sleeve = add(new THREE.Mesh(new THREE.CylinderGeometry(1.06, 1.18, SLEEVE, 20, 1, true), cloth), this.root);
@@ -193,7 +191,8 @@ export class Hand {
     if (t < T_IN) {
       // desce do alto-esquerda, dedos abertos em garra
       const k = easeOut(t / T_IN);
-      r.position.set(THREE.MathUtils.lerp(-20, X_START, k), THREE.MathUtils.lerp(9, Y_SWEEP, k), THREE.MathUtils.lerp(-5, WRIST_Z, k));
+      // sai do escuro atrás da mesa, ao lado da máscara do dono (MASK_POS), e vem para a borda esquerda
+      r.position.set(THREE.MathUtils.lerp(-4.5, X_START, k), THREE.MathUtils.lerp(6, Y_SWEEP, k), THREE.MathUtils.lerp(-11, WRIST_Z, k));
       r.rotation.set(0.05 + (1 - k) * 0.5, (1 - k) * 0.4, (1 - k) * 0.7);
       curl = 0.7 - 0.45 * k; spread = 1 - k * 0.7;
     } else if (t < T_SWEEP) {
@@ -204,7 +203,8 @@ export class Hand {
     } else {
       // sobe e some para o alto-direita, fechando a mão
       const k = easeIn(Math.min(1, (t - T_SWEEP) / (T_OUT - T_SWEEP)));
-      r.position.set(THREE.MathUtils.lerp(X_END, 21, k), THREE.MathUtils.lerp(Y_SWEEP, 10, k), THREE.MathUtils.lerp(WRIST_Z, -6, k));
+      // volta para trás da mesa, para perto do dono
+      r.position.set(THREE.MathUtils.lerp(X_END, 4.5, k), THREE.MathUtils.lerp(Y_SWEEP, 6, k), THREE.MathUtils.lerp(WRIST_Z, -11, k));
       r.rotation.set(0.05 + k * 0.5, -k * 0.3, -k * 0.5);
       curl = 0.25 + k * 0.7; spread = 0.3;
     }

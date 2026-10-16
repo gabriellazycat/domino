@@ -1,5 +1,5 @@
 import { Rng, hash2 } from './rng';
-import { isBossPhase, isShopPhase } from './rules';
+import { isBossPhase } from './rules';
 import { Deck, deckTotal } from './pieces';
 
 // Gerador de fases (puro). Tabuleiro 16 × 10 m centrado na origem; X → direita, Z → frente (tela).
@@ -16,8 +16,11 @@ export interface EnemySpec {
   patrol?: { pts: Vec2[]; speed: number };
 }
 export type WallStyle = 'stone' | 'hedge' | 'crate';
-export interface WallSpec { x: number; z: number; w: number; d: number; h: number; style: WallStyle }
-export interface LavaSpec { x: number; z: number; r: number }
+/**
+ * Um retângulo de muro: `w` no eixo X local, `d` no Z local, girado por `yaw` (igual a rotation.y do three).
+ * Muros em L e curvos são vários retângulos com o mesmo `group`.
+ */
+export interface WallSpec { x: number; z: number; w: number; d: number; h: number; style: WallStyle; yaw?: number; group?: number }
 export interface PhaseSpec {
   depth: number;
   seed: number;
@@ -26,10 +29,8 @@ export interface PhaseSpec {
   trigger: { x: number; z: number; yaw: number };
   enemies: EnemySpec[];
   walls: WallSpec[];
-  lava: LavaSpec[];
   par: number;
   boss: boolean;
-  shop: boolean;
   hint?: string;
 }
 
@@ -38,10 +39,37 @@ export const ENEMY_HP: Record<EnemyKind, number> = { soldier: 1, patroller: 1, b
 
 const AREAS = ['Campo de Treino', 'Vila do Moinho', 'Ponte Velha', 'Pátio do Quartel', 'Mercado', 'Muralhas', 'Bosque Sombrio', 'Forja', 'Torre Norte', 'Cidadela'];
 
+/** Distância de um ponto ao retângulo do muro (0 dentro), levando em conta o giro. */
 export function rectDist(px: number, pz: number, w: WallSpec): number {
-  const dx = Math.max(Math.abs(px - w.x) - w.w / 2, 0);
-  const dz = Math.max(Math.abs(pz - w.z) - w.d / 2, 0);
+  let lx = px - w.x, lz = pz - w.z;
+  if (w.yaw) {
+    // mundo → local (inverso de rotation.y)
+    const c = Math.cos(w.yaw), s = Math.sin(w.yaw);
+    [lx, lz] = [lx * c - lz * s, lx * s + lz * c];
+  }
+  const dx = Math.max(Math.abs(lx) - w.w / 2, 0);
+  const dz = Math.max(Math.abs(lz) - w.d / 2, 0);
   return Math.hypot(dx, dz);
+}
+
+/** Meia-largura/meia-profundidade da caixa alinhada aos eixos que contém o muro girado. */
+export function wallExtents(w: WallSpec): { ex: number; ez: number } {
+  const c = Math.abs(Math.cos(w.yaw ?? 0)), s = Math.abs(Math.sin(w.yaw ?? 0));
+  return { ex: c * w.w / 2 + s * w.d / 2, ez: s * w.w / 2 + c * w.d / 2 };
+}
+
+/** Pontos ao longo da linha central do muro (para checar se dois muros encostam). */
+function wallSamples(w: WallSpec): Vec2[] {
+  const c = Math.cos(w.yaw ?? 0), s = Math.sin(w.yaw ?? 0);
+  const along = w.w >= w.d;
+  const L = along ? w.w : w.d;
+  const out: Vec2[] = [];
+  for (let i = 0; i <= 4; i++) {
+    const t = (i / 4 - 0.5) * L;
+    const lx = along ? t : 0, lz = along ? 0 : t;
+    out.push({ x: w.x + lx * c + lz * s, z: w.z - lx * s + lz * c });
+  }
+  return out;
 }
 
 function segPointDist(ax: number, az: number, bx: number, bz: number, px: number, pz: number): number {
@@ -109,15 +137,15 @@ function mirror(s: PhaseSpec, axis: 'x' | 'z') {
     e.x *= fx; e.z *= fz; e.yaw = yawM(e.yaw);
     if (e.patrol) e.patrol.pts = e.patrol.pts.map((p) => ({ x: p.x * fx, z: p.z * fz }));
   }
-  for (const w of s.walls) { w.x *= fx; w.z *= fz; }
-  for (const l of s.lava) { l.x *= fx; l.z *= fz; }
+  // espelhar inverte o sentido do giro
+  for (const w of s.walls) { w.x *= fx; w.z *= fz; if (w.yaw) w.yaw = -w.yaw; }
 }
 
 function fallback(runSeed: number, depth: number): PhaseSpec {
   const enemies: EnemySpec[] = [-0.5, 0, 0.5].map((dz) => ({ kind: 'soldier', x: -0.5, z: dz, yaw: -Math.PI / 2, squad: 0 }));
   return {
     depth, seed: runSeed, title: `Fase ${depth + 1}`, subtitle: AREAS[depth % AREAS.length],
-    trigger: { x: -5, z: 0, yaw: Math.PI / 2 }, enemies, walls: [], lava: [], par: 12, boss: false, shop: isShopPhase(depth),
+    trigger: { x: -5, z: 0, yaw: Math.PI / 2 }, enemies, walls: [], par: 12, boss: false,
   };
 }
 
@@ -145,7 +173,6 @@ function tryGenerate(rng: Rng, runSeed: number, depth: number, deckCards: number
   const trigger = { x: -6.6, z: depth === 0 ? 0 : rng.range(-2.6, 2.6), yaw: Math.PI / 2 };
   const enemies: EnemySpec[] = [];
   const walls: WallSpec[] = [];
-  const lava: LavaSpec[] = [];
   const budget = Math.max(10, Math.floor(deckCards * (depth < 2 ? 0.85 : 0.8)));
   let nSquads = Math.min(squadCount(depth), squadCap);
   // relaxa a cada falha: menos pelotões, mais perto
@@ -210,84 +237,108 @@ function tryGenerate(rng: Rng, runSeed: number, depth: number, deckCards: number
   }
   for (const e of enemies) if (!inside(e.x, e.z, 0.6)) return null;
 
-  // patrulheiros
-  const nPatrol = depth < 4 ? 0 : depth >= 9 ? rng.int(1, 2) : rng.chance(0.6) ? 1 : 0;
+  // patrulheiros: a partir da fase 4 (~70% das fases), 1–2 da fase 10 em diante; várias tentativas de encaixar a rota
+  // (a fase 3 é o tutorial da bifurcação: sem patrulheiro)
+  const nPatrol = depth < 3 ? 0 : depth >= 9 ? rng.int(1, 2) : rng.chance(0.7) ? 1 : 0;
   for (let i = 0; i < nPatrol; i++) {
-    const c = rng.pick(centers);
-    const w = rng.range(1.6, 2.6), d = rng.range(1.0, 1.6);
-    const ox = c.x + rng.range(-1.2, 0.2), oz = c.z + (rng.chance(0.5) ? 1 : -1) * rng.range(0.9, 1.5);
-    const pts = [
-      { x: ox - w / 2, z: oz - d / 2 }, { x: ox + w / 2, z: oz - d / 2 },
-      { x: ox + w / 2, z: oz + d / 2 }, { x: ox - w / 2, z: oz + d / 2 },
-    ];
-    if (pts.some((p) => !inside(p.x, p.z, 0.6))) continue;
-    if (pts.some((p) => Math.hypot(p.x - trigger.x, p.z - trigger.z) < 2)) continue;
-    const clash = enemies.some((e) => pts.some((p, k) => {
-      const q = pts[(k + 1) % 4];
-      return segPointDist(p.x, p.z, q.x, q.z, e.x, e.z) < 0.55;
-    }));
-    if (clash) continue;
-    enemies.push({
-      kind: 'patroller', x: pts[0].x, z: pts[0].z, yaw: Math.PI / 2, squad: 100 + i,
-      patrol: { pts, speed: Math.min(0.95, 0.45 + 0.035 * depth) },
-    });
+    for (let k = 0; k < 12; k++) {
+      const c = rng.pick(centers);
+      const w = rng.range(1.6, 2.6), d = rng.range(1.0, 1.6);
+      const ox = c.x + rng.range(-1.2, 0.2), oz = c.z + (rng.chance(0.5) ? 1 : -1) * rng.range(0.9, 1.5);
+      const pts = [
+        { x: ox - w / 2, z: oz - d / 2 }, { x: ox + w / 2, z: oz - d / 2 },
+        { x: ox + w / 2, z: oz + d / 2 }, { x: ox - w / 2, z: oz + d / 2 },
+      ];
+      if (pts.some((p) => !inside(p.x, p.z, 0.6))) continue;
+      if (pts.some((p) => Math.hypot(p.x - trigger.x, p.z - trigger.z) < 2)) continue;
+      const clash = enemies.some((e) => pts.some((p, j) => {
+        const q = pts[(j + 1) % 4];
+        return segPointDist(p.x, p.z, q.x, q.z, e.x, e.z) < 0.55;
+      }));
+      if (clash) continue;
+      enemies.push({
+        kind: 'patroller', x: pts[0].x, z: pts[0].z, yaw: Math.PI / 2, squad: 100 + i,
+        patrol: { pts, speed: Math.min(0.95, 0.45 + 0.035 * depth) },
+      });
+      break;
+    }
   }
 
-  // muros: "porteira" atravessada no caminho gatilho→pelotão + avulsos
-  const wallOk = (w: WallSpec) => {
-    if (!inside(w.x, w.z, 0.2) || Math.abs(w.x) + w.w / 2 > BOARD.w / 2 - 0.2 || Math.abs(w.z) + w.d / 2 > BOARD.d / 2 - 0.2) return false;
+  // muros: "porteira" atravessada no caminho gatilho→pelotão + avulsos. Formatos: reto, em L (fase 2+)
+  // e curvo (fase 3+). L e curva são vários retângulos do mesmo grupo.
+  const segOk = (w: WallSpec) => {
+    const { ex, ez } = wallExtents(w);
+    if (!inside(w.x, w.z, 0.2) || Math.abs(w.x) + ex > BOARD.w / 2 - 0.2 || Math.abs(w.z) + ez > BOARD.d / 2 - 0.2) return false;
     if (rectDist(trigger.x, trigger.z, w) < 2.0) return false;
     for (const e of enemies) {
       if (e.patrol) { if (e.patrol.pts.some((p) => rectDist(p.x, p.z, w) < 0.5)) return false; continue; }
       if (rectDist(e.x, e.z, w) < ENEMY_RADIUS[e.kind] + 0.62) return false;
     }
-    for (const o of walls) {
-      const dx = Math.abs(o.x - w.x) - (o.w + w.w) / 2, dz = Math.abs(o.z - w.z) - (o.d + w.d) / 2;
-      if (dx < 0.7 && dz < 0.7) return false;
-    }
+    // não encosta em outro muro (deixa passagem de ~0,7 m)
+    const mine = wallSamples(w);
+    for (const o of walls) if (mine.some((p) => rectDist(p.x, p.z, o) < 0.7 + Math.min(w.w, w.d) / 2)) return false;
     return true;
   };
   const styles: WallSpec['style'][] = depth < 3 ? ['stone', 'hedge'] : ['stone', 'hedge', 'crate'];
+  let groupId = 0;
   for (let i = 0; i < nWalls; i++) {
     let placed = false;
     for (let k = 0; k < 30 && !placed; k++) {
       const gate = i === 0 || rng.chance(0.55);
-      let w: WallSpec;
-      const len = rng.range(1.3, 2.5), th = rng.range(0.28, 0.38);
+      const th = rng.range(0.28, 0.38);
       const style = rng.pick(styles);
       const h = style === 'hedge' ? 0.7 : style === 'crate' ? 0.6 : 0.55;
+      // ponto e direção "do caminho" (para a porteira) ou um ponto qualquer (avulso)
+      let mx: number, mz: number, pathX: number, pathZ: number;
       if (gate) {
         const c = rng.pick(centers);
         const t = rng.range(0.38, 0.66);
-        const mx = trigger.x + (c.x - trigger.x) * t, mz = trigger.z + (c.z - trigger.z) * t;
-        const vertical = Math.abs(c.x - trigger.x) > Math.abs(c.z - trigger.z);
+        mx = trigger.x + (c.x - trigger.x) * t; mz = trigger.z + (c.z - trigger.z) * t;
+        const L = Math.hypot(c.x - trigger.x, c.z - trigger.z) || 1;
+        pathX = (c.x - trigger.x) / L; pathZ = (c.z - trigger.z) / L;
         const off = rng.range(-0.5, 0.5);
-        w = vertical ? { x: mx, z: mz + off, w: th, d: len, h, style } : { x: mx + off, z: mz, w: len, d: th, h, style };
+        mx += -pathZ * off; mz += pathX * off;
       } else {
-        const vertical = rng.chance(0.5);
-        const x = rng.range(-5, 7), z = rng.range(-4, 4);
-        w = vertical ? { x, z, w: th, d: len, h, style } : { x, z, w: len, d: th, h, style };
+        mx = rng.range(-5, 7); mz = rng.range(-4, 4);
+        const a = rng.range(0, Math.PI * 2);
+        pathX = Math.cos(a); pathZ = Math.sin(a);
       }
-      if (wallOk(w)) { walls.push(w); placed = true; }
-    }
-  }
-
-  // lava (só Grande/Torre atravessam; contornar também vale)
-  if (depth >= 4) {
-    const nLava = Math.min(3, rng.int(0, 1 + Math.floor((depth - 4) / 3)) + (depth === 4 ? 1 : 0));
-    for (let i = 0; i < nLava; i++) {
-      for (let k = 0; k < 25; k++) {
-        const c = rng.pick(centers);
-        const t = rng.range(0.3, 0.7);
-        const r = rng.range(0.3, 0.44);
-        const L = { x: trigger.x + (c.x - trigger.x) * t + rng.range(-0.3, 0.3), z: trigger.z + (c.z - trigger.z) * t + rng.range(-0.3, 0.3), r };
-        if (!inside(L.x, L.z, r + 0.4)) continue;
-        if (Math.hypot(L.x - trigger.x, L.z - trigger.z) < r + 1.3) continue;
-        if (enemies.some((e) => (e.patrol ? e.patrol.pts.some((p) => Math.hypot(p.x - L.x, p.z - L.z) < r + 0.5) : Math.hypot(e.x - L.x, e.z - L.z) < r + 0.8))) continue;
-        if (walls.some((w) => rectDist(L.x, L.z, w) < r + 0.6)) continue;
-        if (lava.some((o) => Math.hypot(o.x - L.x, o.z - L.z) < o.r + r + 0.8)) continue;
-        lava.push(L); break;
+      const tutorial = depth === 1 && i === 0; // o 1º muro do jogo é sempre reto
+      const shape = tutorial ? 'straight' : depth >= 2 && rng.chance(0.3) ? 'curve' : depth >= 1 && rng.chance(0.35) ? 'L' : 'straight';
+      const g = ++groupId;
+      const segs: WallSpec[] = [];
+      if (shape === 'straight') {
+        const len = rng.range(1.3, 2.5);
+        // atravessado no caminho (eixos alinhados, como antes)
+        const vertical = Math.abs(pathX) > Math.abs(pathZ);
+        segs.push(vertical ? { x: mx, z: mz, w: th, d: len, h, style } : { x: mx, z: mz, w: len, d: th, h, style });
+      } else if (shape === 'L') {
+        // canto em (mx, mz); um braço atravessa o caminho, o outro volta na direção do gatilho ou dos inimigos
+        const la = rng.range(1.2, 2.0), lb = rng.range(0.9, 1.6);
+        const vertical = Math.abs(pathX) > Math.abs(pathZ);
+        const sa = rng.chance(0.5) ? 1 : -1, sb = rng.chance(0.5) ? 1 : -1;
+        if (vertical) {
+          segs.push({ x: mx, z: mz + sa * (la / 2 - th / 2), w: th, d: la, h, style, group: g });
+          segs.push({ x: mx + sb * (lb / 2 - th / 2), z: mz, w: lb, d: th, h, style, group: g });
+        } else {
+          segs.push({ x: mx + sa * (la / 2 - th / 2), z: mz, w: la, d: th, h, style, group: g });
+          segs.push({ x: mx, z: mz + sb * (lb / 2 - th / 2), w: th, d: lb, h, style, group: g });
+        }
+      } else {
+        // arco: o meio dele fica no ponto escolhido, curvado para o gatilho ou para os inimigos
+        const R = rng.range(1.2, 1.9), sweep = rng.range(1.2, 2.1), n = Math.max(5, Math.round(sweep * 3.2));
+        const bend = rng.chance(0.5) ? 1 : -1;
+        const cx = mx + pathX * R * bend, cz = mz + pathZ * R * bend;
+        const mid = Math.atan2(mz - cz, mx - cx);
+        const segLen = 2 * R * Math.sin(sweep / (2 * n)) + 0.08;
+        for (let s = 0; s < n; s++) {
+          const a = mid - sweep / 2 + sweep * (s + 0.5) / n;
+          const px = cx + Math.cos(a) * R, pz = cz + Math.sin(a) * R;
+          const tx = -Math.sin(a), tz = Math.cos(a); // tangente
+          segs.push({ x: px, z: pz, w: segLen, d: th, h, style, yaw: Math.atan2(-tz, tx), group: g });
+        }
       }
+      if (segs.every(segOk)) { walls.push(...segs); placed = true; }
     }
   }
 
@@ -298,13 +349,13 @@ function tryGenerate(rng: Rng, runSeed: number, depth: number, deckCards: number
   else if (depth === 1) hint = 'Muro no caminho! Faça a curva desenhando em volta dele.';
   else if (depth === 2) hint = 'Dois pelotões: use a BIFURCAÇÃO para dividir a corrente.';
   else if (enemies.some((e) => e.kind === 'brute') && depth <= 4) hint = 'Brutamontes aguentam 2 golpes. Pesada ou Torre derrubam de uma vez!';
-  else if (lava.length && depth <= 6) hint = 'Lava! Coloque uma Grande ou Torre logo antes do poço para pular.';
-  else if (boss) hint = 'O GENERAL aguenta 4 golpes. Explosivas e Pesadas ajudam muito!';
+  else if (enemies.some((e) => e.patrol) && depth <= 4) hint = 'Patrulheiro! Ele empurra peças em pé no caminho dele. Dispare na hora certa.';
+  else if (boss) hint ='O GENERAL aguenta 4 golpes. Explosivas e Pesadas ajudam muito!';
 
   return {
     depth, seed: runSeed,
     title: boss ? 'Fortaleza do General' : `Fase ${depth + 1}`,
     subtitle: area,
-    trigger, enemies, walls, lava, par, boss, shop: isShopPhase(depth), hint,
+    trigger, enemies, walls, par, boss, hint,
   };
 }

@@ -6,8 +6,10 @@ import { PIECES, PieceId } from '../core/pieces';
 // tingido com a cor dos pips de cada peça) e um "FaceRig" por peça que escolhe a expressão,
 // pisca, olha para os lados e treme de medo.
 
-export const EXPRS = ['neutral', 'blink', 'lookL', 'lookR', 'nervous', 'scared', 'scream', 'dizzy', 'happy', 'sad'] as const;
+export const EXPRS = ['neutral', 'blink', 'lookL', 'lookR', 'nervous', 'scared', 'scream', 'dizzy', 'happy', 'sad', 'worriedL', 'worriedC', 'worriedR'] as const;
 export type Expr = typeof EXPRS[number];
+/** O que o jogo pede: uma expressão do atlas ou 'worried' (olhos correndo de um lado pro outro). */
+export type FaceBase = Expr | 'worried';
 const CELL = 128;
 
 let atlas: THREE.CanvasTexture | null = null;
@@ -92,6 +94,16 @@ export function faceAtlas(): THREE.CanvasTexture {
         lw(0.055); arc(0.5, 0.88, 0.14, 1.2 * Math.PI, 1.8 * Math.PI);
         lw(0.04); drop(0.27, 0.62, 0.04);
         break;
+      case 'worriedL':
+      case 'worriedC':
+      case 'worriedR': {
+        // preocupado: sobrancelhas de dó, olhos arregalados correndo de um lado pro outro, boca tremida
+        const s = ex === 'worriedL' ? -1 : ex === 'worriedR' ? 1 : 0;
+        eye(EL, EY + 0.01, 0.12, s * 0.065, -0.01, 0.042); eye(ER, EY + 0.01, 0.12, s * 0.065, -0.01, 0.042);
+        lw(0.05); line([[0.18, 0.21], [0.37, 0.14]]); line([[0.63, 0.14], [0.82, 0.21]]);
+        lw(0.05); wave(0.4 + s * 0.02, 0.6 + s * 0.02, 0.76, 0.02, 2);
+        break;
+      }
     }
     g.restore();
   });
@@ -141,31 +153,47 @@ function faceMaterial(type: PieceId): THREE.Material {
   return m;
 }
 
-/** Controla o rosto de uma peça: expressão base + piscadas, olhadelas e tremedeira. */
+/** Controla o rosto de uma peça: expressão base + piscadas, olhadelas, olhos correndo e tremedeira. */
 export class FaceRig {
   mesh: THREE.Mesh;
   /** expressão pedida pelo jogo (humor geral ou estado físico) */
-  base: Expr = 'neutral';
-  private shown: Expr = 'neutral';
+  base: FaceBase = 'worried';
+  private shown: Expr = 'worriedC';
   private t = 0;
   private nextBlink = 1 + Math.random() * 4;
   private blinkUntil = -1;
   private glance: Expr | null = null;
   private glanceUntil = -1;
   private nextGlance = 3 + Math.random() * 8;
+  private dart: Expr = Math.random() < 0.5 ? 'worriedL' : 'worriedR';
+  private nextDart = Math.random() * 0.5;
+  private startleUntil = -1;
 
   constructor(public type: PieceId) {
-    this.mesh = new THREE.Mesh(faceGeometry(type, 'neutral'), faceMaterial(type));
+    this.mesh = new THREE.Mesh(faceGeometry(type, 'worriedC'), faceMaterial(type));
     this.mesh.receiveShadow = true;
   }
+
+  /** Susto rápido (acabou de ser colocada na mesa). */
+  startle(dur = 0.45) { this.startleUntil = this.t + dur; }
 
   update(dt: number) {
     this.t += dt;
     const b = this.base;
-    let ex: Expr = b;
+    let ex: Expr;
+    if (b === 'worried') {
+      // olhos correndo de um lado pro outro, sem parar (às vezes param no meio)
+      if (this.t > this.nextDart) {
+        this.dart = this.dart === 'worriedL' ? (Math.random() < 0.8 ? 'worriedR' : 'worriedC')
+          : this.dart === 'worriedR' ? (Math.random() < 0.8 ? 'worriedL' : 'worriedC')
+          : (Math.random() < 0.5 ? 'worriedL' : 'worriedR');
+        this.nextDart = this.t + (this.dart === 'worriedC' ? 0.15 + Math.random() * 0.2 : 0.25 + Math.random() * 0.45);
+      }
+      ex = this.dart;
+    } else ex = b;
     // piscar (não nas expressões de olho fechado/arregalado de susto)
-    if (b === 'neutral' || b === 'nervous' || b === 'sad') {
-      if (this.t > this.nextBlink) { this.blinkUntil = this.t + 0.13; this.nextBlink = this.t + (b === 'nervous' ? 0.6 + Math.random() * 1.2 : 2 + Math.random() * 5); }
+    if (b === 'neutral' || b === 'nervous' || b === 'sad' || b === 'worried') {
+      if (this.t > this.nextBlink) { this.blinkUntil = this.t + 0.12; this.nextBlink = this.t + (b === 'nervous' || b === 'worried' ? 1 + Math.random() * 2.5 : 2 + Math.random() * 5); }
       if (this.t < this.blinkUntil) ex = 'blink';
     }
     // olhadela para o lado quando está tranquilo
@@ -173,9 +201,11 @@ export class FaceRig {
       if (this.t > this.nextGlance) { this.glance = Math.random() < 0.5 ? 'lookL' : 'lookR'; this.glanceUntil = this.t + 0.6 + Math.random() * 1.2; this.nextGlance = this.t + 4 + Math.random() * 9; }
       if (this.glance && this.t < this.glanceUntil) ex = this.glance;
     }
+    const startled = this.t < this.startleUntil && (b === 'worried' || b === 'neutral');
+    if (startled) ex = 'scared';
     if (ex !== this.shown) { this.shown = ex; this.mesh.geometry = faceGeometry(this.type, ex); }
     // tremedeira de medo
-    const shake = b === 'scared' ? 0.006 : b === 'scream' ? 0.004 : b === 'nervous' ? 0.0015 : 0;
+    const shake = b === 'scared' || startled ? 0.006 : b === 'scream' ? 0.004 : b === 'nervous' || b === 'worried' ? 0.0015 : 0;
     this.mesh.position.set(shake ? (Math.random() - 0.5) * shake : 0, shake ? (Math.random() - 0.5) * shake : 0, 0);
   }
 }

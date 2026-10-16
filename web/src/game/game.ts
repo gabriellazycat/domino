@@ -341,7 +341,7 @@ export class Game {
     this.ensureSelection();
     this.board.build(this.spec);
     this.board.mood = 'calm';
-    this.setEyeAvoid();
+    this.world.backdrop.mood = 'watch';
     this.mode = 'planning';
     this.ui.setVisible(true);
     this.ui.setSimMode(false);
@@ -352,15 +352,6 @@ export class Game {
     this.refreshHud();
     audio.setMusic(true, 0);
     if (this.spec.hint && run.depth > 0) setTimeout(() => { if (this.mode === 'planning') { this.coachStep = 1; this.ui.coach(null); } }, 9000);
-  }
-
-  /** Os olhos do fundo nunca tapam inimigos (nem o caminho dos patrulheiros) nem o gatilho. */
-  private setEyeAvoid() {
-    const s = this.spec;
-    this.world.backdrop.avoid = [
-      new THREE.Vector3(s.trigger.x, 0.3, s.trigger.z),
-      ...s.enemies.flatMap((e) => (e.patrol ? e.patrol.pts : [e]).map((p) => new THREE.Vector3(p.x, 0.5, p.z))),
-    ];
   }
 
   /** Enquadra o conteúdo da fase (gatilho, inimigos, muros, lava) com folga para a HUD. */
@@ -492,6 +483,8 @@ export class Game {
     run.stats.knocked += sim.enemies.filter((e) => !e.alive).length;
     this.mode = 'result';
     this.board.mood = sim.win ? 'happy' : 'sad';
+    // o dono da mesa fecha a cara quando você vence e ri com os olhos quando você perde
+    this.world.backdrop.mood = sim.win ? 'angry' : 'amused';
     if (sim.win) {
       const used = this.layout.cardsUsed();
       const efficient = used <= this.spec.par;
@@ -563,6 +556,7 @@ export class Game {
     this.board.resetPieces();
     this.board.resetEnemies(this.patrolT);
     this.board.mood = 'calm';
+    this.world.backdrop.mood = 'watch';
     this.mode = 'planning';
     this.ui.setSimMode(false);
     this.ui.resetEnemyIcons();
@@ -660,7 +654,7 @@ export class Game {
     this.board.mood = 'calm';
     this.rig.frame(new THREE.Vector3(0, 0, 0.6), 19.5, 0, 0.92);
     this.world.flicker(0.9);
-    this.world.backdrop.wakeAll();
+    this.world.backdrop.mood = 'watch';
     this.world.backdrop.startle(0.8);
     audio.whoosh();
     this.hand.onLand = () => {
@@ -780,6 +774,7 @@ export class Game {
     }
     this.board.build(this.spec);
     this.board.mood = 'calm';
+    this.world.backdrop.mood = 'watch';
     for (const p of this.layout.pieces) this.board.addPiece(p, false);
     this.board.setHeads([], false);
     this.sim = null;
@@ -801,7 +796,11 @@ export class Game {
       d.endAt = -1;
     }
     if (this.sim?.done) {
-      if (d.endAt < 0) { d.endAt = this.realT; this.board.mood = this.sim.win ? 'happy' : 'sad'; }
+      if (d.endAt < 0) {
+        d.endAt = this.realT;
+        this.board.mood = this.sim.win ? 'happy' : 'sad';
+        this.world.backdrop.mood = this.sim.win ? 'angry' : 'amused';
+      }
       else if (this.realT - d.endAt > 2.5) {
         d.loops++;
         d.seed += 17;

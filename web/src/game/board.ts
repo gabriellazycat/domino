@@ -4,12 +4,12 @@ import { Placed } from '../core/layout';
 import { PhaseSpec, ENEMY_RADIUS } from '../core/mapgen';
 import { makeDomino, makeEnemy, makeWall, makeLava, makeTrigger, makeHeadRing, dominoGeometry, ghostMaterial, lavaUniforms, glow } from './models';
 import { Sim, patrolPos, ENEMY_HEIGHT, quatYaw } from './sim';
-import { FaceRig, Expr, tiltOfQuat } from './faces';
+import { FaceRig, FaceBase, tiltOfQuat } from './faces';
 import type { SweepTarget } from './hand';
 
 // Visual do tabuleiro: cenário da fase, peças do plano (com rosto), inimigos; sincroniza com a física.
-interface PieceView { mesh: THREE.Mesh; p: Placed; pop: number; face: FaceRig; simExpr: Expr | null }
-/** Humor geral das peças: calmas no planejamento, nervosas antes do disparo, felizes/tristes no resultado. */
+interface PieceView { mesh: THREE.Mesh; p: Placed; pop: number; face: FaceRig; simExpr: FaceBase | null }
+/** Humor geral das peças: preocupadas no planejamento (olhos correndo), suando antes do disparo, felizes/tristes no resultado. */
 export type Mood = 'calm' | 'nervous' | 'happy' | 'sad';
 interface EnemyView { pivot: THREE.Group; ring: THREE.Mesh; hpPips?: THREE.Group; bob: number; hitT: number }
 
@@ -128,6 +128,7 @@ export class Board {
     mesh.rotation.set(0, p.yaw, 0);
     if (animate) mesh.scale.setScalar(0.01);
     const face = new FaceRig(p.type);
+    if (animate) face.startle(); // acabou de ser posta na mesa: leva um susto
     mesh.add(face.mesh);
     this.root.add(mesh);
     this.pieceViews.set(p.id, { mesh, p, pop: animate ? 0 : 1, face, simExpr: null });
@@ -218,13 +219,13 @@ export class Board {
       v.mesh.quaternion.set(q.x, q.y, q.z, q.w);
       if (s.exploded) v.mesh.visible = false;
       const tilt = tiltOfQuat(q);
-      let ex: Expr;
+      let ex: FaceBase;
       if (tilt > 1.15) {
         const w = s.body.angvel();
         ex = Math.abs(w.x) + Math.abs(w.y) + Math.abs(w.z) < 1.5 ? 'dizzy' : 'scream';
       } else if (tilt > 0.16 || s.launched >= 0) ex = 'scream';
       else if (near.some((f) => (f.x - t.x) ** 2 + (f.z - t.z) ** 2 < 0.8)) ex = 'scared';
-      else ex = sim.fired ? 'nervous' : 'neutral';
+      else ex = 'worried';
       v.simExpr = ex;
     });
     sim.enemies.forEach((e, i) => {
@@ -301,12 +302,12 @@ export class Board {
     // pop das peças novas (mola) + rosto
     for (const v of this.pieceViews.values()) {
       const se = v.simExpr;
-      let ex: Expr;
+      let ex: FaceBase;
       if (se === 'dizzy' || se === 'scream') ex = se;
       else if (this.mood === 'happy') ex = 'happy';
       else if (this.mood === 'sad') ex = 'sad';
       else if (se) ex = se;
-      else ex = this.mood === 'nervous' ? 'nervous' : 'neutral';
+      else ex = this.mood === 'nervous' ? 'nervous' : 'worried';
       v.face.base = ex;
       v.face.update(dt);
       if (v.pop < 1) {

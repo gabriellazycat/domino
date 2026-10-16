@@ -65,7 +65,7 @@ src/
     sim.ts       simulação física (Rapier)
     solver.ts    roda simulações sem tela para achar um plano que vence
     world.ts     renderer, lâmpada pendurada, velas, mesa, pós-processamento (bloom + CRT)
-    backdrop.ts  redemoinho de tinta no fundo + olhos flutuantes no breu
+    backdrop.ts  redemoinho de tinta no fundo + o "dono da mesa" (olhos brilhando no escuro)
     models.ts    dominós, soldadinhos assombrados, muros, lava (tudo procedural)
     faces.ts     rostos 2D dos dominós e suas reações (medo, grito, tontura…)
     hand.ts      a mão que varre o tabuleiro entre as fases

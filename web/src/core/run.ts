@@ -81,11 +81,16 @@ export function saveRun(run: RunState) {
   try { localStorage.setItem(KEY, JSON.stringify(run)); } catch { /* sem storage: segue sem save */ }
 }
 
-/** Save da versão 1 (baralho = contagem por tipo, sem selos/bênçãos/eventos) → versão 2. */
+/** Save da versão 1 (baralho = contagem por tipo, sem selos/bênçãos/eventos) → versão 2; Grande → Torre. */
 function migrate(r: any): RunState | null {
   if (!r || typeof r !== 'object') return null;
-  if (r.version === 2) return r as RunState;
+  if (r.version === 2) {
+    // a Grande saiu do jogo (16/out/2026): vira Torre, mantendo uid e selos
+    for (const c of r.cards ?? []) if (c.type === 'big') c.type = 'tower';
+    return r as RunState;
+  }
   if (r.version !== 1 || !r.deck) return null;
+  if (r.deck.big) { r.deck.tower = (r.deck.tower ?? 0) + r.deck.big; delete r.deck.big; }
   const cards = cardsFromDeck(r.deck as Deck, 1);
   const { deck: _old, ...rest } = r;
   return { ...rest, version: 2, cards, nextUid: cards.length + 1, buffs: {}, events: { since: 0, last: null } } as RunState;

@@ -10,12 +10,12 @@ import { emptyDeck, Deck } from '../src/core/pieces';
 beforeAll(async () => { await RAPIER.init(); });
 
 function deckFor(depth: number): Deck {
-  // baralho "típico": base + 1 recompensa por fase (comuns escalados, pesadas, grandes, bifurcações)
+  // baralho "típico": base + 1 recompensa por fase (comuns escalados, pesadas, torres, bifurcações)
   const d = emptyDeck();
   d.common = 14 + Array.from({ length: depth }, (_, i) => 5 + i).reduce((a, b) => a + b, 0) * 0.6 | 0;
   d.fork = 1 + Math.floor(depth / 3);
   d.heavy = Math.floor(depth / 2);
-  d.big = Math.floor(depth / 3);
+  d.tower = Math.floor(depth / 3);
   d.blast = depth >= 4 ? 2 : 0;
   return d;
 }

@@ -33,6 +33,8 @@ export const FAIL_TEXT: Record<Fail, string> = {
 };
 
 export const MAX_TURN = (26 * Math.PI) / 180;
+/** Depois de uma peça de alcance longo (Torre) a próxima quase não vira: longe, um giro grande tira a peça da faixa de queda. */
+export const LONG_TURN = (8 * Math.PI) / 180;
 const PIECE_CLEAR = 0.24;
 
 export interface Stroke { head: number; done: boolean; id: number }
@@ -142,6 +144,16 @@ export class Layout {
     return null;
   }
 
+  /** Muro no meio da queda de uma peça de alcance longo (a Torre bate nele e para). */
+  private fallBlocked(x: number, z: number, fx: number, fz: number, step: number): boolean {
+    if (step <= 0.6) return false;
+    for (let d = 0.3; d < step - 0.2; d += 0.15) {
+      const px = x + fx * d, pz = z + fz * d;
+      for (const w of this.spec.walls) if (rectDist(px, pz, w) < 0.12) return true;
+    }
+    return false;
+  }
+
   /** Ponto de partida de um traço: gatilho (vazio) ou ponta próxima. */
   begin(x: number, z: number, kind: Kind): { stroke?: Stroke; placed?: Placed[]; fail?: Fail } {
     const t = this.spec.trigger;
@@ -175,15 +187,19 @@ export class Layout {
     for (let guard = 0; guard < 60 && !st.done; guard++) {
       const h = this.get(st.head);
       if (!h) { st.done = true; break; }
-      const step = PIECES[type].step;
+      // o alcance é da peça que CAI (a ponta): depois de uma Torre a próxima vai longe
+      const step = PIECES[h.type].step;
       const dx = cx - h.x, dz = cz - h.z;
       if (Math.hypot(dx, dz) < step * 0.9) break;
       const desired = Math.atan2(dx, dz);
-      // bifurcação nasce alinhada à ponta: as duas metades ficam dentro da faixa de queda dela
-      const turn = type === 'fork' ? 0 : MAX_TURN;
+      // bifurcação nasce alinhada à ponta: as duas metades ficam dentro da faixa de queda dela.
+      // Torre depois de Torre também vai reta (o golpe de lado desvia a queda).
+      const long = step > 0.6;
+      const turn = type === 'fork' || (long && type === 'tower') ? 0 : long ? LONG_TURN : MAX_TURN;
       const diff = Math.max(-turn, Math.min(turn, wrapAngle(desired - h.yaw)));
       const yaw = wrapAngle(h.yaw + diff);
       const fx = Math.sin(yaw), fz = Math.cos(yaw);
+      if (this.fallBlocked(h.x, h.z, fx, fz, step)) return { placed: out, fail: 'wall', ghost: { x: h.x + fx * step, z: h.z + fz * step, yaw } };
       const res = this.placeAt(kind, h.x + fx * step, h.z + fz * step, yaw, h.id, st.id, new Set([h.id]));
       if ('fail' in res) return { placed: out, fail: res.fail, ghost: { x: h.x + fx * step, z: h.z + fz * step, yaw } };
       out.push(...res.list);

@@ -44,7 +44,7 @@ const OFFS =[0, 20, -20, 40, -40, 60, -60, 85, -85, 110, -110].map((d) => (d * M
 
 function pickType(L: Layout, prefer: PieceId[]): PieceId | null {
   for (const t of prefer) if (L.hand[t] > 0) return t;
-  for (const t of ['common', 'heavy', 'big', 'tower', 'runner'] as PieceId[]) if (L.hand[t] > 0) return t;
+  for (const t of ['common', 'heavy', 'tower', 'runner'] as PieceId[]) if (L.hand[t] > 0) return t;
   return null;
 }
 
@@ -141,7 +141,7 @@ function drive(L: Layout, st: Stroke, gx: number, gz: number, stop: number, fina
     let lastFail: Fail | undefined;
     for (const off of OFFS) {
       const a = base + off;
-      const step = PIECES[type].step;
+      const step = PIECES[h.type].step;
       const r = L.extend(st, h.x + Math.sin(a) * step * 1.02, h.z + Math.cos(a) * step * 1.02, type);
       if (r.placed.length) { placed = true; break; }
       lastFail = r.fail;

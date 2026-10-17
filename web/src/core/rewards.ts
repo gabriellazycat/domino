@@ -17,7 +17,6 @@ const TABLE: Entry[] = [
   { minDepth: 2, weight: 12, items: [{ piece: 'fork', count: 2 }], rarity: 'rara' },
   { minDepth: 3, weight: 12, items: [{ piece: 'tower', count: 1 }, { piece: 'common', count: 2 }], rarity: 'rara' },
   { minDepth: 6, weight: 12, items: [{ piece: 'heavy', count: 3 }, { piece: 'common', count: 3 }], rarity: 'rara' },
-  { minDepth: 8, weight: 10, items: [{ piece: 'big', count: 2 }, { piece: 'common', count: 4 }], rarity: 'rara' },
   { minDepth: 5, weight: 10, items: [{ piece: 'blast', count: 3 }, { piece: 'common', count: 2 }], rarity: 'épica' },
   { minDepth: 5, weight: 10, items: [{ piece: 'fork', count: 2 }, { piece: 'blast', count: 1 }], rarity: 'épica' },
   { minDepth: 5, weight: 10, items: [{ piece: 'runner', count: 3 }, { piece: 'heavy', count: 1 }], rarity: 'épica' },
@@ -35,7 +34,7 @@ function rarityWeights(depth: number): Record<Rarity, number> {
 }
 
 /**
- * Orçamento de valor das opções comuns (valor = custo-base × quantidade; comum = 1, pesada/grande = 2, bifurcação = 3).
+ * Orçamento de valor das opções comuns (valor = custo-base × quantidade; comum = 1, pesada/torre = 2, bifurcação = 3).
  * Começa em 2 (2 comuns ou 1 especial) e sobe 1 a cada 3 fases, até 4: nunca 5 comuns nem 3 especiais.
  */
 export function commonBudget(depth: number): number {
@@ -45,7 +44,7 @@ export function commonBudget(depth: number): number {
 /** Todos os pacotes comuns com exatamente o orçamento da profundidade (cada um vale o mesmo). */
 export function commonPacks(depth: number): RewardItem[][] {
   const budget = commonBudget(depth);
-  const specials: PieceId[] = ['heavy', 'big'];
+  const specials: PieceId[] = ['heavy', 'tower'];
   if (depth >= 2) specials.push('fork');
   const packs: RewardItem[][] = [[{ piece: 'common', count: budget }]];
   for (const piece of specials) {

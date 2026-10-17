@@ -39,7 +39,7 @@ try {
   await shot('01-menu');
   await wait(4000);
   await shot('02-menu-demo');
-  await page.evaluate(([s, d]) => { const t = window.__topple; t.newRun(s); if (d > 0) { t.game.run.depth = d; t.game.run.deck.common += 40; t.game.run.deck.fork += 3; t.game.run.deck.heavy += 3; t.game.run.deck.blast += 2; t.game.run.deck.big += 2; t.game.startPhase(); } }, [seed, depth]);
+  await page.evaluate(([s, d]) => { const t = window.__topple; t.newRun(s); if (d > 0) { t.game.run.depth = d; t.game.run.deck.common += 40; t.game.run.deck.fork += 3; t.game.run.deck.heavy += 3; t.game.run.deck.blast += 2; t.game.run.deck.tower += 2; t.game.startPhase(); } }, [seed, depth]);
   await wait(1200);
   await shot('03-planning');
   const plan = await page.evaluate(() => window.__topple.autoPlan());

@@ -649,3 +649,39 @@ Seções §9.3/§9.4 não existem no docx (Duelo/assíncrono = P2, fora do v1.0)
 - Código de rede (`MirrorSession`, esqueletos T6) segue intocado por ora —
   solo roda em `LocalSession`, sem efeito no jogo; remoção física fica p/
   decisão futura (deleta `Assets/Mirror` + `Net/` + transports).
+
+## 49. Papéis de peça no caminho + mapa que exige especiais (16/out/2026, pedido do dono)
+Problema: andar dependia só da Comum (deck = Comuns + 1 peça de dano no fim). `step` quase
+igual entre peças (Comum 0,38 / Torre 0,55) e gerador calibrado em 0,38 por peça.
+Decisões (roadmap, em ordem):
+1. **Grande removida**; a **Torre** vira a peça de alcance: `step` acompanha a queda real
+   (ponta alcança longe). Saves antigos: Grande → Torre.
+2. **Deck inicial** com especiais (ex.: 9 Comuns, 2 Torres, 1 Bifurcação, 1 Foguete) e
+   **par por distância** (alcance), não por contagem de Comuns.
+3. **Foguete = linha no chão**: atropela tudo no trajeto (1 de dano cada), para em muro de
+   pedra, **ricocheteia** nos muros, imune à flecha do Arqueiro; a corrente continua onde ele para.
+   Torre = ponto (pula o que está no meio, golpe forte onde cai).
+4. **Saltadora**: no planejamento mostra arco pontilhado + ponto de pouso além do muro; a próxima
+   peça nasce no pouso (filha normal). Na sim, salto roteirizado (determinístico) que cai em cima
+   da peça de pouso e a empurra para a frente.
+5. **Selo Mola** (prensa): a peça vira saltadora uma vez.
+6. **Muros protegendo pelotões**: U com abertura (contorna com Comuns), cerca de caixotes
+   (Torre por cima / Saltadora / Explosiva), fortaleza de pedra (Saltadora). Só gera se o deck resolve.
+7. **Patrulhas maiores e variadas**: linha (vai e volta), círculo/ronda em volta do pelotão, oito,
+   contorno de muro. Ronda em volta do pelotão inverte o `clash` atual.
+8. **Ogro patrulheiro**: lento, vida 3; **pisoteia** (some) peça em pé na rota; derrubado, **tomba
+   como dominó gigante** na direção do golpe e esmaga onde cai (~1,5 m).
+9. **Arqueiro**: círculo de alcance visível; a 1ª peça que entra leva flecha de fogo (queima, igual
+   à tocha) — **uma vez só**. Solução: Bifurcação (um ramo é isca) ou Foguete (imune em movimento).
+10. **Porteira com alavanca**: alavanca derrubada abre a porta por N s e fecha; ramo da Bifurcação
+    tem de chegar com ela aberta — o timing se ajusta pelo comprimento dos ramos (Comum "atrasa").
+Fora: evento de remover Comuns (dono vetou).
+Feito (item 1, 16/out/2026):
+- `PieceDef.step` virou **alcance da peça que cai**: `Layout.extend` usa o `step` da PONTA (antes era
+  o da peça nova). Torre: 0,55 → **1,15**. Medido na física: Pesada depois da Torre falha a partir
+  de 1,30 m; 1,15 passa para todos os tipos.
+- Curva depois da Torre: no máximo **8°** (`LONG_TURN`) — a 26° a peça seguinte ficava ~0,5 m fora
+  da faixa de queda. Torre depois de Torre vai **reta** (golpe de lado desvia a queda).
+- Muro no meio da queda da Torre bloqueia a próxima peça (`fallBlocked`): a Torre bate no muro e para.
+- Grande removida (catálogo, recompensas, bot, UI); saves v1/v2 convertem Grande → Torre.
+- Testes: `tests/tower.test.ts`. Bot da bateria segue 17/48 (igual a antes).

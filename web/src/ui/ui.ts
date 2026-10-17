@@ -46,7 +46,7 @@ const PIPS: Record<number, [number, number][]> = {
 /** Ilustração SVG de cada peça (recompensas, loja, visor das peças). */
 export function pieceSvg(id: PieceId): string {
   const d = PIECES[id];
-  const W = 40, H = id === 'tower' ? 88 : id === 'big' ? 80 : 72;
+  const W = 40, H = id === 'tower' ? 88 : 72;
   const vb = `0 0 46 92`;
   const x = (46 - W) / 2, y = 92 - H - 2;
   const pip = (cx: number, cy: number) => `<circle cx="${cx}" cy="${cy}" r="3.2" fill="${d.pip}"/>`;
@@ -58,7 +58,7 @@ export function pieceSvg(id: PieceId): string {
     const hw = 16;
     return `<svg viewBox="${vb}"><rect x="${x - 1}" y="${y + 8}" width="${hw}" height="${H - 8}" rx="4" fill="${d.color}" stroke="#2a1d16" stroke-width="2"/><rect x="${x + W - hw + 1}" y="${y + 8}" width="${hw}" height="${H - 8}" rx="4" fill="${d.color}" stroke="#2a1d16" stroke-width="2"/>${pip(x + 7, y + 22)}${pip(x + 7, y + 50)}${pip(x + W - 7, y + 30)}${pip(x + W - 7, y + 60)}<path d="M23 4 v8 M23 8 l -8 6 M23 8 l 8 6" stroke="#f08a3c" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
   } else {
-    const b = id === 'heavy' ? 6 : id === 'tower' ? 6 : id === 'big' ? 2 : 5;
+    const b = id === 'heavy' ? 6 : id === 'tower' ? 6 : 5;
     // rosto na metade de cima (igual à peça 3D), pips embaixo
     const cy = y + H * 0.24, ex = W * 0.2, c = d.pip;
     const face = `<circle cx="${x + W / 2 - ex}" cy="${cy}" r="4.4" fill="none" stroke="${c}" stroke-width="2"/><circle cx="${x + W / 2 + ex}" cy="${cy}" r="4.4" fill="none" stroke="${c}" stroke-width="2"/>`

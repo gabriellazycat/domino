@@ -52,7 +52,7 @@ export function dominoMaterials(type: PieceId, ghost = false): THREE.Material[] 
   const hit = matCache.get(key);
   if (hit) return hit as THREE.Material[];
   const d = PIECES[type];
-  const metal = type === 'heavy';
+  const metal = type === 'heavy' || type === 'metal';
   // marfim/tinta velhos: um pouco mais escuros e foscos que as cores do catálogo
   // verniz fraco: com o clearcoat alto, a luz da lâmpada estourava o topo branco de todo dominó
   const body = new THREE.MeshPhysicalMaterial({
@@ -65,12 +65,15 @@ export function dominoMaterials(type: PieceId, ghost = false): THREE.Material[] 
   });
   if (type === 'blast') { body.emissive = new THREE.Color('#ff2a10'); body.emissiveIntensity = 0.18; }
   if (type === 'tower') { body.emissive = new THREE.Color('#3a1f80'); body.emissiveIntensity = 0.15; }
+  // malditas: brilho roxo fraquinho, como se respirassem
+  if (d.cursed) { body.emissive = new THREE.Color('#6a1a9a'); body.emissiveIntensity = 0.22; }
   const pip = new THREE.MeshStandardMaterial({
     map: pipAtlas(), color: new THREE.Color(d.pip), alphaTest: 0.45, roughness: 0.4,
     metalness: metal ? 0.9 : 0, transparent: ghost, opacity: ghost ? 0.5 : 1,
     polygonOffset: true, polygonOffsetFactor: -2,
   });
   if (metal) { pip.emissive = new THREE.Color('#f2a93a'); pip.emissiveIntensity = 0.35; }
+  if (d.cursed) { pip.emissive = new THREE.Color(d.pip); pip.emissiveIntensity = 0.5; pip.metalness = 0; }
   const arr = [body, pip];
   matCache.set(key, arr);
   return arr;
@@ -179,6 +182,25 @@ export function makeDomino(type: PieceId, id: number, seals: readonly SealId[] =
         coil.castShadow = true;
         m.add(coil);
       }
+    }
+  }
+  if (type === 'metal') {
+    // rebites nos quatro cantos, frente e verso
+    const d = PIECES.metal;
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+      const r = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), std('#9aa0aa', 0.3, 0.9));
+      r.position.set(sx * (d.w / 2 - 0.045), sy * (d.h / 2 - 0.05), sz * (d.t / 2));
+      m.add(r);
+    }
+  }
+  if (type === 'minion') {
+    // chifrinhos de capanga
+    for (const s of [-1, 1]) {
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.13, 8), std('#e8d8c0', 0.5));
+      horn.position.set(s * 0.12, PIECES.minion.h / 2 + 0.05, 0);
+      horn.rotation.z = -s * 0.35;
+      horn.castShadow = true;
+      m.add(horn);
     }
   }
   if (type === 'runner') {

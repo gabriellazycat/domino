@@ -24,6 +24,7 @@ const TABLE: Entry[] = [
   { minDepth: 6, weight: 10, items: [{ piece: 'tower', count: 2 }], rarity: 'épica' },
   { minDepth: 5, weight: 10, items: [{ piece: 'jumper', count: 2 }], rarity: 'épica' },
   { minDepth: 7, weight: 8, items: [{ piece: 'tower', count: 1 }, { piece: 'blast', count: 2 }], rarity: 'épica' },
+  { minDepth: 6, weight: 10, items: [{ piece: 'trifork', count: 1 }, { piece: 'common', count: 2 }], rarity: 'épica' },
 ];
 
 export function labelFor(items: RewardItem[]): string {
@@ -49,6 +50,7 @@ export function commonPacks(depth: number): RewardItem[][] {
   const specials: PieceId[] = ['heavy', 'tower'];
   if (depth >= 2) specials.push('fork');
   if (depth >= 4) specials.push('jumper');
+  if (depth >= 6) specials.push('trifork');
   const packs: RewardItem[][] = [[{ piece: 'common', count: budget }]];
   for (const piece of specials) {
     const cost = PIECES[piece].cost;

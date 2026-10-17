@@ -1,15 +1,16 @@
 import * as THREE from 'three';
-import { RunState, addItems, saveRun, removeCard, runRng, saveRng } from '../core/run';
-import { PIECES } from '../core/pieces';
+import { RunState, addItems, addCard, saveRun, removeCard, runRng, saveRng } from '../core/run';
+import { PIECES, PieceId, isCursed } from '../core/pieces';
 import { RULES, shopPrice } from '../core/rules';
 import { draft3, RewardOption } from '../core/rewards';
 import { Card, Kind, SealId, SEALS, kindOf, kindsOf, canSeal, kindName } from '../core/cards';
 import { BuffId, BUFFS, buffLevel } from '../core/buffs';
-import { EventKind, sealOffers, buffOffers } from '../core/events';
+import { EventKind, sealOffers, buffOffers, curseOffers } from '../core/events';
+import { curseLine } from './curseTalk';
 import { audio } from './audio';
 import type { Fx } from './fx';
 import type { CameraRig } from './camera';
-import { makeDomino } from './models';
+import { makeDomino, glow } from './models';
 import { FaceRig, FaceBase } from './faces';
 import type { SweepTarget } from './hand';
 import type { UI } from '../ui/ui';
@@ -36,6 +37,8 @@ export interface EventCtx {
   leave(): void;
   /** abre o visor com todas as suas peças (para decidir a compra) */
   deck(): void;
+  /** humor do dono da mesa (a cabeça de boneco no fundo) */
+  watcher?(m: 'watch' | 'angry' | 'amused'): void;
 }
 
 interface Item {
@@ -142,6 +145,7 @@ export abstract class EventScene {
 
   dispose() {
     this.dead = true;
+    P.returnLight();
     this.ctx.scene.remove(this.group);
     this.layer.remove();
     this.ctx.ui.eventBar(null);
@@ -428,7 +432,8 @@ class ShopScene extends EventScene {
     const cd = P.candle(0.6, 0.11, false);
     cd.g.position.set(-1.35, 0, 2.2);
     this.group.add(cd.g);
-    this.candleFx = cd;
+    const candleLight = P.borrowLight(cd.g, '#ff8a3a', 0, 4, 1.8, new THREE.Vector3(0, 0.9, 0));
+    this.candleFx = { flame: cd.flame, light: candleLight };
     const candleItem = this.addItem({
       obj: cd.g, name: 'Vela extra', tagY: 1.05,
       desc: () => `+1 tentativa na próxima fase.${run.extraAttemptsNext ? ` (já tem ${run.extraAttemptsNext})` : ''}`,
@@ -442,7 +447,7 @@ class ShopScene extends EventScene {
         cd.flame.visible = true;
         cd.flame.scale.setScalar(0.01);
         audio.whoosh();
-        await this.tween(0.4, (k) => { cd.flame.scale.setScalar(Math.max(0.01, k)); cd.light.intensity = k * 3; }, easeOutBack);
+        await this.tween(0.4, (k) => { cd.flame.scale.setScalar(Math.max(0.01, k)); this.candleFx!.light.intensity = k * 3; }, easeOutBack);
         this.ctx.ui.toast('+1 tentativa na próxima fase', true);
         this.refreshBar();
       },
@@ -457,9 +462,10 @@ class ShopScene extends EventScene {
     this.anvilTop.copy(a.top);
     this.addItem({
       obj: a.g, name: 'Quebrar peça', tagY: 1.05,
-      desc: () => 'Escolha uma peça da sua caixa e ela é quebrada para sempre: caixa mais enxuta, mãos melhores.',
+      desc: () => 'Escolha uma peça da sua caixa e ela é quebrada para sempre: caixa mais enxuta, mãos melhores.'
+        + (run.cards.some((c) => isCursed(c.type)) ? '<br><b>Quebra peças malditas também</b> (mesmo com a caixa pequena).' : ''),
       price: () => 8,
-      why: () => (run.cards.length <= 10 ? 'Sua caixa já está pequena demais (mínimo 10 peças)' : null),
+      why: () => (run.cards.length <= 10 && !run.cards.some((c) => isCursed(c.type)) ? 'Sua caixa já está pequena demais (mínimo 10 peças)' : null),
       act: () => this.startChoose(),
     });
     // sininho (mercadoria nova)
@@ -520,7 +526,8 @@ class ShopScene extends EventScene {
     this.ctx.ui.tip(null);
     this.ctx.setCursor(null);
     this.ctx.ui.hand.hide(false);
-    this.ctx.ui.hand.chooseStart(kindsOf(run.cards));
+    // caixa no mínimo: só dá para quebrar as malditas
+    this.ctx.ui.hand.chooseStart(kindsOf(run.cards, (c) => run.cards.length > 10 || isCursed(c.type)));
     this.refreshBar();
   }
 
@@ -589,7 +596,7 @@ class ShopScene extends EventScene {
     for (const s of shards) this.group.remove(s);
     await this.tween(0.3, (k) => { hammer.rotation.z = r0 - 1.55 + k * 1.55; });
     this.ctx.ui.toast(`${kindName(kind)} quebrada — sua caixa tem ${run.cards.length} peças`, true);
-    this.ctx.say(['Uma a menos. Ninguém vai sentir falta.', 'Crec. Adoro esse barulho.']);
+    this.ctx.say(isCursed(card.type) ? ['Quebrou meu presente? Que falta de educação.', 'Tudo bem. Eu tenho mais.'] : ['Uma a menos. Ninguém vai sentir falta.', 'Crec. Adoro esse barulho.']);
     this.busy = false;
     this.refreshBar();
   }
@@ -936,8 +943,142 @@ class MysticScene extends EventScene {
   }
 }
 
+// =====================================================================================
+// PRESENTE DO DONO (evento ruim): duas peças malditas acorrentadas; uma vai para a caixa, à força
+// =====================================================================================
+class CurseScene extends EventScene {
+  readonly kind = 'curse' as const;
+  readonly title = 'Presente do Dono';
+  readonly subtitle = 'Um presentinho que você não pode recusar';
+  private gifts: { type: PieceId; ped: THREE.Group; d: THREE.Mesh; item: Item; chain: THREE.LineSegments; phase: number }[] = [];
+  private flames: THREE.Group[] = [];
+  private light: THREE.PointLight | null = null;
+  private nextChat = 3;
+
+  protected intro() { return ['Trouxe um presentinho. Você não pode recusar.', 'Escolha. As duas querem muito ir com você.']; }
+  protected bar() { return `<b>Presente do Dono</b> — escolha <b>uma</b> peça maldita: ela vai para a sua caixa. Enquanto estiver na mão, a <b>Nova mão</b> fica travada até você colocá-la na mesa.`; }
+  protected buttons() { return [{ label: `${icon('deck')} Suas peças`, cls: 'btn dark', fn: () => this.ctx.deck() }]; }
+
+  protected build() {
+    const g = this.group;
+    const c = P.cloth(8.4, 4.6, P.M.velvetDark());
+    c.position.set(0, 0, 0.5);
+    g.add(c);
+    this.ctx.watcher?.('amused');
+    this.light = P.borrowLight(g, '#a050ff', 5, 7, 1.6, new THREE.Vector3(0, 2.2, 1));
+    // velas de chama verde nos cantos
+    for (const [x, z, h] of [[-3.4, -0.6, 0.7], [3.4, -0.6, 0.55], [-3.0, 2.2, 0.45], [3.0, 2.2, 0.6]] as const) {
+      const cd = P.candle(h, 0.1, true);
+      cd.flame.children.forEach((m, i) => { (m as THREE.Mesh).material = glow(i ? '#e8ffd0' : '#7dff5a', i ? 6 : 4); });
+      cd.g.position.set(x, 0, z);
+      g.add(cd.g);
+      this.flames.push(cd.flame);
+    }
+    const r = runRng(this.ctx.run);
+    const offers = curseOffers(r);
+    saveRng(this.ctx.run, r);
+    offers.forEach((type, i) => {
+      const ped = P.pedestal();
+      ped.position.set(i ? 1.7 : -1.7, 0, 0.9);
+      g.add(ped);
+      const top = ped.userData.top as number;
+      const d = this.domino({ type, seals: [] }, 900 + i * 7);
+      d.position.set(0, top + PIECES[type].h / 2 + 0.25, 0);
+      ped.add(d);
+      // correntes: do alto do escuro até a peça (como os fios da mão-marionete)
+      const pts: number[] = [];
+      for (const sx of [-1, 1]) pts.push(sx * 0.12, top + PIECES[type].h + 0.2, 0, sx * 0.5, top + 4, 0);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      const chain = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: '#8a7a9a', transparent: true, opacity: 0.7 }));
+      ped.add(chain);
+      const item = this.addItem({
+        obj: ped, name: PIECES[type].name, tagY: 2.3, hideSold: true,
+        icon: '☠ ',
+        desc: () => `${PIECES[type].desc}<br><small>de graça — e não tem volta (só quebrando na bigorna da Loja)</small>`,
+        price: () => 0,
+        act: () => this.take(type),
+      });
+      this.gifts.push({ type, ped, d, item, chain, phase: i * 1.7 });
+    });
+  }
+
+  protected renderTag(it: Item) {
+    super.renderTag(it);
+    const pr = it.tag?.querySelector('.pr');
+    if (pr && !it.sold) pr.textContent = 'grátis';
+  }
+
+  private async take(type: PieceId) {
+    const gift = this.gifts.find((x) => x.type === type);
+    if (!gift || this.busy) return;
+    this.busy = true;
+    for (const x of this.gifts) { x.item.sold = true; this.renderTag(x.item); }
+    this.hover = null;
+    this.ctx.ui.tip(null);
+    this.ctx.setCursor(null);
+    addCard(this.ctx.run, type);
+    saveRun(this.ctx.run);
+    const other = this.gifts.find((x) => x !== gift);
+    // as correntes se soltam, a escolhida pula de alegria e voa para a caixa; a outra afunda na mesa
+    gift.chain.visible = false;
+    const line = curseLine(type, 'placed');
+    if (line) { const s = this.toScreen(gift.d.getWorldPosition(new THREE.Vector3())); this.ctx.ui.pieceSpeak(s.x, s.y, line); }
+    audio.whoosh();
+    if (other) {
+      this.removeItem(other.item); // sai do hover (senão o hover segura a altura do pedestal)
+      const o = other.ped;
+      const p = o.position;
+      this.ctx.fx.sparkBurst(p.x, 1.2, p.z, 30, '#a050ff', 1.6);
+      this.ctx.fx.dust(p.x, p.z, 1.2);
+      this.tween(0.8, (k) => { o.position.y = -k * 2.2; o.rotation.y = k * 2; }, easeIn).then(() => { o.visible = false; });
+    }
+    const d = gift.d, y0 = d.position.y;
+    await this.tween(0.45, (k) => { d.position.y = y0 + Math.sin(k * Math.PI) * 0.6; d.rotation.y = k * Math.PI * 2; });
+    const w = d.getWorldPosition(new THREE.Vector3());
+    this.ctx.fx.sparkBurst(w.x, w.y, w.z, 24, '#9dff5a', 2);
+    audio.card();
+    await this.flyToBox(d);
+    this.ctx.ui.toast(`${PIECES[type].name} (maldita) entrou na sua caixa`);
+    this.ctx.say(['Cuide bem dela. Ela vai cuidar de você.', 'Hehehe. Boa escolha… para mim.'], true);
+    await this.wait(1.6);
+    this.busy = false;
+    this.leave();
+  }
+
+  protected tick(dt: number) {
+    const t = this.time;
+    if (this.light) this.light.intensity = 4 + Math.sin(t * 1.3) * 1.5;
+    for (const f of this.flames) {
+      const k = 1 + Math.sin(t * 15 + f.id) * 0.08;
+      f.scale.set(k, k * (1 + Math.sin(t * 9 + f.id) * 0.1), k);
+    }
+    for (const x of this.gifts) {
+      if (x.item.sold) continue;
+      // pendurada balançando nas correntes; no hover treme de vontade
+      const hov = this.hover === x.item;
+      x.d.rotation.z = Math.sin(t * 1.4 + x.phase) * 0.08 + (hov ? (Math.random() - 0.5) * 0.12 : 0);
+      x.d.rotation.y = Math.sin(t * 0.9 + x.phase) * 0.25;
+    }
+    // de vez em quando uma delas fala
+    this.nextChat -= dt;
+    if (this.nextChat <= 0 && !this.busy) {
+      this.nextChat = 4 + Math.random() * 4;
+      const x = this.gifts[Math.floor(Math.random() * this.gifts.length)];
+      const line = x && !x.item.sold ? curseLine(x.type, 'idle') : null;
+      if (line) { const s = this.toScreen(x.d.getWorldPosition(new THREE.Vector3())); this.ctx.ui.pieceSpeak(s.x, s.y - 30, line); }
+    }
+  }
+
+  dispose() {
+    this.ctx.watcher?.('watch');
+    super.dispose();
+  }
+}
+
 export function createEvent(kind: EventKind, ctx: EventCtx): EventScene {
   if (kind === 'shop') return new ShopScene(ctx);
+  if (kind === 'curse') return new CurseScene(ctx);
   if (kind === 'press') return new PressScene(ctx);
   return new MysticScene(ctx);
 }
@@ -947,4 +1088,5 @@ export const EVENT_INFO: Record<EventKind, { name: string; hint: string }> = {
   shop: { name: 'Loja', hint: 'peças, remédio e serviços' },
   press: { name: 'Prensa de Selos', hint: 'carimbe um poder numa peça' },
   mystic: { name: 'Altar Místico', hint: 'uma bênção para a run inteira' },
+  curse: { name: 'Presente do Dono', hint: 'ele tem um presentinho para você…' },
 };

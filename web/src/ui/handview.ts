@@ -120,7 +120,7 @@ export class HandView {
     const b = document.createElement('button');
     b.className = 'btn dark small newhand';
     b.addEventListener('click', (e) => { e.stopPropagation(); audio.unlock(); cb.newHand(); });
-    b.addEventListener('mouseenter', () => { audio.ui('hover'); this.doomed = this.drawReal > 0; this.decorate(); });
+    b.addEventListener('mouseenter', () => { audio.ui('hover'); this.doomed = this.drawReal > 0 && !this.newBtn.classList.contains('cursed'); this.decorate(); });
     b.addEventListener('mouseleave', () => { this.doomed = false; this.decorate(); });
     this.newBtn = b;
     const small = (html: string, title: string, fn: () => void) => {
@@ -643,9 +643,13 @@ export class HandView {
     const inHand = this.pieces.length;
     const kept = this.pieces.filter((p) => p.card.seals.includes('guard')).length;
     const buy = Math.min(this.handSize, this.drawReal);
+    // maldita na mão: o botão fica trancado (clicar só explica e balança a mão)
+    const cursed = this.pieces.some((p) => PIECES[p.card.type].cursed);
     this.newBtn.disabled = this.drawReal === 0;
+    this.newBtn.classList.toggle('cursed', cursed && this.drawReal > 0);
     this.newBtn.innerHTML = this.drawReal === 0
       ? `Caixa vazia`
+      : cursed ? `<span class="l1">🔒 Nova mão</span><small>jogue a maldita</small>`
       : `<span class="l1">⟳ Nova mão<span class="kbd">N</span></span><small>${inHand - kept ? `descarta ${inHand - kept} · ` : ''}pega ${buy}</small>`;
     this.handLbl.classList.toggle('done', inHand === 0 && this.drawReal === 0);
     // com o leque a mão já se conta sozinha; o letreiro só aparece quando ela esvazia

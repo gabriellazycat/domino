@@ -144,7 +144,7 @@ export function deckReach(deck: Deck): number {
 export function generatePhase(runSeed: number, depth: number, deck: Deck): PhaseSpec {
   const reach = deckReach(deck);
   // nunca mais pelotões do que a mão consegue alcançar (1 bifurcação = 1 ramo extra)
-  const squadCap = deck.fork + 1 + (depth >= 9 ? 1 : 0);
+  const squadCap = deck.fork + 2 * deck.trifork + 1 + (depth >= 9 ? 1 : 0);
   const rng = new Rng(hash2(runSeed, depth * 7919 + 13));
   const boss = isBossPhase(depth) && depth >= 4;
   let best: PhaseSpec | null = null;

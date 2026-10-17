@@ -3,10 +3,10 @@ import { PIECES, PieceId } from './pieces';
 // Constantes da run (herdadas do Topple Unity, ToppleRules.cs, com calibragem do remake web).
 export const RULES = {
   startingLife: 10,
-  startingCommons: 9,
-  startingTowers: 2,
+  startingCommons: 10,
+  startingTowers: 1,
   startingForks: 1,
-  startingRunners: 1,
+  startingRunners: 0,
   attemptsPerPhase: 3,
   handSize: 7,
   damagePerSurvivor: 1,

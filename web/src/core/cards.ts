@@ -1,4 +1,4 @@
-import { PieceId, PIECE_ORDER, PIECES, Deck, emptyDeck } from './pieces';
+import { PieceId, PIECE_ORDER, PIECES, Deck, emptyDeck, isCursed } from './pieces';
 
 // Cada peça da caixa é única (tem uid) e pode carregar até 2 SELOS carimbados pela prensa.
 // "Kind" = tipo + selos: é o que se escolhe na mão (duas Comuns sem selo são a mesma escolha;
@@ -51,8 +51,9 @@ export function kindName(k: Kind): string {
 /** Quantas peças uma carta põe na mesa (Dupla = 2). */
 export function usesOf(c: Card): number { return c.seals.includes('double') ? 2 : 1; }
 export function canSeal(c: Card, s: SealId): boolean {
+  if (isCursed(c.type)) return false; // maldita não aceita carimbo
   // Mola não combina com quem já se move sozinho (Foguete, Saltadora) nem com as meias-peças da Bifurcação
-  if (s === 'spring' && (c.type === 'runner' || c.type === 'jumper' || c.type === 'fork')) return false;
+  if (s === 'spring' && (c.type === 'runner' || c.type === 'jumper' || c.type === 'fork' || c.type === 'trifork')) return false;
   return c.seals.length < MAX_SEALS && !c.seals.includes(s);
 }
 

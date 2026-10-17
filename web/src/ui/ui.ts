@@ -55,7 +55,11 @@ export function pieceSvg(id: PieceId): string {
   if (id === 'blast') deco = `<path d="M${x + W / 2 + 6} ${y + 2} q 6 -8 12 -6" stroke="#333" stroke-width="2.5" fill="none"/><circle cx="${x + W / 2 + 18}" cy="${y - 4}" r="3.5" fill="#ffb347"/><circle cx="${x + W / 2}" cy="${y + H * 0.58}" r="9" fill="${d.pip}"/><text x="${x + W / 2}" y="${y + H * 0.33}" text-anchor="middle" font-size="9" font-family="Silkscreen" font-weight="700" fill="${d.pip}">TNT</text>`;
   else if (id === 'runner') deco = `<path d="M${x + 8} ${y + H * 0.45} l ${W / 2 - 8} -12 l ${W / 2 - 8} 12" stroke="${d.pip}" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M${x + 8} ${y + H * 0.7} l ${W / 2 - 8} -12 l ${W / 2 - 8} 12" stroke="${d.pip}" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="${x - 4}" y="${y + H - 22}" width="5" height="18" rx="2" fill="#d23a2a"/><rect x="${x + W - 1}" y="${y + H - 22}" width="5" height="18" rx="2" fill="#d23a2a"/>`;
   else if (id === 'jumper') deco = `<path d="M${x + 6} ${y + H * 0.42} q ${W / 2 - 6} -26 ${W - 12} 0" stroke="${d.pip}" stroke-width="3.5" fill="none" stroke-linecap="round"/><path d="M${x + W - 6} ${y + H * 0.42} l -7 -3 m 7 3 l -1 -7" stroke="${d.pip}" stroke-width="3.5" fill="none" stroke-linecap="round"/><path d="M${x + 8} ${y + H * 0.62} l ${(W - 16) / 4} 6 l ${(W - 16) / 4} -6 l ${(W - 16) / 4} 6 l ${(W - 16) / 4} -6" stroke="${d.pip}" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M${x + 8} ${y + H * 0.76} l ${(W - 16) / 4} 6 l ${(W - 16) / 4} -6 l ${(W - 16) / 4} 6 l ${(W - 16) / 4} -6" stroke="${d.pip}" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-  else if (id === 'fork') {
+  else if (id === 'trifork') {
+    const hw = 12, gap = (W - hw) / 2;
+    const bar = (bx: number) => `<rect x="${bx}" y="${y + 8}" width="${hw}" height="${H - 8}" rx="3.5" fill="${d.color}" stroke="#2a1d16" stroke-width="2"/>`;
+    return `<svg viewBox="${vb}">${bar(x - 1)}${bar(x - 1 + gap)}${bar(x - 1 + gap * 2)}${pip(x + 5, y + 24)}${pip(x + gap + 5, y + 40)}${pip(x + gap * 2 + 5, y + 28)}${pip(x + 5, y + 54)}${pip(x + gap * 2 + 5, y + 58)}<path d="M23 4 v8 M23 8 l -10 6 M23 8 l 10 6 M23 8 v7" stroke="${d.color}" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
+  } else if (id === 'fork') {
     const hw = 16;
     return `<svg viewBox="${vb}"><rect x="${x - 1}" y="${y + 8}" width="${hw}" height="${H - 8}" rx="4" fill="${d.color}" stroke="#2a1d16" stroke-width="2"/><rect x="${x + W - hw + 1}" y="${y + 8}" width="${hw}" height="${H - 8}" rx="4" fill="${d.color}" stroke="#2a1d16" stroke-width="2"/>${pip(x + 7, y + 22)}${pip(x + 7, y + 50)}${pip(x + W - 7, y + 30)}${pip(x + W - 7, y + 60)}<path d="M23 4 v8 M23 8 l -8 6 M23 8 l 8 6" stroke="#f08a3c" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
   } else {
@@ -64,7 +68,10 @@ export function pieceSvg(id: PieceId): string {
     const cy = y + H * 0.24, ex = W * 0.2, c = d.pip;
     const face = `<circle cx="${x + W / 2 - ex}" cy="${cy}" r="4.4" fill="none" stroke="${c}" stroke-width="2"/><circle cx="${x + W / 2 + ex}" cy="${cy}" r="4.4" fill="none" stroke="${c}" stroke-width="2"/>`
       + `<circle cx="${x + W / 2 - ex}" cy="${cy + 0.5}" r="1.9" fill="${c}"/><circle cx="${x + W / 2 + ex}" cy="${cy + 0.5}" r="1.9" fill="${c}"/>`
-      + `<path d="M${x + W / 2 - 5} ${cy + 10} q 5 2 10 0" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+      + (d.cursed
+        // maldita: sobrancelhas em V e sorriso torto
+        ? `<path d="M${x + W / 2 - ex - 6} ${cy - 9} l 8 3 M${x + W / 2 + ex + 6} ${cy - 9} l -8 3" stroke="${c}" stroke-width="2.2" stroke-linecap="round"/><path d="M${x + W / 2 - 8} ${cy + 8} q 7 7 15 -2" stroke="${c}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`
+        : `<path d="M${x + W / 2 - 5} ${cy + 10} q 5 2 10 0" stroke="${c}" stroke-width="2" fill="none" stroke-linecap="round"/>`);
     deco = face + half(b, false) + `<line x1="${x + 5}" y1="${y + H / 2}" x2="${x + W - 5}" y2="${y + H / 2}" stroke="${d.pip}" stroke-width="2"/>`;
   }
   const shine = id === 'heavy' ? `<rect x="${x + 4}" y="${y + 4}" width="6" height="${H - 8}" rx="3" fill="rgba(255,255,255,.18)"/>` : `<rect x="${x + 4}" y="${y + 4}" width="5" height="${H - 8}" rx="2.5" fill="rgba(255,255,255,.35)"/>`;
@@ -118,10 +125,13 @@ export class UI {
   private vigEl = h('div', 'vig');
   private speedEl = h('div', 'speedlines');
   private speechEl = h('div', 'speech');
+  /** balãozinho das peças (malditas falando na mesa / no evento) */
+  private pieceSpeechEl = h('div', 'speech piece');
+  private pieceSpeechT = 0;
   private speechT = 0;
 
   constructor(cb: HudCallbacks) {
-    this.root.append(this.vigEl, this.speedEl, this.hud, this.comboEl, this.speechEl);
+    this.root.append(this.vigEl, this.speedEl, this.hud, this.comboEl, this.speechEl, this.pieceSpeechEl);
     const tl = h('div', 'top-left');
     this.obj.append(h('div', 'row', '<span>Inimigos</span>'), this.enemyIcons, this.piecesPar);
     tl.append(this.phaseBadge, this.obj);
@@ -299,6 +309,19 @@ export class UI {
     el.classList.add('on');
     clearTimeout(this.speechT);
     this.speechT = window.setTimeout(() => el.classList.remove('on'), ms);
+  }
+
+  /** Balãozinho de uma peça: preso acima do ponto (x, y) da tela. */
+  pieceSpeak(x: number, y: number, text: string, ms = 2200) {
+    const el = this.pieceSpeechEl;
+    el.textContent = text;
+    el.style.left = `${Math.min(window.innerWidth - 200, Math.max(10, x - 20))}px`;
+    el.style.top = `${Math.max(10, y - 70)}px`;
+    el.classList.remove('on');
+    void el.offsetWidth;
+    el.classList.add('on');
+    clearTimeout(this.pieceSpeechT);
+    this.pieceSpeechT = window.setTimeout(() => el.classList.remove('on'), ms);
   }
 
   // ---------- telas ----------

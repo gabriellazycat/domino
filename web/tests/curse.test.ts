@@ -1,0 +1,116 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import RAPIER from '@dimforge/rapier3d-compat';
+import { Sim } from '../src/game/sim';
+import type { PhaseSpec } from '../src/core/mapgen';
+import { Layout, Placed } from '../src/core/layout';
+import { emptyDeck, PieceId, CURSED } from '../src/core/pieces';
+import { canSeal } from '../src/core/cards';
+import { rollEvent, curseOffers, EventKind } from '../src/core/events';
+import { Rng } from '../src/core/rng';
+
+// Peças malditas (evento "Presente do Dono") e o próprio evento.
+const spec = (): PhaseSpec => ({ enemies: [], walls: [], trigger: { x: 0, z: -3, yaw: 0 } } as unknown as PhaseSpec);
+/** corrente reta em +z a partir de z=-2 */
+const chain = (types: PieceId[]): Placed[] =>
+  types.map((type, i) => ({ id: i + 1, type, x: 0, z: -2 + i * 0.38, yaw: 0, parent: i ? i : -1, stroke: 1 } as Placed));
+
+function run(types: PieceId[], secs = 5): Sim {
+  const sim = new Sim(spec(), chain(types), 0, {});
+  sim.fire();
+  for (let i = 0; i < 120 * secs && !sim.done; i++) sim.step();
+  return sim;
+}
+
+describe('peças malditas', () => {
+  beforeAll(async () => { await RAPIER.init(); });
+
+  it('Teimosa não cai com Comum, mas cai com Pesada', () => {
+    const a = run(['common', 'common', 'metal', 'common']);
+    expect(a.pieces[1].kicked).toBe(true); // encostou nela e ficou escorada
+    expect(a.pieces[2].fallen).toBe(false);
+    expect(a.pieces[3].fallen).toBe(false);
+    const b = run(['common', 'heavy', 'metal', 'common']);
+    expect(b.pieces[2].fallen).toBe(true);
+    expect(b.pieces[3].fallen).toBe(true);
+  });
+
+  it('Ciumenta tira o poder das vizinhas', () => {
+    const sim = new Sim(spec(), chain(['common', 'heavy', 'jealous', 'blast', 'common']), 0, {});
+    expect(sim.pieces.map((s) => !!s.muted)).toEqual([false, true, false, true, false]);
+    expect(sim.typeOf(sim.pieces[3])).toBe('common');
+  });
+
+  it('Capanga conta como inimigo e cai para trás (a onda morre nela)', () => {
+    const sim = new Sim(spec(), chain(['common', 'common', 'minion', 'common']), 0, {});
+    expect(sim.alive).toBe(1);
+    sim.fire();
+    for (let i = 0; i < 120 * 5 && !sim.done; i++) sim.step();
+    expect(sim.pieces[2].fallen).toBe(true);
+    expect(sim.pieces[3].fallen).toBe(false);
+    expect(sim.alive).toBe(0);
+  });
+
+  it('Torta vira 90° ao ser colocada', () => {
+    const d = emptyDeck();
+    d.crooked = 1;
+    const L = new Layout(spec(), d);
+    const r = L.begin(0, -3, 'crooked');
+    expect(r.placed?.[0].type).toBe('crooked');
+    expect(Math.abs(Math.abs(r.placed![0].yaw) - Math.PI / 2)).toBeLessThan(1e-6);
+  });
+
+  it('maldita na mão trava a Nova mão; não aceita selo', () => {
+    const d = emptyDeck();
+    d.common = 2; d.wander = 1;
+    const L = new Layout(spec(), d);
+    expect(L.cursedInHand()).toBe(true);
+    for (const t of CURSED) expect(canSeal({ uid: 1, type: t, seals: [] }, 'guard')).toBe(false);
+  });
+});
+
+describe('Presente do Dono', () => {
+  it('só aparece a partir da 3ª fase e oferece 2 malditas diferentes', () => {
+    const seen = new Map<number, Set<EventKind>>();
+    const rng = new Rng(7);
+    for (let i = 0; i < 4000; i++) {
+      const depth = i % 6;
+      const k = rollEvent({ since: 5, last: null }, depth, rng, true);
+      if (!k) continue;
+      if (!seen.has(depth)) seen.set(depth, new Set());
+      seen.get(depth)!.add(k);
+    }
+    expect(seen.get(1)?.has('curse')).toBe(false);
+    expect(seen.get(4)?.has('curse')).toBe(true);
+    const offers = curseOffers(new Rng(3));
+    expect(offers.length).toBe(2);
+    expect(offers[0]).not.toBe(offers[1]);
+    expect(offers.every((t) => CURSED.includes(t))).toBe(true);
+  });
+});
+
+describe('Trifurcação', () => {
+  beforeAll(async () => { await RAPIER.init(); });
+
+  it('uma carta vira 3 meias-peças, sai inteira ao desfazer e a onda derruba as três', () => {
+    const d = emptyDeck();
+    d.common = 2; d.trifork = 1;
+    const L = new Layout(spec(), d);
+    L.begin(0, -3, 'common');
+    const st = { head: L.heads()[0].id, done: false, id: 1 };
+    const r = L.extend(st, 0, -2.2, 'trifork');
+    expect(r.placed.length).toBe(3);
+    expect(st.done).toBe(true);
+    expect(new Set(r.placed.map((p) => p.parent)).size).toBe(1);
+    expect(r.placed[0].group).toEqual(r.placed.map((p) => p.id));
+    expect(L.removeHead(r.placed[1].id).length).toBe(3);
+    expect(L.uses('trifork')).toBe(1);
+
+    const sim = new Sim(spec(), [
+      { id: 1, type: 'common', x: 0, z: -2, yaw: 0, parent: -1, stroke: 1 },
+      ...[-0.2, 0, 0.2].map((x, i) => ({ id: 2 + i, type: 'trifork', x, z: -1.62, yaw: 0, parent: 1, stroke: 1 })),
+    ] as Placed[], 0, {});
+    sim.fire();
+    for (let i = 0; i < 120 * 4 && !sim.done; i++) sim.step();
+    expect(sim.pieces.slice(1).every((s) => s.fallen)).toBe(true);
+  });
+});

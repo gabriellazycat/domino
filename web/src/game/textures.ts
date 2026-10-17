@@ -176,6 +176,108 @@ export function woodTexture(base = '#3a2416', dark = '#160b05', seed = 3): THREE
   return tex(c, 1);
 }
 
+/**
+ * Madeira crua de marionete, velha: veio claro, sujeira nas bordas, arranhões, amassados, rachaduras finas
+ * e restos de tinta descascada. Devolve a cor e o relevo (bumpMap) desenhados com os mesmos traços.
+ */
+let wornWoodCache: { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } | null = null;
+export function wornWoodTextures(): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+  if (wornWoodCache) return wornWoodCache;
+  const S = 512;
+  const [c, g] = canvas(S, S);
+  const [cb, b] = canvas(S, S);
+  const r = new Rng(21);
+  g.fillStyle = '#7e6448';
+  g.fillRect(0, 0, S, S);
+  b.fillStyle = '#808080';
+  b.fillRect(0, 0, S, S);
+  // veio: faixas onduladas ao longo de X (claras e escuras), repetidas nas bordas para emendar
+  for (let i = 0; i < 90; i++) {
+    const y = r.float() * S, amp = 2 + r.float() * 6, waves = 1 + Math.floor(r.float() * 4), ph = r.float() * 6;
+    const dark = r.chance(0.6);
+    g.strokeStyle = dark ? '#3e2814' : '#b8946a';
+    g.globalAlpha = dark ? 0.12 + r.float() * 0.22 : 0.08 + r.float() * 0.12;
+    g.lineWidth = 0.8 + r.float() * 3;
+    b.strokeStyle = dark ? '#6a6a6a' : '#949494';
+    b.globalAlpha = 0.5;
+    b.lineWidth = g.lineWidth;
+    for (const oy of [-S, 0, S]) {
+      g.beginPath(); b.beginPath();
+      for (let x = 0; x <= S; x += 8) {
+        const yy = y + oy + Math.sin((x / S) * Math.PI * 2 * waves + ph) * amp;
+        if (x === 0) { g.moveTo(x, yy); b.moveTo(x, yy); } else { g.lineTo(x, yy); b.lineTo(x, yy); }
+      }
+      g.stroke(); b.stroke();
+    }
+  }
+  // nós da madeira
+  for (let i = 0; i < 4; i++) {
+    const x = r.float() * S, y = r.float() * S, rx = 8 + r.float() * 14;
+    for (let k = 4; k >= 1; k--) {
+      g.globalAlpha = 0.18; g.fillStyle = '#2e1c0c';
+      g.beginPath(); g.ellipse(x, y, rx * k / 4 * 1.8, rx * k / 4 * 0.7, 0, 0, Math.PI * 2); g.fill();
+    }
+  }
+  // sujeira/encardido em manchas grandes (o manuseio escureceu a madeira)
+  for (let i = 0; i < 22; i++) {
+    const x = r.float() * S, y = r.float() * S, rad = 30 + r.float() * 110;
+    for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) {
+      const grd = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, rad);
+      grd.addColorStop(0, `rgba(30,18,8,${0.18 + r.float() * 0.2})`);
+      grd.addColorStop(1, 'rgba(30,18,8,0)');
+      g.globalAlpha = 1; g.fillStyle = grd;
+      g.fillRect(x + ox - rad, y + oy - rad, rad * 2, rad * 2);
+    }
+  }
+  // restos de tinta velha (creme e vermelho desbotado), em lascas irregulares com borda escura
+  const flake = (x: number, y: number, rad: number, col: string) => {
+    g.globalAlpha = 0.6; g.fillStyle = col;
+    b.globalAlpha = 1; b.fillStyle = '#a0a0a0';
+    g.beginPath(); b.beginPath();
+    const n = 9;
+    for (let k = 0; k <= n; k++) {
+      const a = (k / n) * Math.PI * 2, rr = rad * (0.55 + r.float() * 0.6);
+      const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr * 0.7;
+      if (k === 0) { g.moveTo(px, py); b.moveTo(px, py); } else { g.lineTo(px, py); b.lineTo(px, py); }
+    }
+    g.fill(); b.fill();
+    g.globalAlpha = 0.5; g.strokeStyle = '#2a1a0c'; g.lineWidth = 1.2; g.stroke();
+  };
+  for (let i = 0; i < 9; i++) flake(r.float() * S, r.float() * S, 5 + r.float() * 14, r.chance(0.7) ? '#a8977a' : '#6e3428');
+  // arranhões (claros na cor, fundos no relevo)
+  for (let i = 0; i < 160; i++) {
+    const x = r.float() * S, y = r.float() * S, a = (r.float() - 0.5) * 1.2 + (r.chance(0.5) ? 0 : Math.PI / 2), len = 6 + r.float() * 40;
+    g.globalAlpha = 0.15 + r.float() * 0.25; g.strokeStyle = r.chance(0.7) ? '#d8bb92' : '#24160a'; g.lineWidth = 0.6 + r.float();
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); g.stroke();
+    b.globalAlpha = 0.6; b.strokeStyle = '#505050'; b.lineWidth = g.lineWidth;
+    b.beginPath(); b.moveTo(x, y); b.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); b.stroke();
+  }
+  // rachaduras compridas no sentido do veio (pretas e fundas)
+  for (let i = 0; i < 7; i++) {
+    let x = r.float() * S, y = r.float() * S;
+    const steps = 10 + Math.floor(r.float() * 18);
+    g.globalAlpha = 0.85; g.strokeStyle = '#120a04'; b.globalAlpha = 1; b.strokeStyle = '#101010';
+    let w = 2.4;
+    g.beginPath(); b.beginPath(); g.moveTo(x, y); b.moveTo(x, y);
+    for (let k = 0; k < steps; k++) {
+      x += 6 + r.float() * 10; y += (r.float() - 0.5) * 6;
+      g.lineTo(x, y); b.lineTo(x, y);
+    }
+    g.lineWidth = w; b.lineWidth = w * 1.6; g.stroke(); b.stroke();
+    w *= 0.5;
+  }
+  // grão fino
+  const img = g.getImageData(0, 0, S, S);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (r.float() - 0.5) * 14;
+    img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n;
+  }
+  g.putImageData(img, 0, 0);
+  g.globalAlpha = 1; b.globalAlpha = 1;
+  wornWoodCache = { map: tex(c, 1), bump: tex(cb, 1, false) };
+  return wornWoodCache;
+}
+
 export function stoneTexture(): THREE.CanvasTexture {
   const S = 256;
   const [c, g] = canvas(S, S);

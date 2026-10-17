@@ -3,7 +3,7 @@ import { PIECES } from '../core/pieces';
 import { Placed } from '../core/layout';
 import { PhaseSpec, ENEMY_RADIUS, ENEMY_HP, ARCHER_RANGE } from '../core/mapgen';
 import { makeDomino, makeEnemy, makeWall, makeTrigger, makeHeadRing, dominoGeometry, ghostMaterial, glow, makeGate, makeLever } from './models';
-import { Sim, BLAST_RADIUS, BURN_TIME, patrolPos, ENEMY_HEIGHT, quatYaw } from './sim';
+import { Sim, BLAST_RADIUS, BURN_TIME, patrolPos, ENEMY_HEIGHT, quatYaw, wanderOffset } from './sim';
 import { jumps, runnerPath, jumpLanding, JUMP_APEX } from '../core/motion';
 import { FaceRig, FaceBase, tiltOfQuat } from './faces';
 import { EnemyFaceRig } from './enemyFaces';
@@ -476,6 +476,12 @@ export class Board {
       else ex = this.mood === 'nervous' ? 'nervous' : 'worried';
       v.face.base = ex;
       v.face.update(dt);
+      // Andarilha passeando enquanto o jogador planeja (mesmo relógio da patrulha e da física)
+      if (planning && v.p.type === 'wander') {
+        const o = wanderOffset(v.p, patrolT);
+        v.mesh.position.set(v.p.x + o.x, PIECES.wander.h / 2, v.p.z + o.z);
+        v.mesh.rotation.set(0, v.p.yaw + o.yaw, 0);
+      }
       if (v.pop < 1) {
         v.pop = Math.min(1, v.pop + dt * 5);
         const x = v.pop;

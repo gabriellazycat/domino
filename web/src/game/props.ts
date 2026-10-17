@@ -91,7 +91,7 @@ export function plinth(w: number): THREE.Group {
 }
 
 /** Vela (acesa ou apagada). Devolve a vela e a chama (para acender/piscar). */
-export function candle(h: number, r = 0.1, lit = true): { g: THREE.Group; flame: THREE.Group; light: THREE.PointLight } {
+export function candle(h: number, r = 0.1, lit = true): { g: THREE.Group; flame: THREE.Group } {
   const g = new THREE.Group();
   mesh(cyl(r * 0.93, r, h, 18), M.wax(), g, 0, h / 2, 0);
   mesh(cyl(r * 1.5, r * 1.7, 0.04, 20), M.wax(), g, 0, 0.02, 0);
@@ -110,10 +110,29 @@ export function candle(h: number, r = 0.1, lit = true): { g: THREE.Group; flame:
   flame.position.y = h + 0.1;
   flame.visible = lit;
   g.add(flame);
-  const light = new THREE.PointLight('#ff8a3a', lit ? 2.5 : 0, 4, 1.8);
-  light.position.y = h + 0.3;
-  g.add(light);
-  return { g, flame, light };
+  return { g, flame };
+}
+
+// Luz dos eventos: UMA PointLight fixa, sempre na cena. O three.js recompila todos os shaders quando o
+// número de luzes muda; criar/remover luzes ao entrar e sair de um evento travava o jogo por instantes.
+const eventLight = new THREE.PointLight('#ff8a3a', 0, 4, 1.8);
+let lightHome: THREE.Object3D | null = null;
+/** Põe a luz dos eventos na cena (uma vez, na partida). */
+export function installEventLight(scene: THREE.Object3D) { lightHome = scene; scene.add(eventLight); }
+/** O evento "empresta" a luz: ela passa a filha de `parent`, sem sair da cena. */
+export function borrowLight(parent: THREE.Object3D, color: string, intensity: number, distance: number, decay: number, pos: THREE.Vector3): THREE.PointLight {
+  eventLight.color.set(color);
+  eventLight.intensity = intensity;
+  eventLight.distance = distance;
+  eventLight.decay = decay;
+  eventLight.position.copy(pos);
+  parent.add(eventLight);
+  return eventLight;
+}
+/** Devolve a luz à cena, apagada. */
+export function returnLight() {
+  eventLight.intensity = 0;
+  if (lightHome && eventLight.parent !== lightHome) lightHome.add(eventLight);
 }
 
 /** Frasco de vidro com remédio vermelho e rolha. */
@@ -429,9 +448,7 @@ export function altar(ballZ = 0): Altar {
   const halo = glowSprite('#9a6aff', 2.6, 0.35);
   halo.position.copy(ballPos);
   g.add(halo);
-  const ballLight = new THREE.PointLight('#9a6aff', 6, 6, 1.6);
-  ballLight.position.copy(ballPos);
-  g.add(ballLight);
+  const ballLight = borrowLight(g, '#9a6aff', 6, 6, 1.6, ballPos);
   // velas em volta
   const flames: THREE.Group[] = [];
   for (const [x, z, h] of [[-3.0, -1.4, 0.8], [3.0, -1.4, 0.7], [-2.6, 2.0, 0.5], [2.6, 2.0, 0.6], [0, -2.9, 0.9]] as const) {

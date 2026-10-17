@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { PIECES, PieceId, FORK_OFFSET } from '../core/pieces';
+import { PIECES, PieceId, splitOffsets } from '../core/pieces';
 import type { SealId } from '../core/cards';
 import { makeDomino } from './models';
 import { FaceRig, FaceBase } from './faces';
@@ -156,7 +156,7 @@ export class HandRender {
       }
       pose.add(m);
     };
-    if (type === 'fork') { add(-FORK_OFFSET * 0.75); add(FORK_OFFSET * 0.75); } else add(0);
+    for (const o of splitOffsets(type)) add(o * 0.75);
     return { outer, faces, outlines, type: ghost ? null : type, h: d.h, look: Math.random() < 0.5 ? 'lookL' : 'lookR' };
   }
 

@@ -24,6 +24,17 @@ const KICK = 4.6; // rad/s para peça de 0,8 m
 const STANDING = (25 * Math.PI) / 180;
 const FALLEN = (50 * Math.PI) / 180;
 const SPLASH_R = 0.85;
+/** Andarilha: quanto ela passeia para o lado (m), o giro (rad) e o período (s). */
+export const WANDER_AMP = 0.2;
+export const WANDER_YAW = 0.35;
+export const WANDER_PERIOD = 3;
+
+/** Deslocamento lateral e giro da Andarilha no instante `t` (mesmo relógio da patrulha). */
+export function wanderOffset(p: Placed, t: number): { x: number; z: number; yaw: number } {
+  const k = Math.sin(((t + p.id * 0.37) / WANDER_PERIOD) * Math.PI * 2);
+  const ax = Math.cos(p.yaw), az = -Math.sin(p.yaw);
+  return { x: ax * WANDER_AMP * k, z: az * WANDER_AMP * k, yaw: WANDER_YAW * Math.sin(((t + p.id * 0.37) / WANDER_PERIOD) * Math.PI * 4) };
+}
 
 export type Cause = 'piece' | 'heavy' | 'blast' | 'body' | 'splash' | 'runner';
 type Owner = { kind: 'piece' | 'enemy'; i: number; v: number };
@@ -70,6 +81,10 @@ export interface SimPiece {
   guided?: boolean;
   /** corrida do Foguete / salto em andamento (corpo cinemático seguindo o roteiro) */
   motion: Motion | null;
+  /** Teimosa: já levou o golpe que a solta (Pesada, Explosiva, explosão, Ogro) */
+  freed?: boolean;
+  /** vizinha de uma Ciumenta: perde o poder e cai como Comum */
+  muted?: boolean;
 }
 
 type Motion =
@@ -203,8 +218,11 @@ export class Sim {
       const body = this.world.createRigidBody(
         RAPIER.RigidBodyDesc.dynamic().setTranslation(p.x, d.h / 2 + 0.001, p.z).setRotation(q)
           .setCanSleep(true).setSleeping(true).setCcdEnabled(true).setAngularDamping(0.05));
+      // Teimosa: pregada no lugar (não gira) até levar um golpe forte; Andarilha: passeia (cinemática) até ser tocada
+      if (p.type === 'metal') body.lockRotations(true, false);
+      if (p.type === 'wander') body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, false);
       const cd = RAPIER.ColliderDesc.cuboid(d.w / 2, d.h / 2, d.t / 2).setFriction(0.6).setRestitution(0.02)
-        .setDensity(p.type === 'heavy' ? 14 : 6).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
+        .setDensity(p.type === 'heavy' ? 14 : p.type === 'metal' ? 40 : 6).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
       // quem corre/salta vira cinemático: precisa sentir também os patrulheiros (cinemáticos)
       if (p.type === 'runner' || jumps(p)) cd.setActiveCollisionTypes(RAPIER.ActiveCollisionTypes.DEFAULT | RAPIER.ActiveCollisionTypes.KINEMATIC_KINEMATIC);
       const col = this.world.createCollider(cd, body);
@@ -214,6 +232,11 @@ export class Sim {
     layout.forEach((p, i) => {
       if (!this.childIdx.has(p.parent)) this.childIdx.set(p.parent, []);
       this.childIdx.get(p.parent)!.push(i);
+    });
+    // Ciumenta: a mãe e as filhas dela perdem o poder
+    layout.forEach((p) => {
+      if (p.type !== 'jealous') return;
+      for (const s of this.pieces) if (s.p.id === p.parent || s.p.parent === p.id) s.muted = s.p.type !== 'jealous';
     });
 
     spec.enemies.forEach((e, i) => {
@@ -237,7 +260,24 @@ export class Sim {
     });
   }
 
-  get alive(): number { return this.enemies.filter((e) => e.alive).length; }
+  /** Inimigos de pé + Capangas de pé (a Capanga maldita conta como inimigo). */
+  get alive(): number { return this.enemies.filter((e) => e.alive).length + this.minionsUp(); }
+
+  minionsUp(): number {
+    let n = 0;
+    for (const s of this.pieces) if (s.p.type === 'minion' && !s.fallen && s.burned < 0 && s.crushed < 0) n++;
+    return n;
+  }
+
+  /** Tipo efetivo (vizinha da Ciumenta vira Comum). */
+  typeOf(s: SimPiece): string { return s.muted ? 'common' : s.p.type; }
+
+  /** Solta a Teimosa (golpe forte): volta a girar e cair. */
+  private free(s: SimPiece) {
+    if (s.p.type !== 'metal' || s.freed) return;
+    s.freed = true;
+    s.body.lockRotations(false, true);
+  }
 
   fire() {
     if (this.fired || !this.pieces.length) return;
@@ -249,8 +289,21 @@ export class Sim {
 
   /** A onda chegou na peça: tomba (comum), corre (Foguete) ou salta (Saltadora/Mola). */
   private activate(s: SimPiece, i: number) {
-    if (s.p.type === 'runner') this.startRun(s, i);
+    if (s.p.type === 'wander') {
+      s.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+      s.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    }
+    if (s.muted) this.kickPiece(s, 1.0);
+    else if (s.p.type === 'runner') this.startRun(s, i);
     else if (jumps(s.p)) this.startJump(s, i);
+    // Capanga é derrubada como soldado: voa para TRÁS, por cima de quem a acertou — a onda morre nela
+    else if (s.p.type === 'minion') {
+      const [fx, fz] = facingOf(s.body.rotation());
+      s.kicked = true;
+      s.body.wakeUp();
+      s.body.setLinvel({ x: -fx * 2.4, y: 3.2, z: -fz * 2.4 }, true);
+      s.body.setAngvel({ x: -fz * 9, y: i % 2 ? 4 : -4, z: fx * 9 }, true);
+    }
     else this.kickPiece(s, 1.0);
   }
 
@@ -356,6 +409,13 @@ export class Sim {
       e.body.setNextKinematicRotation(quatYaw(pp.yaw));
     }
     this.driveMotions();
+    // Andarilha: passeia para fora da linha e volta, até a onda encostar
+    for (const s of this.pieces) {
+      if (s.p.type !== 'wander' || s.kicked || s.touched || s.burned >= 0 || s.crushed >= 0) continue;
+      const o = wanderOffset(s.p, this.patrolOffset + this.t);
+      s.body.setNextKinematicTranslation({ x: s.p.x + o.x, y: PIECES[s.p.type].h / 2 + 0.001, z: s.p.z + o.z });
+      s.body.setNextKinematicRotation(quatYaw(s.p.yaw + o.yaw));
+    }
     for (const g of this.gates) {
       if (g.openAt < 0) continue;
       const k = gateOpenness(g.spec, this.t - g.openAt);
@@ -384,13 +444,13 @@ export class Sim {
       const s = this.pieces[i];
       const q = s.body.rotation();
       const tilt = tiltOf(q);
-      if (s.touched && !s.kicked && tilt < STANDING && this.fired) {
+      if (s.touched && !s.kicked && tilt < STANDING && this.fired && (s.p.type !== 'metal' || s.freed)) {
         this.activate(s, i);
         this.ev.pieceTouch?.(i);
       }
       // Torre: queda guiada no eixo planejado (alta e fina, um golpe torto a girava e a ponta errava
       // a próxima peça a 1,15 m). Só o giro em torno do eixo de tombo fica; o deslize de lado some.
-      if (s.p.type === 'tower' && s.guided && s.launched < 0 && tilt < 1.35 && s.burned < 0 && !s.exploded) {
+      if (s.p.type === 'tower' && !s.muted && s.guided && s.launched < 0 && tilt < 1.35 && s.burned < 0 && !s.exploded) {
         const ax = Math.cos(s.p.yaw), az = -Math.sin(s.p.yaw);
         const w = s.body.angvel(), v = s.body.linvel();
         const k = Math.max(0, w.x * ax + w.z * az);
@@ -417,9 +477,9 @@ export class Sim {
           if (ty > ENEMY_HEIGHT[e.spec.kind] + 0.1) continue;
           if (Math.hypot(ep.x - tx, ep.z - tz) < ENEMY_RADIUS[e.spec.kind] + 0.1) {
             if (e.spec.patrol) { if (tilt < 0.6) continue; }
-            const dmg = pieceDamage(s.p.type);
+            const dmg = pieceDamage(this.typeOf(s));
             this.hit(e, i, dmg, tr, dmg > 1 ? 'heavy' : 'piece');
-            if (s.p.type === 'blast' && s.blastArm < 0) s.blastArm = this.t + 0.02;
+            if (this.typeOf(s) === 'blast' && s.blastArm < 0) s.blastArm = this.t + 0.02;
           }
         }
       }
@@ -479,7 +539,7 @@ export class Sim {
     const m = sa >= sb ? a! : b!;
     const body = m.kind === 'piece' ? this.pieces[m.i].body : this.enemies[m.i].body;
     const t = body.translation();
-    const material = m.kind === 'enemy' ? 'toy' : this.pieces[m.i].p.type === 'heavy' ? 'metal' : 'wood';
+    const material = m.kind === 'enemy' ? 'toy' : (this.pieces[m.i].p.type === 'heavy' || this.pieces[m.i].p.type === 'metal') ? 'metal' : 'wood';
     this.ev.impact(speed, t.x, t.y, t.z, material);
   }
 
@@ -490,7 +550,13 @@ export class Sim {
       if (!other) return; // chão/muro/estático nunca derruba
       if (other.kind === 'piece') {
         const o = this.pieces[other.i];
-        if (o.kicked || o.fallen || o.launched >= 0 || !o.body.isSleeping()) s.touched = true;
+        // Andarilha passeando é cinemática (nunca "dorme"): só conta depois de tocada
+        if (o.kicked || o.fallen || o.launched >= 0 || (!o.body.isSleeping() && !(o.p.type === 'wander' && !o.touched))) {
+          s.touched = true;
+          // Teimosa só cede a Pesada ou Explosiva caindo em cima
+          const ot = this.typeOf(o);
+          if (s.p.type === 'metal' && o.kicked && (ot === 'heavy' || ot === 'blast')) this.free(s);
+        }
       } else {
         const e = this.enemies[other.i];
         if (e.spec.patrol && e.alive) {
@@ -504,7 +570,7 @@ export class Sim {
         } else if (!e.alive) {
           s.touched = true; // corpo arremessado derruba peça
         }
-        if (s.p.type === 'blast' && e.alive && !s.exploded && s.blastArm < 0) s.blastArm = this.t + 0.02;
+        if (this.typeOf(s) === 'blast' && e.alive && !s.exploded && s.blastArm < 0) s.blastArm = this.t + 0.02;
       }
     } else {
       const e = this.enemies[me.i];
@@ -519,7 +585,7 @@ export class Sim {
           const lv = s.body.linvel(), av = s.body.angvel();
           if (s.body.isSleeping() || Math.hypot(lv.x, lv.y, lv.z) < 0.25 && Math.hypot(av.x, av.y, av.z) < 0.6) return;
         }
-        const dmg = pieceDamage(s.p.type);
+        const dmg = pieceDamage(this.typeOf(s));
         this.hit(e, other.i, dmg, s.body.translation(), dmg > 1 ? 'heavy' : s.launched >= 0 ? 'runner' : 'piece');
         // o Foguete trava em quem aguenta o golpe (Brutamontes, Ogro): a corrente morre ali
         if (e.alive && s.motion?.kind === 'run') this.endMotion(other.i, false);
@@ -612,7 +678,7 @@ export class Sim {
     for (const s of this.pieces) {
       if (s.kicked || s.burned >= 0 || s.crushed >= 0) continue;
       const p = s.body.translation();
-      if (inLane(p.x, p.z, 0.2)) s.touched = true;
+      if (inLane(p.x, p.z, 0.2)) { s.touched = true; this.free(s); }
     }
     this.ev.ogreSlam?.(sl.e, sl.x + sl.dx * OGRE_REACH * 0.6, sl.z + sl.dz * OGRE_REACH * 0.6, sl.dx, sl.dz);
   }
@@ -706,11 +772,13 @@ export class Sim {
       const d = Math.hypot(dx, dz);
       if (d > BLAST_RADIUS || j === i || o.burned >= 0) continue;
       const k = 1 - d / BLAST_RADIUS;
+      this.free(o);
+      if (o.p.type === 'wander' && !o.kicked) o.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
       o.body.wakeUp();
       const nx = d > 1e-3 ? dx / d : 0, nz = d > 1e-3 ? dz / d : 0;
       o.body.applyImpulse({ x: nx * k * 0.9 * o.body.mass() * 4, y: k * o.body.mass() * 4.5, z: nz * k * 0.9 * o.body.mass() * 4 }, true);
       o.kicked = true;
-      if (o.p.type === 'blast' && !o.exploded) this.pendingBlast.push({ i: j, at: this.t + 0.14 });
+      if (this.typeOf(o) === 'blast' && !o.exploded) this.pendingBlast.push({ i: j, at: this.t + 0.14 });
     }
     // o próprio dominó voa
     s.body.applyImpulse({ x: 0, y: s.body.mass() * 3, z: 0 }, true);

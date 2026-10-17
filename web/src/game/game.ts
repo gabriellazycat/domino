@@ -7,12 +7,16 @@ import { Decals } from './decals';
 import { audio } from './audio';
 import { Sim, SimEnemy, Cause, BURN_TIME } from './sim';
 import { UI } from '../ui/ui';
-import { generatePhase, PhaseSpec, ENEMY_HP, wallExtents } from '../core/mapgen';
+import { generatePhase, PhaseSpec, ENEMY_HP, wallExtents, EnemyKind } from '../core/mapgen';
 import { Layout, FAIL_TEXT, Fail, Placed } from '../core/layout';
 import { CardMove, ScreenPt } from '../ui/handview';
 import { DrawPile } from '../core/draw';
 import { Rng, hash2 } from '../core/rng';
-import { PIECES, emptyDeck } from '../core/pieces';
+import { PIECES, PieceId, emptyDeck, splits } from '../core/pieces';
+import { makeWall, makeGate, makeLever, makeTrigger, makeHeadRing, makeEnemy, makeDomino } from './models';
+import { FaceRig } from './faces';
+import { curseLine } from './curseTalk';
+import * as P from './props';
 import { RunState, newRun, saveRun, loadRun, clearSave, runRng, saveRng, addItems, damage, runDeck } from '../core/run';
 import { Card, Kind, kindType, kindName, kindRank } from '../core/cards';
 import { buffLevel, buffMaxed, BUFF_ORDER } from '../core/buffs';
@@ -125,6 +129,8 @@ export class Game {
     });
     this.applySettings();
     this.bindInput(canvas);
+    P.installEventLight(this.world.scene);
+    this.warmUp();
     this.enterMenu();
     let last = performance.now();
     const loop = (now: number) => {
@@ -137,6 +143,50 @@ export class Game {
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
+  }
+
+  /**
+   * Compila de antemão os shaders e sobe as texturas de tudo que aparece na troca de fase (mão, peças,
+   * inimigos, muros, porteira, bola do altar). Sem isso, a primeira vez que cada coisa entra na tela
+   * compila o shader no meio da transição e o jogo trava.
+   */
+  private warmUp() {
+    const w = new THREE.Group();
+    const wallBase = { x: 0, z: 0, w: 1, d: 0.4, h: 0.6 };
+    for (const style of ['stone', 'hedge', 'crate'] as const) w.add(makeWall({ ...wallBase, style }));
+    w.add(makeGate({ x: 0, z: 0, w: 1, d: 0.2, h: 0.8, lever: { x: 1, z: 0 }, open: 3 }), makeLever(1, 0, 0), makeTrigger(), makeHeadRing());
+    for (const kind of Object.keys(ENEMY_HP) as EnemyKind[]) w.add(makeEnemy(kind));
+    for (const id of Object.keys(PIECES) as PieceId[]) {
+      const m = makeDomino(id, 1, []);
+      m.add(new FaceRig(id, false).mesh);
+      w.add(m);
+    }
+    // os três eventos, montados de verdade com uma interface "muda" (só para aquecer, nada é mostrado)
+    const noop: any = new Proxy({}, { get: (_t, k) => (k === 'root' ? document.createElement('div') : () => undefined) });
+    const evs: EventScene[] = [];
+    for (const kind of ['shop', 'press', 'mystic', 'curse'] as const) {
+      try {
+        const ev = createEvent(kind, { scene: this.world.scene, camera: this.world.camera, rig: noop, run: newRun(1), ui: noop, fx: noop,
+          say: () => undefined, refresh: () => undefined, setCursor: () => undefined, leave: () => undefined, deck: () => undefined });
+        ev.start();
+        evs.push(ev);
+      } catch { /* aquecer é só otimização */ }
+    }
+    const handWasVisible = this.hand.root.visible;
+    this.hand.root.visible = true;
+    this.world.scene.add(w);
+    try {
+      this.world.renderer.compile(this.world.scene, this.world.camera);
+      w.traverse((o) => {
+        const mats = (o as THREE.Mesh).material;
+        for (const m of Array.isArray(mats) ? mats : mats ? [mats] : []) for (const v of Object.values(m)) if (v instanceof THREE.Texture) this.world.renderer.initTexture(v);
+      });
+    } catch { /* aquecer é só otimização */ }
+    try { this.world.render(0, 0); } catch { /* idem */ }
+    this.world.scene.remove(w);
+    for (const ev of evs) ev.dispose();
+    P.returnLight();
+    this.hand.root.visible = handWasVisible;
   }
 
   // ================= configurações =================
@@ -253,6 +303,7 @@ export class Game {
   newHand() {
     if (this.mode !== 'planning') return;
     this.cancelTrail();
+    if (this.layout.cursedInHand()) { audio.ui('deny'); this.ui.toast('A peça maldita precisa ir para a mesa antes da Nova mão!'); this.ui.hand.nudge(); return; }
     const keep = new Set(this.layout.entries.filter((e) => e.card.seals.includes('guard')).map((e) => e.card.uid));
     const recycling = this.layout.recycle && this.layout.entries.length > keep.size;
     const drawn = this.layout.newHand(this.handSize());
@@ -288,9 +339,9 @@ export class Game {
   private cardMoves(list: Placed[]): CardMove[] {
     const out: CardMove[] = [];
     for (const p of list) {
-      if (p.pair && p.pair < p.id) continue;
-      const mate = p.pair ? list.find((q) => q.id === p.pair) : undefined;
-      const x = mate ? (p.x + mate.x) / 2 : p.x, z = mate ? (p.z + mate.z) / 2 : p.z;
+      if (p.group ? p.group[0] !== p.id : p.pair && p.pair < p.id) continue;
+      const mates = p.group ? list.filter((q) => p.group!.includes(q.id)) : p.pair ? list.filter((q) => q.id === p.id || q.id === p.pair) : [p];
+      const x = mates.reduce((a, q) => a + q.x, 0) / mates.length, z = mates.reduce((a, q) => a + q.z, 0) / mates.length;
       out.push({ card: p.card ?? { uid: -p.id, type: p.type, seals: [] }, at: this.screenAt(x, PIECES[p.type].h / 2, z) });
     }
     return out;
@@ -311,7 +362,7 @@ export class Game {
     // prefere o mesmo tipo (sem selo primeiro), depois qualquer peça que não seja bifurcação
     const kinds = this.layout.kinds().sort((a, b) => kindRank(a) - kindRank(b));
     const t = kindType(this.selected);
-    const next = kinds.find((k) => kindType(k) === t) ?? kinds.find((k) => kindType(k) !== 'fork') ?? kinds[0];
+    const next = kinds.find((k) => kindType(k) === t) ?? kinds.find((k) => !splits(kindType(k))) ?? kinds[0];
     if (next) this.selected = next;
   }
 
@@ -328,8 +379,8 @@ export class Game {
       // o clique coloca a trilha e encerra o traço: para continuar, clica-se de novo na ponta
       this.cancelTrail();
       this.autoDraw();
-      if (r.stroke?.done && kindType(this.selected) === 'fork') {
-        this.ui.toast('Bifurcou! Continue de cada ponta brilhante', true);
+      if (r.stroke?.done && splits(kindType(this.selected))) {
+        this.ui.toast(kindType(this.selected) === 'trifork' ? 'Trifurcou! Continue de cada ponta brilhante' : 'Bifurcou! Continue de cada ponta brilhante', true);
         this.ensureSelection();
       }
       return;
@@ -362,7 +413,7 @@ export class Game {
     }
     this.board.setTrail(r.placed);
     this.board.setPaths([...this.layout.pieces, ...r.placed]);
-    this.ui.hand.preview(this.selected, r.placed.filter((p) => !(p.pair && p.pair < p.id)).length);
+    this.ui.hand.preview(this.selected, r.placed.filter((p) => !(p.group ? p.group[0] !== p.id : p.pair && p.pair < p.id)).length);
     if (r.fail) this.failFeedback(r.fail, r.ghost ?? null);
     else this.board.showGhost(null);
   }
@@ -379,6 +430,7 @@ export class Game {
     for (const p of list) {
       this.board.addPiece(p);
       audio.place(this.layout.pieces.length);
+      if (PIECES[p.type].cursed && Math.random() < 0.7) this.curseTalk(p.type, 'placed', p.x, p.z);
     }
     // a Dupla continua na mão até a segunda peça sair dela
     const moves = this.cardMoves(list);
@@ -396,7 +448,7 @@ export class Game {
 
   private failFeedback(f: Fail, ghost: { x: number; z: number; yaw: number } | null) {
     const st = kindType(this.selected);
-    this.board.showGhost(ghost, st === 'fork' ? 'common' : st);
+    this.board.showGhost(ghost, splits(st) ? 'common' : st);
     const now = this.realT;
     if (f !== this.lastFail || now - this.lastFailT > 1.2) {
       this.ui.toast(f === 'empty' ? this.emptyText() : FAIL_TEXT[f]);
@@ -595,6 +647,7 @@ export class Game {
     const sim = new Sim(spec, layout.pieces, patrolT, {
       pieceFall: (i, x, _y, z, chain) => {
         const p = sim.pieces[i].p;
+        if (PIECES[p.type].cursed && Math.random() < 0.35) this.curseTalk(p.type, 'fall', x, z);
         audio.clack(chain, p.type === 'heavy' || p.type === 'tower' ? 1.3 : 1, x);
         this.fx.dust(x, z, PIECES[p.type].h / 0.8);
         this.rig.addTrauma(p.type === 'tower' ? 0.18 : p.type === 'heavy' ? 0.1 : 0.035);
@@ -721,11 +774,17 @@ export class Game {
   }
 
   /** O "dono da mesa" comenta num balão de tinta. No máximo um comentário a cada 4 s (sem virar ruído). */
+  private lastCurseTalk = -9;
+  private nextCurseChat = 10;
+
   private say(lines: string[], force = false) {
     if (!force && this.realT - this.lastSayT < 4) return;
     this.lastSayT = this.realT;
     const p = this.world.maskScreenPos();
-    this.ui.speak(p.x, p.y, lines[Math.floor(Math.random() * lines.length)]);
+    const line = lines[Math.floor(Math.random() * lines.length)];
+    this.ui.speak(p.x, p.y, line);
+    // o queixo do boneco bate enquanto a frase aparece
+    this.world.backdrop.talk(THREE.MathUtils.clamp(line.length * 0.045, 0.8, 2.4));
   }
 
   /** Impacto físico entre dois corpos: som de acordo com a velocidade e poeira nos choques fortes (com limite por frame). */
@@ -952,6 +1011,7 @@ export class Game {
       setCursor: (c) => this.setCursor(c === 'pointer' ? 'pointer' : CURSOR_QUILL),
       leave: () => this.leaveEvent(),
       deck: () => this.openDeck(),
+      watcher: (m) => { this.world.backdrop.mood = m; },
     });
     this.event.start();
     audio.setMusic(true, 0);
@@ -1152,8 +1212,30 @@ export class Game {
   }
 
   // ================= loop =================
+  /** Balãozinho de uma peça maldita na mesa (com limite: no máximo um a cada 2,5 s). */
+  private curseTalk(type: PieceId, kind: 'idle' | 'placed' | 'fall', x: number, z: number) {
+    if (this.realT - this.lastCurseTalk < 2.5) return;
+    const line = curseLine(type, kind);
+    if (!line) return;
+    this.lastCurseTalk = this.realT;
+    const s = this.screenAt(x, PIECES[type].h + 0.2, z);
+    this.ui.pieceSpeak(s.x, s.y, line);
+  }
+
+  /** Planejando: de vez em quando (raramente) uma maldita da mesa resmunga. */
+  private curseChatter(dt: number) {
+    this.nextCurseChat -= dt;
+    if (this.nextCurseChat > 0) return;
+    this.nextCurseChat = 10;
+    if (Math.random() > 0.12) return;
+    const list = this.layout?.pieces.filter((p) => PIECES[p.type].cursed) ?? [];
+    const p = list[Math.floor(Math.random() * list.length)];
+    if (p) this.curseTalk(p.type, 'idle', p.x, p.z);
+  }
+
   update(dt: number) {
     this.realT += dt;
+    if (this.mode === 'planning') this.curseChatter(dt);
     this.impactBudget = 6;
     this.checkPerformance();
     this.world.setLensTarget(this.settings.dof && this.mode === 'sim' ? 1 : 0);

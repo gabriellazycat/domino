@@ -1,4 +1,4 @@
-import { PIECE_ORDER, PieceId, Deck, FORK_OFFSET, emptyDeck } from './pieces';
+import { PIECE_ORDER, PieceId, Deck, emptyDeck, isCursed, splits, splitOffsets } from './pieces';
 import { DrawPile } from './draw';
 import { Card, Kind, kindOf, kindType, usesOf } from './cards';
 import { BOARD, BOARD_MARGIN, ENEMY_RADIUS, PhaseSpec, rectDist } from './mapgen';
@@ -14,6 +14,8 @@ export interface Placed {
   parent: number; // -1 = raiz (gatilho)
   stroke: number;
   pair?: number; // meia-peça irmã (bifurcação)
+  /** trifurcação: ids das 3 meias-peças (a primeira é a "dona" do grupo) */
+  group?: number[];
   /** a peça da caixa que virou esta peça na mesa (selos, ouro da Dourada) */
   card?: Card;
 }
@@ -89,6 +91,8 @@ export class Layout {
   uses(kind: Kind): number { let n = 0; for (const e of this.entries) if (e.kind === kind) n += e.left; return n; }
   has(kind: Kind): boolean { return this.entries.some((e) => e.kind === kind && e.left > 0); }
   inHand(uid: number): boolean { return this.entries.some((e) => e.card.uid === uid); }
+  /** Tem peça maldita na mão: a Nova mão fica travada até ela ir para a mesa. */
+  cursedInHand(): boolean { return this.entries.some((e) => isCursed(e.card.type)); }
   /** Kinds na mão, na ordem em que aparecem. */
   kinds(): Kind[] {
     const out: Kind[] = [];
@@ -175,7 +179,7 @@ export class Layout {
       const placed = this.placeAt(kind, t.x, t.z, t.yaw, -1, id, new Set());
       if ('fail' in placed) return { fail: placed.fail };
       const last = placed.list[placed.list.length - 1];
-      return { stroke: { head: last.id, done: type === 'fork', id }, placed: placed.list };
+      return { stroke: { head: last.id, done: splits(type), id }, placed: placed.list };
     }
     const h = this.nearestHead(x, z, 0.65);
     if (!h) return { fail: 'nohead' };
@@ -208,7 +212,7 @@ export class Layout {
       // bifurcação nasce alinhada à ponta: as duas metades ficam dentro da faixa de queda dela.
       // Torre depois de Torre também vai reta (o golpe de lado desvia a queda).
       const long = o.kind === 'fall' && step > 0.6;
-      const turn = type === 'fork' || (long && type === 'tower') ? 0 : long ? LONG_TURN : MAX_TURN;
+      const turn = splits(type) || (long && type === 'tower') ? 0 : long ? LONG_TURN : MAX_TURN;
       const diff = Math.max(-turn, Math.min(turn, wrapAngle(desired - o.yaw)));
       const yaw = wrapAngle(o.yaw + diff);
       // a queda é reta na direção da ponta; só o giro da peça nova muda (salto e corrida idem)
@@ -216,7 +220,7 @@ export class Layout {
       let nx = o.x + fx * step, nz = o.z + fz * step;
       if (long && this.fallBlocked(o.x, o.z, fx, fz, step)) return { placed: out, fail: 'wall', ghost: { x: nx, z: nz, yaw } };
       // caiu em cima da grade da porteira: a peça vai um pouco além dela (a queda da anterior ainda alcança)
-      if (o.kind === 'fall' && step < 0.6 && type !== 'fork' && this.check(nx, nz, new Set([h.id])) === 'gate') {
+      if (o.kind === 'fall' && step < 0.6 && !splits(type) && this.check(nx, nz, new Set([h.id])) === 'gate') {
         for (const d of [0.12, 0.2, 0.26]) {
           if (this.check(nx + fx * d, nz + fz * d, new Set([h.id])) === null) { nx += fx * d; nz += fz * d; break; }
         }
@@ -225,7 +229,7 @@ export class Layout {
       if ('fail' in res) return { placed: out, fail: res.fail, ghost: { x: nx, z: nz, yaw } };
       out.push(...res.list);
       st.head = res.list[res.list.length - 1].id;
-      if (type === 'fork') st.done = true;
+      if (splits(type)) st.done = true;
     }
     return { placed: out };
   }
@@ -268,19 +272,19 @@ export class Layout {
     if (!e) return { fail: 'empty' };
     const type = e.card.type;
     let list: Placed[];
-    if (type === 'fork') {
+    if (splits(type)) {
       const px = Math.cos(yaw), pz = -Math.sin(yaw);
-      const a = { x: x + px * FORK_OFFSET, z: z + pz * FORK_OFFSET };
-      const b = { x: x - px * FORK_OFFSET, z: z - pz * FORK_OFFSET };
-      const fa = this.check(a.x, a.z, ignore), fb = this.check(b.x, b.z, ignore);
-      if (fa || fb) return { fail: (fa || fb)! };
-      const pa: Placed = { id: this.nextId++, type, x: a.x, z: a.z, yaw, parent, stroke, card: e.card };
-      const pb: Placed = { id: this.nextId++, type, x: b.x, z: b.z, yaw, parent, stroke, card: e.card };
-      pa.pair = pb.id; pb.pair = pa.id;
-      list = [pa, pb];
+      // da direita para a esquerda (mesma ordem da bifurcação: offset negativo = +x local)
+      const spots = splitOffsets(type).map((o) => ({ x: x - px * o, z: z - pz * o }));
+      for (const s of spots) { const f = this.check(s.x, s.z, ignore); if (f) return { fail: f }; }
+      list = spots.map((s) => ({ id: this.nextId++, type, x: s.x, z: s.z, yaw, parent, stroke, card: e.card }));
+      if (list.length === 2) { list[0].pair = list[1].id; list[1].pair = list[0].id; }
+      else { const ids = list.map((p) => p.id); for (const p of list) p.group = ids; }
     } else {
       const f = this.check(x, z, ignore);
       if (f) return { fail: f };
+      // Torta: dá um pulinho e vira 90° (para o lado mais livre; empate = sorteio pelo id)
+      if (type === 'crooked') yaw = this.crookedYaw(x, z, yaw, ignore);
       list = [{ id: this.nextId++, type, x, z, yaw, parent, stroke, card: e.card }];
     }
     this.pieces.push(...list);
@@ -289,6 +293,15 @@ export class Layout {
     this.recount();
     this.placedCards++;
     return { list };
+  }
+
+  private crookedYaw(x: number, z: number, yaw: number, ignore: Set<number>): number {
+    const sides = this.nextId % 2 ? [1, -1] : [-1, 1];
+    for (const sd of sides) {
+      const y = wrapAngle(yaw + sd * Math.PI / 2);
+      if (this.check(x + Math.sin(y) * 0.38, z + Math.cos(y) * 0.38, ignore) === null) return y;
+    }
+    return wrapAngle(yaw + sides[0] * Math.PI / 2);
   }
 
   /** Uma peça tirada da mesa volta para a mão (a Dupla recupera o uso que tinha gastado). */
@@ -303,7 +316,8 @@ export class Layout {
   removeHead(id: number): number[] {
     const p = this.get(id);
     if (!p) return [];
-    const group = p.pair ? [p, this.get(p.pair)].filter(Boolean) as Placed[] : [p];
+    const group = p.group ? p.group.map((id) => this.get(id)).filter(Boolean) as Placed[]
+      : p.pair ? [p, this.get(p.pair)].filter(Boolean) as Placed[] : [p];
     if (group.some((g) => this.locked(g) || this.children(g.id).length > 0)) return [];
     const ids = group.map((g) => g.id);
     this.pieces = this.pieces.filter((q) => !ids.includes(q.id));

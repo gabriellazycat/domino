@@ -4,7 +4,7 @@ import { PieceId, PIECE_ORDER, PIECES, Deck, emptyDeck } from './pieces';
 // "Kind" = tipo + selos: é o que se escolhe na mão (duas Comuns sem selo são a mesma escolha;
 // uma Comum com Dupla é outra).
 
-export type SealId = 'guard' | 'double' | 'lucky' | 'first' | 'gold';
+export type SealId = 'guard' | 'double' | 'lucky' | 'first' | 'gold' | 'spring';
 
 export interface SealDef {
   id: SealId;
@@ -22,8 +22,9 @@ export const SEALS: Record<SealId, SealDef> = {
   lucky: { id: 'lucky', name: 'Sortuda', desc: 'Quando sai da caixa, traz mais uma peça junto.', ink: '#3a8a46', price: 22 },
   first: { id: 'first', name: 'Primeira', desc: 'Sempre vem na primeira mão da fase.', ink: '#6d42b0', price: 18 },
   gold: { id: 'gold', name: 'Dourada', desc: '+3 de ouro em cada fase vencida em que ela foi colocada.', ink: '#b0861e', price: 16 },
+  spring: { id: 'spring', name: 'Mola', desc: 'Ao ser derrubada, a peça SALTA por cima de muros antes de cair. A próxima nasce do outro lado.', ink: '#1f8a7a', price: 30 },
 };
-export const SEAL_ORDER: SealId[] = ['guard', 'double', 'lucky', 'first', 'gold'];
+export const SEAL_ORDER: SealId[] = ['guard', 'double', 'lucky', 'first', 'gold', 'spring'];
 export const MAX_SEALS = 2;
 
 export interface Card { uid: number; type: PieceId; seals: SealId[] }
@@ -49,7 +50,11 @@ export function kindName(k: Kind): string {
 
 /** Quantas peças uma carta põe na mesa (Dupla = 2). */
 export function usesOf(c: Card): number { return c.seals.includes('double') ? 2 : 1; }
-export function canSeal(c: Card, s: SealId): boolean { return c.seals.length < MAX_SEALS && !c.seals.includes(s); }
+export function canSeal(c: Card, s: SealId): boolean {
+  // Mola não combina com quem já se move sozinho (Foguete, Saltadora) nem com as meias-peças da Bifurcação
+  if (s === 'spring' && (c.type === 'runner' || c.type === 'jumper' || c.type === 'fork')) return false;
+  return c.seals.length < MAX_SEALS && !c.seals.includes(s);
+}
 
 export function deckOf(cards: readonly Card[]): Deck {
   const d = emptyDeck();

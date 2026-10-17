@@ -87,6 +87,19 @@ function drawSeal(g: CanvasRenderingContext2D, id: SealId, S: number, ox = 0, oy
       g.fill();
       break;
     }
+    case 'spring': { // mola em zigue-zague + arco do salto
+      g.lineWidth = S * 0.04;
+      g.beginPath();
+      g.moveTo(cx - 12 * u, cy + 20 * u);
+      for (let k = 0; k < 5; k++) g.lineTo(cx + (k % 2 ? -12 : 12) * u, cy + (14 - k * 6) * u);
+      g.lineTo(cx - 12 * u, cy - 16 * u);
+      g.stroke();
+      g.lineWidth = S * 0.03;
+      g.beginPath(); g.arc(cx, cy - 4 * u, 22 * u, Math.PI * 1.15, Math.PI * 1.85); g.stroke();
+      const ax = cx + Math.cos(Math.PI * 1.85) * 22 * u, ay = cy - 4 * u + Math.sin(Math.PI * 1.85) * 22 * u;
+      g.beginPath(); g.moveTo(ax + 6 * u, ay + 1 * u); g.lineTo(ax - 4 * u, ay - 6 * u); g.lineTo(ax - 2 * u, ay + 6 * u); g.closePath(); g.fill();
+      break;
+    }
   }
   // tinta falhando: pontinhos e riscos apagados (sempre os mesmos para cada selo)
   const r = rnd(SEAL_ORDER.indexOf(id) * 977 + 13);

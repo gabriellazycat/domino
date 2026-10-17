@@ -685,3 +685,28 @@ Feito (item 1, 16/out/2026):
 - Muro no meio da queda da Torre bloqueia a próxima peça (`fallBlocked`): a Torre bate no muro e para.
 - Grande removida (catálogo, recompensas, bot, UI); saves v1/v2 convertem Grande → Torre.
 - Testes: `tests/tower.test.ts`. Bot da bateria segue 17/48 (igual a antes).
+Feito (itens 2–10, 17/out/2026):
+- **Torre: queda guiada** — tombo travado no eixo planejado (um golpe torto a girava e a ponta errava a peça a 1,15 m).
+- **Deck inicial**: 9 Comuns, 2 Torres, 1 Bifurcação, 1 Foguete (`RULES.starting*`). **Par por distância**:
+  `routeLength / PAR_REACH (0,52)`; o "cabe no baralho" do gerador agora mede METROS (`deckReach`, Torre = 3 Comuns).
+- **`core/motion.ts`** (planejamento e física usam as mesmas contas): `launchOf(ponta)` diz de onde sai a próxima peça.
+  - **Foguete**: corre 3,2 m no chão (cinemático, 6,5 m/s), quica em muros/porteiras/borda (até 4x), trava antes de
+    Brutamontes/General parados; a próxima peça nasce 0,3 m depois do fim e é acionada quando ele chega.
+    Linha tracejada amarela no planejamento.
+  - **Saltadora** (nova peça, verde com molas, custo 3): salta 2,2 m em arco (ápice 1,5 m) com cambalhota que fecha aos
+    75% do salto (antes, a base varria a peça do pouso para trás); pousa 0,4 m antes da próxima. Arco tracejado verde.
+  - **Selo Mola** (prensa, 30 de ouro): a peça salta igual à Saltadora. Não vai em Foguete, Saltadora nem Bifurcação.
+- **Patrulhas**: retângulo maior e LINHA (vai e volta) desde a fase 4; CÍRCULO e RONDA em volta do pelotão da 6; OITO da 8.
+- **Ogro** (fase 7+, 40% das patrulhas): lento (0,3), vida 3, ESMAGA peça em pé na rota (some); derrubado, tomba na
+  direção do golpe e derruba quem estiver numa faixa de 1,9 m à frente (e acorda peças da corrente ali).
+- **Arqueiro** (fase 6+, ~40%): círculo de 2,3 m; a 1ª peça COLOCADA no círculo que a onda alcança leva a flecha de fogo,
+  que queima ela e a SEGUINTE (só uma queimada a corrente pulava o buraco: a Comum alcança 0,8 m). Uma flecha só.
+  Foguete correndo é imune. Isca com Bifurcação provada em teste.
+- **Fortificações** (fase 5+): anel de muro em volta do pelotão — ABERTO (vão de ~1,2 m de lado), FECHADO de caixotes
+  (só se o baralho tem Saltadora) ou com **PORTEIRA** (fase 7+): grade cinemática que afunda por 3 s quando uma peça
+  cai na ALAVANCA (fora do anel, 1,8–2,6 m, ligada à grade por pontilhado). Peça que cairia em cima da grade é
+  empurrada para depois dela (até 0,26 m) — sem isso a corrente quase nunca acertava o vão.
+- Testes novos: `tests/motion.test.ts` (Foguete atropela/quica, Saltadora e Mola pulam muro), `tests/enemies.test.ts`
+  (flecha, isca, Foguete imune, Ogro esmaga/tomba, porteira fechada × aberta). Bot da bateria: 21/48 (antes 17).
+  O bot NÃO resolve porteira, isca de Arqueiro nem fortificação fechada (usa Torre como atalho; o solver tenta com e sem).
+- Vitrine: `GPU=1 node web/e2e/novidades.mjs` fotografa as novidades em `web/e2e/shots/nov-*.png`.

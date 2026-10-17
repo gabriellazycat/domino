@@ -1,6 +1,6 @@
 // Catálogo de peças jogáveis. Medidas em metros (L × A × E): largura no eixo X local,
 // altura em Y, espessura em Z. A peça tomba para +Z local (a "frente", para onde aponta).
-export type PieceId = 'common' | 'heavy' | 'tower' | 'blast' | 'runner' | 'fork';
+export type PieceId = 'common' | 'heavy' | 'tower' | 'blast' | 'runner' | 'jumper' | 'fork';
 
 export interface PieceDef {
   id: PieceId;
@@ -43,9 +43,15 @@ export const PIECES: Record<PieceId, PieceDef> = {
   },
   runner: {
     id: 'runner', name: 'Foguete', plural: 'Foguetes', short: 'FOG',
-    desc: 'Ao ser tocado, dispara para a frente atropelando quem estiver no caminho.',
+    desc: 'Corre 3 m pelo chão atropelando quem estiver na linha e quicando nos muros. A corrente continua onde ele para.',
     w: 0.36, h: 0.70, t: 0.12, step: 0.38,
     color: '#f2c14e', pip: '#3a2a12', cost: 2,
+  },
+  jumper: {
+    id: 'jumper', name: 'Saltadora', plural: 'Saltadoras', short: 'SAL',
+    desc: 'Ao ser derrubada, SALTA por cima de muros e rondas. A próxima peça nasce do outro lado.',
+    w: 0.40, h: 0.80, t: 0.14, step: 0.38,
+    color: '#4fae5c', pip: '#0f2412', cost: 3,
   },
   fork: {
     id: 'fork', name: 'Bifurcação', plural: 'Bifurcações', short: 'BIF',
@@ -55,7 +61,7 @@ export const PIECES: Record<PieceId, PieceDef> = {
   },
 };
 
-export const PIECE_ORDER: PieceId[] = ['common', 'heavy', 'tower', 'blast', 'runner', 'fork'];
+export const PIECE_ORDER: PieceId[] = ['common', 'heavy', 'tower', 'blast', 'runner', 'jumper', 'fork'];
 
 /** Distância lateral de cada meia-peça da bifurcação em relação ao eixo. */
 export const FORK_OFFSET = 0.17;
@@ -63,7 +69,7 @@ export const FORK_OFFSET = 0.17;
 export type Deck = Record<PieceId, number>;
 
 export function emptyDeck(): Deck {
-  return { common: 0, heavy: 0, tower: 0, blast: 0, runner: 0, fork: 0 };
+  return { common: 0, heavy: 0, tower: 0, blast: 0, runner: 0, jumper: 0, fork: 0 };
 }
 
 export function deckTotal(d: Deck): number {

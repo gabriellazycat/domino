@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { PIECES } from '../core/pieces';
 import { Placed } from '../core/layout';
-import { PhaseSpec, ENEMY_RADIUS } from '../core/mapgen';
-import { makeDomino, makeEnemy, makeWall, makeTrigger, makeHeadRing, dominoGeometry, ghostMaterial, glow } from './models';
+import { PhaseSpec, ENEMY_RADIUS, ENEMY_HP, ARCHER_RANGE } from '../core/mapgen';
+import { makeDomino, makeEnemy, makeWall, makeTrigger, makeHeadRing, dominoGeometry, ghostMaterial, glow, makeGate, makeLever } from './models';
 import { Sim, BLAST_RADIUS, BURN_TIME, patrolPos, ENEMY_HEIGHT, quatYaw } from './sim';
+import { jumps, runnerPath, jumpLanding, JUMP_APEX } from '../core/motion';
 import { FaceRig, FaceBase, tiltOfQuat } from './faces';
 import { EnemyFaceRig } from './enemyFaces';
 import type { SweepTarget } from './hand';
@@ -12,18 +13,22 @@ import type { SweepTarget } from './hand';
 interface PieceView { mesh: THREE.Mesh; p: Placed; pop: number; face: FaceRig; simExpr: FaceBase | null }
 /** Humor geral das peças: preocupadas no planejamento (olhos correndo), suando antes do disparo, felizes/tristes no resultado. */
 export type Mood = 'calm' | 'nervous' | 'happy' | 'sad';
-interface EnemyView { pivot: THREE.Group; ring: THREE.Mesh; hpPips?: THREE.Group; bob: number; hitT: number; face: EnemyFaceRig; down: boolean; flame?: THREE.Object3D }
+interface EnemyView { pivot: THREE.Group; ring: THREE.Mesh; hpPips?: THREE.Group; bob: number; hitT: number; face: EnemyFaceRig; down: boolean; flame?: THREE.Object3D; range?: THREE.LineLoop }
+interface GateView { grate: THREE.Object3D; arm: THREE.Object3D; ring: THREE.Object3D }
 
 export class Board {
   root = new THREE.Group();
   stat = new THREE.Group();
   pieceViews = new Map<number, PieceView>();
   enemyViews: EnemyView[] = [];
+  gateViews: GateView[] = [];
   trigger!: THREE.Group;
   heads: THREE.Mesh[] = [];
   ghost: THREE.Mesh;
   trailMeshes: THREE.Mesh[] = [];
   blastRings: THREE.LineLoop[] = [];
+  /** trajeto do Foguete (no chão, com quiques) e arco do salto, desenhados no planejamento */
+  motionLines: THREE.Line[] = [];
   hoverRing: THREE.Mesh;
   spec!: PhaseSpec;
   t = 0;
@@ -71,6 +76,24 @@ export class Board {
         }
       }
     }
+    // porteiras + alavancas (com a trilha pontilhada ligando a alavanca à grade)
+    this.gateViews = [];
+    for (const g of spec.gates ?? []) {
+      const gate = makeGate(g);
+      this.stat.add(gate);
+      const lever = makeLever(g.lever.x, g.lever.z, Math.atan2(g.x - g.lever.x, g.z - g.lever.z));
+      this.stat.add(lever);
+      const L = Math.hypot(g.x - g.lever.x, g.z - g.lever.z), n = Math.floor(L / 0.25);
+      for (let k = 1; k < n; k++) {
+        const t = k / n;
+        const dot = new THREE.Mesh(new THREE.CircleGeometry(0.03, 8), glow('#ffd36b', 1.2));
+        dot.rotation.x = -Math.PI / 2;
+        dot.position.set(g.lever.x + (g.x - g.lever.x) * t, 0.012, g.lever.z + (g.z - g.lever.z) * t);
+        dot.userData.sweep = 'fade';
+        this.stat.add(dot);
+      }
+      this.gateViews.push({ grate: gate.getObjectByName('grate')!, arm: lever.getObjectByName('arm')!, ring: lever.getObjectByName('leverRing')! });
+    }
     for (const e of spec.enemies) {
       const pivot = makeEnemy(e.kind);
       const ring = new THREE.Mesh(new THREE.RingGeometry(ENEMY_RADIUS[e.kind] + 0.03, ENEMY_RADIUS[e.kind] + 0.08, 32),
@@ -79,9 +102,20 @@ export class Board {
       this.root.add(pivot);
       this.root.add(ring);
       const v: EnemyView = { pivot, ring, bob: Math.random() * 6, hitT: -1, face: pivot.userData.face as EnemyFaceRig, down: false, flame: pivot.getObjectByName('flame') };
-      if (e.kind === 'brute' || e.kind === 'general') {
+      if (ENEMY_HP[e.kind] > 1) {
         v.hpPips = new THREE.Group();
         this.root.add(v.hpPips);
+      }
+      if (e.kind === 'archer') {
+        // círculo tracejado do alcance da flecha (some quando ele atira)
+        const pts: THREE.Vector3[] = [];
+        for (let k = 0; k < 96; k++) { const a = (k / 96) * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * ARCHER_RANGE, 0, Math.sin(a) * ARCHER_RANGE)); }
+        const range = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+          new THREE.LineDashedMaterial({ color: new THREE.Color('#ff5a3a').multiplyScalar(1.5), dashSize: 0.16, gapSize: 0.12, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false }));
+        range.computeLineDistances();
+        range.position.set(e.x, 0.025, e.z);
+        this.root.add(range);
+        v.range = range;
       }
       this.enemyViews.push(v);
     }
@@ -116,8 +150,10 @@ export class Board {
       v.down = false;
       if (v.flame) v.flame.visible = true;
       v.face.reset();
-      if (v.hpPips) { v.hpPips.visible = true; this.setHp(i, e.kind === 'general' ? 4 : 2, e.kind === 'general' ? 4 : 2); }
+      if (v.hpPips) { v.hpPips.visible = true; this.setHp(i, ENEMY_HP[e.kind], ENEMY_HP[e.kind]); }
+      if (v.range) v.range.visible = true;
     });
+    for (const g of this.gateViews) { g.grate.position.y = 0; g.arm.rotation.x = -0.5; g.ring.visible = true; }
   }
 
   addPiece(p: Placed, animate = true) {
@@ -224,6 +260,40 @@ export class Board {
     });
   }
 
+  /** Linhas tracejadas da corrida (Foguete) e do salto (Saltadora/Mola) de cada peça da lista. */
+  setPaths(list: Placed[]) {
+    const lines: { pts: THREE.Vector3[]; color: number }[] = [];
+    if (this.spec) for (const p of list) {
+      if (p.type === 'runner') {
+        const r = runnerPath(this.spec, p.x, p.z, p.yaw);
+        lines.push({ pts: r.pts.map((q) => new THREE.Vector3(q.x, 0.04, q.z)), color: 0xf2c14e });
+      } else if (jumps(p)) {
+        const to = jumpLanding(p);
+        const pts: THREE.Vector3[] = [];
+        for (let k = 0; k <= 24; k++) {
+          const t = k / 24;
+          pts.push(new THREE.Vector3(p.x + (to.x - p.x) * t, 0.05 + 4 * JUMP_APEX * t * (1 - t), p.z + (to.z - p.z) * t));
+        }
+        lines.push({ pts, color: 0x6fe07a });
+      }
+    }
+    while (this.motionLines.length < lines.length) {
+      const l = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ dashSize: 0.12, gapSize: 0.08, transparent: true, opacity: 0.95, depthWrite: false, toneMapped: false }));
+      l.renderOrder = 3;
+      this.motionLines.push(l);
+      this.scene.add(l);
+    }
+    this.motionLines.forEach((l, i) => {
+      const d = lines[i];
+      l.visible = !!d;
+      if (!d) return;
+      l.geometry.dispose();
+      l.geometry = new THREE.BufferGeometry().setFromPoints(d.pts);
+      l.computeLineDistances();
+      (l.material as THREE.LineDashedMaterial).color.setHex(d.color).multiplyScalar(1.6);
+    });
+  }
+
   showGhost(g: { x: number; z: number; yaw: number } | null, type: keyof typeof PIECES = 'common') {
     if (!g) { this.ghost.visible = false; return; }
     this.ghost.geometry = dominoGeometry(type, 0, 0);
@@ -234,6 +304,7 @@ export class Board {
 
   /** Copia a física para os meshes e decide a cara de cada peça (medo → grito → tontura). */
   syncSim(sim: Sim) {
+    this.syncGates(sim);
     const near: { x: number; z: number }[] = [];
     for (let i = sim.recentFalls.length - 1; i >= 0 && sim.t - sim.recentFalls[i].t < 0.9; i--) near.push(sim.recentFalls[i]);
     sim.pieces.forEach((s) => {
@@ -243,6 +314,16 @@ export class Board {
       v.mesh.position.set(t.x, t.y, t.z);
       v.mesh.quaternion.set(q.x, q.y, q.z, q.w);
       if (s.exploded) v.mesh.visible = false;
+      // pisada pelo Ogro: achata no chão e some
+      if (s.crushed >= 0) {
+        const k = Math.min(1, (sim.t - s.crushed) / 0.18);
+        const d = PIECES[s.p.type];
+        v.mesh.scale.set(1 + 0.25 * k, Math.max(0.06, 1 - k), 1 + 0.25 * k);
+        v.mesh.position.y = (d.h / 2) * Math.max(0.06, 1 - k);
+        v.mesh.visible = sim.t - s.crushed < 1.4;
+        v.simExpr = 'dizzy';
+        return;
+      }
       // queimada pelo tocheiro: encolhe, afunda e enegrece até virar cinza
       if (s.burned >= 0) {
         const k = Math.min(1, (sim.t - s.burned) / BURN_TIME);
@@ -272,16 +353,29 @@ export class Board {
       v.ring.position.set(t.x, 0.015, t.z);
       v.ring.visible = e.alive;
       if (v.hpPips) v.hpPips.visible = e.alive;
+      if (v.range) v.range.visible = e.alive && !e.arrowUsed;
       if (!e.alive && !v.down) {
         v.down = true; v.face.base = 'dizzy'; v.face.react('dizzy', 0);
         if (v.flame) v.flame.visible = false; // a tocha apaga na queda
       }
-      // some num "puf" depois de cair
-      if (!e.alive && sim.t - e.knockedAt > 1.6) {
-        const k = Math.max(0, 1 - (sim.t - e.knockedAt - 1.6) / 0.35);
+      // some num "puf" depois de cair (o Ogro tombado fica mais um pouco no chão)
+      if (!e.alive && sim.t - e.knockedAt > (e.spec.kind === 'ogre' ? 2.4 : 1.6)) {
+        const k = Math.max(0, 1 - (sim.t - e.knockedAt - (e.spec.kind === 'ogre' ? 2.4 : 1.6)) / 0.35);
         v.pivot.scale.setScalar(k);
         if (k <= 0) v.pivot.visible = false;
       }
+    });
+  }
+
+  /** Grade da porteira acompanha a física; a alavanca tomba quando a corrente cai nela. */
+  syncGates(sim: Sim) {
+    sim.gates.forEach((g, i) => {
+      const v = this.gateViews[i];
+      if (!v) return;
+      v.grate.position.y = g.body.translation().y - g.spec.h / 2;
+      const on = g.openAt >= 0;
+      v.arm.rotation.x = on ? Math.min(0.9, -0.5 + (sim.t - g.openAt) * 9) : -0.5;
+      v.ring.visible = !on;
     });
   }
 
@@ -320,10 +414,12 @@ export class Board {
     for (const v of this.enemyViews) {
       out.push({ o: v.pivot, kind: 'fly' }, { o: v.ring, kind: 'fade' });
       if (v.hpPips) out.push({ o: v.hpPips, kind: 'fade' });
+      if (v.range) out.push({ o: v.range, kind: 'fade' });
     }
     for (const c of this.stat.children) out.push({ o: c, kind: c.userData.sweep === 'fade' ? 'fade' : 'fly' });
     this.hideHeads();
     this.setTrail([]);
+    this.setPaths([]);
     this.showGhost(null);
     this.hoverRing.visible = false;
     return out;
@@ -458,9 +554,11 @@ export class Board {
   private clearAll() {
     this.spawning = [];
     this.clearPieces();
+    this.setPaths([]);
     this.stat.clear();
-    for (const v of this.enemyViews) { this.root.remove(v.pivot, v.ring); if (v.hpPips) this.root.remove(v.hpPips); }
+    for (const v of this.enemyViews) { this.root.remove(v.pivot, v.ring); if (v.hpPips) this.root.remove(v.hpPips); if (v.range) this.root.remove(v.range); }
     this.enemyViews = [];
+    this.gateViews = [];
     this.hideHeads();
   }
 }

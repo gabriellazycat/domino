@@ -31,7 +31,7 @@ type Mode = 'menu' | 'planning' | 'sim' | 'result' | 'screen' | 'transition' | '
 interface Settings { master: number; music: number; sfx: number; shake: number; post: boolean; tilt: boolean; crt: boolean; ao: boolean; ink: boolean; dof: boolean }
 const SETTINGS_KEY = 'topple.settings.v1';
 
-const ENEMY_COLORS: Record<string, string> = { soldier: '#8a2a24', brute: '#5a5c64', patroller: '#8a6a32', torcher: '#a8461a', general: '#7a2a3a' };
+const ENEMY_COLORS: Record<string, string> = { soldier: '#8a2a24', brute: '#5a5c64', patroller: '#8a6a32', torcher: '#a8461a', general: '#7a2a3a', ogre: '#5f7a3c', archer: '#2e5a36' };
 /** Cursores de tinta (SVG inline): pena para navegar, anel verde sobre a ponta, mira enquanto traça. */
 const cursorSvg = (body: string, hot: number, fallback: string) =>
   `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'>${body}</svg>`)}") ${hot} ${hot}, ${fallback}`;
@@ -40,7 +40,7 @@ const CURSOR_RING = cursorSvg("<circle cx='14' cy='14' r='7' fill='none' stroke=
 const CURSOR_CROSS = cursorSvg("<path d='M14 4v8M14 16v8M4 14h8M16 14h8' stroke='#ffb347' stroke-width='2' stroke-linecap='round'/><circle cx='14' cy='14' r='2' fill='#ffb347'/>", 14, 'crosshair');
 
 /** Tinta escura que fica na mesa onde o inimigo tomba (mais fechada que a cor do soldadinho). */
-const ENEMY_INK: Record<string, string> = { soldier: '#2c0604', brute: '#15171b', patroller: '#221605', torcher: '#1a0c06', general: '#24040e' };
+const ENEMY_INK: Record<string, string> = { soldier: '#2c0604', brute: '#15171b', patroller: '#221605', torcher: '#1a0c06', general: '#24040e', ogre: '#16200c', archer: '#0c1a10' };
 
 export class Game {
   world: World;
@@ -359,6 +359,7 @@ export class Game {
       this.fx.sparkBurst(g.x, 0.12, g.z, 1, '#ffb347', 0.6);
     }
     this.board.setTrail(r.placed);
+    this.board.setPaths([...this.layout.pieces, ...r.placed]);
     this.ui.hand.preview(this.selected, r.placed.filter((p) => !(p.pair && p.pair < p.id)).length);
     if (r.fail) this.failFeedback(r.fail, r.ghost ?? null);
     else this.board.showGhost(null);
@@ -464,6 +465,7 @@ export class Game {
     this.ui.setPieces(this.layout.cardsUsed(), this.spec.par);
     this.ui.setFireEnabled(this.layout.pieces.length > 0);
     this.board.setHeads(this.mode === 'planning' ? this.layout.heads() : [], this.layout.pieces.length === 0 && this.mode === 'planning');
+    if (!this.trailAnchor) this.board.setPaths(this.mode === 'planning' ? this.layout.pieces : []);
     this.driveCoach();
   }
 
@@ -550,6 +552,7 @@ export class Game {
     let x0 = s.trigger.x, x1 = s.trigger.x, z0 = s.trigger.z, z1 = s.trigger.z;
     const add = (x: number, z: number) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); };
     for (const e of s.enemies) { add(e.x, e.z); e.patrol?.pts.forEach((p) => add(p.x, p.z)); }
+    for (const g of s.gates ?? []) add(g.lever.x, g.lever.z);
     for (const w of s.walls) { const { ex, ez } = wallExtents(w); add(w.x - ex, w.z - ez); add(w.x + ex, w.z + ez); }
     const aspect = window.innerWidth / window.innerHeight;
     const w = x1 - x0 + 3, d = z1 - z0 + 3;
@@ -570,6 +573,7 @@ export class Game {
     this.board.hideHeads();
     this.board.setHeads([], false);
     this.board.showGhost(null);
+    this.board.setPaths([]);
     this.ui.setSimMode(true);
     this.ui.setStats(this.run!.life, this.run!.maxLife, this.run!.gold, this.attemptsLeft, this.attemptsMax);
     this.ui.resetEnemyIcons();
@@ -630,6 +634,57 @@ export class Game {
         this.rig.addTrauma(0.08);
       },
       runner: () => audio.whoosh(),
+      jump: (i) => {
+        audio.whoosh();
+        if (this.mode !== 'sim') return;
+        const p = sim.pieces[i].p;
+        this.fx.text(p.x, 1.4, p.z, 'BOING!', 'small');
+        this.fx.puff(p.x, 0.1, p.z, 0.7, '#7d7262', 0.4);
+      },
+      land: (_i, x, z, kind) => {
+        if (this.mode !== 'sim') return;
+        this.fx.dust(x, z, kind === 'jump' ? 1.6 : 1);
+        if (kind === 'jump') { this.fx.ring(x, z, 0.8, '#6fe07a', 0.35); this.rig.addTrauma(0.15); }
+      },
+      arrow: (e, i, x, z) => {
+        if (this.mode !== 'sim' && !this.demo) return;
+        // rastro da flecha de fogo do arqueiro até a peça
+        const a = e.body.translation();
+        for (let k = 1; k <= 8; k++) {
+          const t = k / 8;
+          this.fx.sparkBurst(a.x + (x - a.x) * t, 0.6 + Math.sin(t * Math.PI) * 0.5, a.z + (z - a.z) * t, 2, '#ff8a2a', 0.6);
+        }
+        this.fx.ignite(x, z, PIECES[sim.pieces[i].p.type].h);
+        this.fx.text(x, 1.3, z, 'FLECHADA!', 'hit');
+        audio.ignite(x);
+        this.decals.scorch(x, z, 0.4);
+        this.rig.addTrauma(0.12);
+      },
+      crush: (_i, x, z) => {
+        if (this.mode !== 'sim' && !this.demo) return;
+        this.fx.dust(x, z, 1.4);
+        this.fx.text(x, 1.1, z, 'ESMAGOU!', 'small');
+        audio.clang();
+        this.rig.addTrauma(0.1);
+      },
+      ogreSlam: (_e, x, z, dx, dz) => {
+        if (this.mode !== 'sim' && !this.demo) return;
+        for (let k = -2; k <= 2; k++) this.fx.dust(x + dx * k * 0.35, z + dz * k * 0.35, 1.8);
+        this.fx.ring(x, z, 1.6, '#c8a060', 0.5);
+        this.fx.text(x, 1.4, z, 'BUUUM!', 'boom', 1.1);
+        audio.boom(x);
+        this.rig.addTrauma(0.6);
+        this.hitstop = Math.max(this.hitstop, 0.07);
+        this.decals.splat(x, z, 1.0, ENEMY_INK.ogre);
+      },
+      lever: (g) => {
+        if (this.mode !== 'sim' && !this.demo) return;
+        const gs = this.spec.gates![g];
+        this.fx.text(gs.lever.x, 0.9, gs.lever.z, 'CLIC!', 'small');
+        this.fx.ring(gs.x, gs.z, 1.0, '#ffd36b', 0.5);
+        this.fx.text(gs.x, 1.2, gs.z, `ABRIU! ${gs.open}s`, 'gold', 0.9);
+        audio.ui('click');
+      },
       impact: (speed, x, y, z, material) => this.onImpact(speed, x, y, z, material),
       allDown: () => {
         this.slowmoUntil = this.realT + 1.1;
@@ -685,7 +740,7 @@ export class Game {
 
   private onKnock(e: SimEnemy, cause: Cause, combo: number) {
     const p = e.body.translation();
-    const big = e.spec.kind === 'brute' || e.spec.kind === 'general';
+    const big = e.spec.kind === 'brute' || e.spec.kind === 'general' || e.spec.kind === 'ogre';
     audio.knock(combo, big, p.x);
     this.fx.knockBurst(p.x, p.y, p.z, ENEMY_COLORS[e.spec.kind], big);
     this.decals.splat(p.x, p.z, big ? 0.8 : 0.5, ENEMY_INK[e.spec.kind]);

@@ -40,11 +40,14 @@ function targetMember(L: Layout, t: Target, x: number, z: number): EnemySpec {
   return nearestMember(t, x, z);
 }
 
+/** O plano em andamento pode usar Torres como atalho de distância (o solver tenta com e sem). */
+let useTowers = true;
+
 const OFFS =[0, 20, -20, 40, -40, 60, -60, 85, -85, 110, -110].map((d) => (d * Math.PI) / 180);
 
 function pickType(L: Layout, prefer: PieceId[]): PieceId | null {
   for (const t of prefer) if (L.hand[t] > 0) return t;
-  for (const t of ['common', 'heavy', 'tower', 'runner'] as PieceId[]) if (L.hand[t] > 0) return t;
+  for (const t of ['common', 'heavy', 'tower'] as PieceId[]) if (L.hand[t] > 0) return t;
   return null;
 }
 
@@ -58,7 +61,7 @@ function blockedGrid(L: Layout, goal: { x: number; z: number }, headId: number):
   for (let j = 0; j < GD; j++) for (let i = 0; i < GW; i++) {
     const x = -BOARD.w / 2 + (i + 0.5) * CELL, z = -BOARD.d / 2 + (j + 0.5) * CELL;
     let b = Math.abs(x) > BOARD.w / 2 - 0.45 || Math.abs(z) > BOARD.d / 2 - 0.45;
-    if (!b) for (const w of s.walls) if (rectDist(x, z, w) < 0.5) { b = true; break; }
+    if (!b) for (const w of [...s.walls, ...(s.gates ?? [])]) if (rectDist(x, z, w) < 0.5) { b = true; break; }
     if (!b) for (const e of s.enemies) {
       if (e.patrol) continue;
       const d = Math.hypot(e.x - x, e.z - z);
@@ -118,6 +121,18 @@ function astar(L: Layout, from: { x: number; z: number }, to: { x: number; z: nu
   return path.reverse();
 }
 
+/** Faixa reta à frente sem muro nem inimigo parado (onde a Torre e a peça depois dela vão cair). */
+function clearAhead(L: Layout, x: number, z: number, yaw: number, len: number): boolean {
+  const fx = Math.sin(yaw), fz = Math.cos(yaw);
+  for (let d = 0.2; d <= len; d += 0.2) {
+    const px = x + fx * d, pz = z + fz * d;
+    if (Math.abs(px) > BOARD.w / 2 - 0.5 || Math.abs(pz) > BOARD.d / 2 - 0.5) return false;
+    for (const w of L.spec.walls) if (rectDist(px, pz, w) < 0.5) return false;
+    for (const e of L.spec.enemies) if (!e.patrol && Math.hypot(e.x - px, e.z - pz) < ENEMY_RADIUS[e.kind] + 0.6) return false;
+  }
+  return true;
+}
+
 /** Dirige o traço até ficar a `stop` do alvo (ou travar), seguindo o A*. */
 function drive(L: Layout, st: Stroke, gx: number, gz: number, stop: number, final: (h: Placed) => PieceId[], maxSteps = 90): Fail | 'arrived' | 'stuck' {
   let path: { x: number; z: number }[] | null = null;
@@ -137,15 +152,23 @@ function drive(L: Layout, st: Stroke, gx: number, gz: number, stop: number, fina
     const prefer = final(h);
     const type = pickType(L, prefer);
     if (!type) return 'empty';
+    // longe do alvo e com a rota à frente reta e livre: a Torre cobre 3 Comuns de uma vez
+    const tower = useTowers && type === 'common' && dist > 2.8 && L.hand.tower > 0 && h.type !== 'tower'
+      && Math.abs(wrapAngle(base - h.yaw)) < 0.3 && clearAhead(L, h.x, h.z, base, 2.6);
+    const types: PieceId[] = tower ? ['tower', type] : [type];
     let placed = false;
     let lastFail: Fail | undefined;
-    for (const off of OFFS) {
-      const a = base + off;
-      const step = PIECES[h.type].step;
-      const r = L.extend(st, h.x + Math.sin(a) * step * 1.02, h.z + Math.cos(a) * step * 1.02, type);
-      if (r.placed.length) { placed = true; break; }
-      lastFail = r.fail;
-      if (off === 0 && r.fail === 'enemy' && dist < 1.0) return 'arrived';
+    for (const ty of types) {
+      for (const off of OFFS) {
+        const a = base + off;
+        const step = PIECES[h.type].step;
+        const r = L.extend(st, h.x + Math.sin(a) * step * 1.02, h.z + Math.cos(a) * step * 1.02, ty);
+        if (r.placed.length) { placed = true; break; }
+        lastFail = r.fail;
+        // colado no inimigo: só conta como chegada se a ponta já mira nele (senão vira mais uma peça)
+        if (off === 0 && r.fail === 'enemy' && dist < 1.0 && Math.abs(wrapAngle(Math.atan2(gx - h.x, gz - h.z) - h.yaw)) < 0.4) return 'arrived';
+      }
+      if (placed) break;
     }
     if (!placed) return lastFail ?? 'stuck';
   }
@@ -318,6 +341,7 @@ export function autoPlanComb(L: Layout): { ok: boolean; note: string } {
 }
 
 export type Strategy = 'comb' | 'tree';
-export function autoPlan(L: Layout, strategy: Strategy = 'comb'): { ok: boolean; note: string } {
-  return strategy === 'tree' ? autoPlanTree(L) : autoPlanComb(L);
+export function autoPlan(L: Layout, strategy: Strategy = 'comb', towers = true): { ok: boolean; note: string } {
+  useTowers = towers;
+  try { return strategy === 'tree' ? autoPlanTree(L) : autoPlanComb(L); } finally { useTowers = true; }
 }

@@ -7,9 +7,9 @@ import { Sim } from './sim';
 /** Planeja com cada estratégia do bot e confere na física headless; devolve o melhor plano. */
 export function solve(spec: PhaseSpec, deck: Deck): { layout: Layout; win: boolean; alive: number; strategy: Strategy; note: string } {
   let best: { layout: Layout; win: boolean; alive: number; strategy: Strategy; note: string } | null = null;
-  for (const strategy of ['comb', 'tree'] as Strategy[]) {
+  for (const [strategy, towers] of [['comb', true], ['tree', true], ['comb', false], ['tree', false]] as [Strategy, boolean][]) {
     const layout = new Layout(spec, deck);
-    const plan = autoPlan(layout, strategy);
+    const plan = autoPlan(layout, strategy, towers);
     const sim = new Sim(spec, layout.pieces, 0);
     sim.runHeadless();
     const r = { layout, win: sim.win, alive: sim.alive, strategy, note: plan.note };

@@ -1,7 +1,8 @@
-import { PIECES, PIECE_ORDER, PieceId, Deck, FORK_OFFSET, emptyDeck } from './pieces';
+import { PIECE_ORDER, PieceId, Deck, FORK_OFFSET, emptyDeck } from './pieces';
 import { DrawPile } from './draw';
 import { Card, Kind, kindOf, kindType, usesOf } from './cards';
 import { BOARD, BOARD_MARGIN, ENEMY_RADIUS, PhaseSpec, rectDist } from './mapgen';
+import { launchOf } from './motion';
 
 // Modelo do planejamento (puro): peças colocadas, mão, traçado por arrasto.
 // Regra: tabuleiro vazio → a 1ª peça nasce no gatilho; depois só se continua de uma PONTA
@@ -20,7 +21,7 @@ export interface Placed {
 /** Uma peça na mão: a carta + quantas peças ela ainda põe na mesa (Dupla começa com 2). */
 export interface HandEntry { card: Card; kind: Kind; left: number }
 
-export type Fail = 'board' | 'wall' | 'enemy' | 'piece' | 'empty' | 'nohead' | 'trigger';
+export type Fail = 'board' | 'wall' | 'enemy' | 'piece' | 'empty' | 'nohead' | 'trigger' | 'lever' | 'gate';
 
 export const FAIL_TEXT: Record<Fail, string> = {
   board: 'Fora da mesa!',
@@ -30,7 +31,12 @@ export const FAIL_TEXT: Record<Fail, string> = {
   empty: 'Acabaram as peças desse tipo!',
   nohead: 'Continue de uma ponta brilhante.',
   trigger: 'Comece no marcador VERDE!',
+  lever: 'Muito perto da alavanca: deixe espaço para a peça cair nela.',
+  gate: 'Em cima da porteira: atravesse a grade reto.',
 };
+
+/** Distância mínima de uma peça até a alavanca (a peça cai por cima dela). */
+export const LEVER_CLEAR = 0.45;
 
 export const MAX_TURN = (26 * Math.PI) / 180;
 /** Depois de uma peça de alcance longo (Torre) a próxima quase não vira: longe, um giro grande tira a peça da faixa de queda. */
@@ -133,6 +139,11 @@ export class Layout {
   check(x: number, z: number, ignore: Set<number>): Fail | null {
     if (Math.abs(x) > BOARD.w / 2 - BOARD_MARGIN || Math.abs(z) > BOARD.d / 2 - BOARD_MARGIN) return 'board';
     for (const w of this.spec.walls) if (rectDist(x, z, w) < 0.22) return 'wall';
+    // a grade da porteira é fina: dá para pôr peças rente dos dois lados (a corrente atravessa quando abre)
+    for (const g of this.spec.gates ?? []) {
+      if (rectDist(x, z, g) < 0.13) return 'gate';
+      if (Math.hypot(g.lever.x - x, g.lever.z - z) < LEVER_CLEAR) return 'lever';
+    }
     for (const e of this.spec.enemies) {
       if (e.patrol) continue; // rota de patrulha é construível (ele empurra o que estiver em pé)
       if (Math.hypot(e.x - x, e.z - z) < ENEMY_RADIUS[e.kind] + 0.24) return 'enemy';
@@ -187,21 +198,31 @@ export class Layout {
     for (let guard = 0; guard < 60 && !st.done; guard++) {
       const h = this.get(st.head);
       if (!h) { st.done = true; break; }
-      // o alcance é da peça que CAI (a ponta): depois de uma Torre a próxima vai longe
-      const step = PIECES[h.type].step;
-      const dx = cx - h.x, dz = cz - h.z;
-      if (Math.hypot(dx, dz) < step * 0.9) break;
-      const desired = Math.atan2(dx, dz);
+      // a próxima peça sai de onde a PONTA leva a onda: a queda dela (Torre vai longe), o fim da
+      // corrida do Foguete ou o outro lado do salto da Saltadora/Mola
+      const o = launchOf(h, this.spec);
+      const step = o.step;
+      // o cursor precisa se afastar da ponta (Foguete: da peça, não do fim da corrida)
+      if (Math.hypot(cx - h.x, cz - h.z) < (o.kind === 'run' ? 1.0 : step * 0.9)) break;
+      const desired = Math.atan2(cx - o.x, cz - o.z);
       // bifurcação nasce alinhada à ponta: as duas metades ficam dentro da faixa de queda dela.
       // Torre depois de Torre também vai reta (o golpe de lado desvia a queda).
-      const long = step > 0.6;
+      const long = o.kind === 'fall' && step > 0.6;
       const turn = type === 'fork' || (long && type === 'tower') ? 0 : long ? LONG_TURN : MAX_TURN;
-      const diff = Math.max(-turn, Math.min(turn, wrapAngle(desired - h.yaw)));
-      const yaw = wrapAngle(h.yaw + diff);
-      const fx = Math.sin(yaw), fz = Math.cos(yaw);
-      if (this.fallBlocked(h.x, h.z, fx, fz, step)) return { placed: out, fail: 'wall', ghost: { x: h.x + fx * step, z: h.z + fz * step, yaw } };
-      const res = this.placeAt(kind, h.x + fx * step, h.z + fz * step, yaw, h.id, st.id, new Set([h.id]));
-      if ('fail' in res) return { placed: out, fail: res.fail, ghost: { x: h.x + fx * step, z: h.z + fz * step, yaw } };
+      const diff = Math.max(-turn, Math.min(turn, wrapAngle(desired - o.yaw)));
+      const yaw = wrapAngle(o.yaw + diff);
+      // a queda é reta na direção da ponta; só o giro da peça nova muda (salto e corrida idem)
+      const fx = Math.sin(o.kind === 'fall' ? yaw : o.yaw), fz = Math.cos(o.kind === 'fall' ? yaw : o.yaw);
+      let nx = o.x + fx * step, nz = o.z + fz * step;
+      if (long && this.fallBlocked(o.x, o.z, fx, fz, step)) return { placed: out, fail: 'wall', ghost: { x: nx, z: nz, yaw } };
+      // caiu em cima da grade da porteira: a peça vai um pouco além dela (a queda da anterior ainda alcança)
+      if (o.kind === 'fall' && step < 0.6 && type !== 'fork' && this.check(nx, nz, new Set([h.id])) === 'gate') {
+        for (const d of [0.12, 0.2, 0.26]) {
+          if (this.check(nx + fx * d, nz + fz * d, new Set([h.id])) === null) { nx += fx * d; nz += fz * d; break; }
+        }
+      }
+      const res = this.placeAt(kind, nx, nz, yaw, h.id, st.id, new Set([h.id]));
+      if ('fail' in res) return { placed: out, fail: res.fail, ghost: { x: nx, z: nz, yaw } };
       out.push(...res.list);
       st.head = res.list[res.list.length - 1].id;
       if (type === 'fork') st.done = true;

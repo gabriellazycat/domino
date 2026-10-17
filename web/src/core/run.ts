@@ -30,7 +30,9 @@ export interface RunState {
 export function newRun(seed: number): RunState {
   const deck = emptyDeck();
   deck.common = RULES.startingCommons;
+  deck.tower = RULES.startingTowers;
   deck.fork = RULES.startingForks;
+  deck.runner = RULES.startingRunners;
   const cards = cardsFromDeck(deck, 1);
   return {
     version: 2, seed: seed >>> 0, depth: 0,

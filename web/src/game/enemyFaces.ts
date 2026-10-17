@@ -126,7 +126,7 @@ export class EnemyFaceRig {
     this.base = kind === 'general' ? 'angry' : 'idle';
     this.shown = this.base;
     this.radius = r * 1.03;
-    this.mesh = new THREE.Mesh(faceGeometry(this.radius, this.base), faceMaterial(glint, kind === 'brute' || kind === 'general' ? 3.5 : 2.5));
+    this.mesh = new THREE.Mesh(faceGeometry(this.radius, this.base), faceMaterial(glint, kind === 'brute' || kind === 'general' || kind === 'ogre' ? 3.5 : 2.5));
   }
 
   /** Reação rápida por cima da expressão base (susto, golpe). */

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PIECES, PieceId } from '../core/pieces';
-import { EnemyKind, WallSpec } from '../core/mapgen';
+import { EnemyKind, WallSpec, GateSpec } from '../core/mapgen';
 import { ATLAS_CELLS, pipAtlas, hedgeTexture, crateTexture, softDot } from './textures';
 import { ENEMY_HEIGHT } from './sim';
 import { SealId, SEAL_ORDER } from '../core/cards';
@@ -89,6 +89,7 @@ export function pipsFor(type: PieceId, id: number): [number, number] {
   if (type === 'runner') return [7, 7];
   if (type === 'blast') return [8, 8];
   if (type === 'heavy') return [6, 6];
+  if (type === 'jumper') return [2, 2];
   const h = (id * 2654435761) >>> 0;
   return [(h >>> 3) % 7, (h >>> 9) % 7];
 }
@@ -168,6 +169,18 @@ export function makeDomino(type: PieceId, id: number, seals: readonly SealId[] =
     fuse.add(spark);
     m.add(fuse);
   }
+  if (type === 'jumper') {
+    // molas espiraladas dos dois lados, na base: ela é a que pula
+    for (const s of [-1, 1]) {
+      for (let k = 0; k < 4; k++) {
+        const coil = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.011, 6, 14), std('#c8d0c0', 0.35, 0.8));
+        coil.rotation.x = Math.PI / 2;
+        coil.position.set(s * (PIECES.jumper.w / 2 + 0.035), -PIECES.jumper.h / 2 + 0.03 + k * 0.032, 0);
+        coil.castShadow = true;
+        m.add(coil);
+      }
+    }
+  }
   if (type === 'runner') {
     for (const s of [-1, 1]) {
       const fin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.1), std('#d23a2a'));
@@ -206,6 +219,8 @@ const PALETTE: Record<EnemyKind, { coat: string; pants: string; hat: string; ski
   torcher: { coat: '#3a2a22', pants: '#1a1210', hat: '#2a1c16', skin: '#a89a86', trim: '#8a3a1a', glint: '#ff8a2a' },
   brute: { coat: '#34363c', pants: '#1e1614', hat: '#25272c', skin: '#6c8556', trim: '#6a5a3a', glint: '#ff4a2a' },
   general: { coat: '#3e0f20', pants: '#121218', hat: '#8a6a2a', skin: '#c4bdac', trim: '#8a6a2a', glint: '#ff2a2a' },
+  ogre: { coat: '#4a3a24', pants: '#2a2016', hat: '#3a2a1a', skin: '#6f8a4a', trim: '#5a4a32', glint: '#ffb02a' },
+  archer: { coat: '#24402a', pants: '#1a1e16', hat: '#1c2e1e', skin: '#b0a894', trim: '#7a6a42', glint: '#ffd27a' },
 };
 
 function part(geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D): THREE.Mesh {
@@ -227,8 +242,8 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
   const g = new THREE.Group();
   g.position.y = -H / 2;
   pivot.add(g);
-  const s = kind === 'brute' ? 1.32 : kind === 'general' ? 1.5 : 1;
-  const wide = kind === 'brute' ? 1.25 : 1;
+  const s = kind === 'brute' ? 1.32 : kind === 'general' ? 1.5 : kind === 'ogre' ? 1.6 : 1;
+  const wide = kind === 'brute' ? 1.25 : kind === 'ogre' ? 1.45 : 1;
   const coat = std(pal.coat, 0.7), pants = std(pal.pants, 0.75), skin = std(pal.skin, 0.8);
   const hat = std(pal.hat, kind === 'general' ? 0.45 : 0.7, kind === 'general' ? 0.7 : 0);
   const trim = std(pal.trim, 0.55, 0.5);
@@ -319,6 +334,38 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
     halo.scale.setScalar(0.42);
     halo.position.y = 0.05;
     flame.add(halo);
+  } else if (kind === 'ogre') {
+    // careca de orelhas de abano, presas para fora e um porrete de tronco na mão
+    for (const sx of [-1, 1]) {
+      const ear = part(new THREE.SphereGeometry(0.045 * s, 8, 6), skin, sx * 0.11 * s, headY + 0.01 * s, -0.01, g);
+      ear.scale.set(0.6, 1.3, 1);
+      const tusk = part(new THREE.ConeGeometry(0.014 * s, 0.06 * s, 6), std('#e8dcc0', 0.5), sx * 0.04 * s, headY - 0.06 * s, 0.09 * s, g);
+      tusk.rotation.x = Math.PI;
+    }
+    part(new THREE.SphereGeometry(0.09 * s, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), std('#3a2a1a', 0.9), 0, bodyY - 0.02 * s, 0.05 * s, g).rotation.x = -Math.PI / 2;
+    const club = new THREE.Group();
+    club.position.set(0.21 * s * wide, bodyY - 0.15 * s, 0.06);
+    club.rotation.set(0.6, 0, -0.35);
+    g.add(club);
+    part(new THREE.CylinderGeometry(0.03 * s, 0.05 * s, 0.42 * s, 8), std('#4a3220', 0.9), 0, 0.2 * s, 0, club);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      part(new THREE.ConeGeometry(0.014 * s, 0.04 * s, 5), std('#9a9a9a', 0.4, 0.6), Math.sin(a) * 0.052 * s, 0.36 * s, Math.cos(a) * 0.052 * s, club).rotation.set(Math.cos(a) * 1.5, 0, -Math.sin(a) * 1.5);
+    }
+  } else if (kind === 'archer') {
+    // capuz verde, arco na mão esquerda e aljava cheia nas costas
+    part(new THREE.SphereGeometry(0.118, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), hat, 0, headY + 0.004, -0.01, g);
+    const tip = part(new THREE.ConeGeometry(0.06, 0.16, 10), hat, 0, headY + 0.1, -0.07, g);
+    tip.rotation.x = -0.9;
+    const bow = part(new THREE.TorusGeometry(0.2, 0.012, 6, 20, Math.PI * 0.9), std('#5a3a1c', 0.7), -0.2, bodyY + 0.02, 0.1, g);
+    bow.rotation.set(0, Math.PI / 2, Math.PI / 2 + Math.PI * 0.45);
+    const string = part(new THREE.CylinderGeometry(0.003, 0.003, 0.39, 4), std('#d8d0b8', 0.6), -0.2, bodyY + 0.02, 0.1 + 0.02, g);
+    string.rotation.x = 0;
+    const quiver = part(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 10), std('#3a2414', 0.85), 0.06, bodyY + 0.05, -0.15, g);
+    quiver.rotation.x = -0.35;
+    for (let i = 0; i < 3; i++) {
+      part(new THREE.ConeGeometry(0.018, 0.05, 5), glow('#ff7a2a', 3), 0.06 + (i - 1) * 0.022, bodyY + 0.22, -0.2, g);
+    }
   } else if (kind === 'brute') {
     part(new THREE.SphereGeometry(0.12 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), hat, 0, headY + 0.02, 0, g);
     for (const sx of [-1, 1]) {
@@ -436,6 +483,69 @@ export function makeWall(w: WallSpec): THREE.Object3D {
       grp.add(twig);
     }
   }
+  return grp;
+}
+
+/** Porteira: dois mourões de pedra e a GRADE de ferro (filha `grate`, que afunda no chão quando abre). */
+export function makeGate(gs: GateSpec): THREE.Group {
+  const grp = new THREE.Group();
+  grp.position.set(gs.x, 0, gs.z);
+  grp.rotation.y = gs.yaw ?? 0;
+  const iron = std('#8a8f9c', 0.35, 0.85), rust = std('#8a5a34', 0.7, 0.4);
+  const grate = new THREE.Group();
+  grate.name = 'grate';
+  grp.add(grate);
+  const n = Math.max(3, Math.round(gs.w / 0.1));
+  for (let i = 0; i <= n; i++) {
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, gs.h, 8), iron);
+    bar.position.set(-gs.w / 2 + (i / n) * gs.w, gs.h / 2, 0);
+    bar.castShadow = true;
+    grate.add(bar);
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.07, 6), iron);
+    spike.position.set(bar.position.x, gs.h + 0.03, 0);
+    grate.add(spike);
+  }
+  for (const y of [0.12, gs.h - 0.1]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(gs.w, 0.05, 0.06), rust);
+    rail.position.set(0, y, 0);
+    rail.castShadow = true;
+    grate.add(rail);
+  }
+  for (const sx of [-1, 1]) {
+    const post = new THREE.Mesh(new RoundedBoxGeometry(0.16, gs.h + 0.22, 0.2, 2, 0.03), std('#3d3934', 0.9));
+    post.position.set(sx * (gs.w / 2 + 0.08), (gs.h + 0.22) / 2, 0);
+    post.castShadow = post.receiveShadow = true;
+    grp.add(post);
+  }
+  return grp;
+}
+
+/** Alavanca da porteira: base, braço (filho `arm`, tomba quando a corrente cai nela) e anel no chão. */
+export function makeLever(x: number, z: number, faceYaw: number): THREE.Group {
+  const grp = new THREE.Group();
+  grp.position.set(x, 0, z);
+  grp.rotation.y = faceYaw;
+  const base = new THREE.Mesh(new RoundedBoxGeometry(0.2, 0.1, 0.16, 2, 0.03), std('#3d3934', 0.9));
+  base.position.y = 0.05;
+  base.castShadow = base.receiveShadow = true;
+  grp.add(base);
+  const arm = new THREE.Group();
+  arm.name = 'arm';
+  arm.position.y = 0.1;
+  arm.rotation.x = -0.5;
+  grp.add(arm);
+  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.42, 8), std('#2a2c33', 0.45, 0.8));
+  stick.position.y = 0.21;
+  stick.castShadow = true;
+  arm.add(stick);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), glow('#ffd36b', 2.2));
+  knob.position.y = 0.43;
+  arm.add(knob);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.35, 32), new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffd36b').multiplyScalar(1.4), transparent: true, opacity: 0.7, depthWrite: false, toneMapped: false }));
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.012;
+  ring.name = 'leverRing';
+  grp.add(ring);
   return grp;
 }
 

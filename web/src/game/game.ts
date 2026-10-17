@@ -30,6 +30,8 @@ type Mode = 'menu' | 'planning' | 'sim' | 'result' | 'screen' | 'transition' | '
 
 interface Settings { master: number; music: number; sfx: number; shake: number; post: boolean; tilt: boolean; crt: boolean; ao: boolean; ink: boolean; dof: boolean }
 const SETTINGS_KEY = 'topple.settings.v1';
+/** Ritmo da simulação na velocidade 1×: um pouco mais lento que o tempo real para dar para acompanhar a onda. */
+const SIM_PACE = 0.75;
 
 const ENEMY_COLORS: Record<string, string> = { soldier: '#8a2a24', brute: '#5a5c64', patroller: '#8a6a32', torcher: '#a8461a', general: '#7a2a3a', ogre: '#5f7a3c', archer: '#2e5a36' };
 /** Cursores de tinta (SVG inline): pena para navegar, anel verde sobre a ponta, mira enquanto traça. */
@@ -1163,8 +1165,8 @@ export class Game {
     const planning = this.mode === 'planning' && !this.paused;
     if (planning) this.patrolT += dt;
 
-    // tempo da simulação: velocidade × câmera lenta × hitstop
-    let simDt = dt * this.speed;
+    // tempo da simulação: ritmo base × velocidade × câmera lenta × hitstop
+    let simDt = dt * SIM_PACE * this.speed;
     if (this.realT < this.slowmoUntil) simDt *= 0.3;
     if (this.hitstop > 0) { this.hitstop -= dt; simDt = 0; }
     if (this.paused) simDt = 0;

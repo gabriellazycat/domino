@@ -17,11 +17,11 @@ export interface SealDef {
 }
 
 export const SEALS: Record<SealId, SealDef> = {
-  guard: { id: 'guard', name: 'Guardada', desc: 'Não vai para o descarte na Nova mão: fica na mão até você usar.', ink: '#2f6fa8', price: 10 },
-  double: { id: 'double', name: 'Dupla', desc: 'Vale por 2: ao colocar, saem duas peças na trilha.', ink: '#b8322a', price: 14 },
-  lucky: { id: 'lucky', name: 'Sortuda', desc: 'Quando sai da caixa, traz mais uma peça junto.', ink: '#3a8a46', price: 11 },
-  first: { id: 'first', name: 'Primeira', desc: 'Sempre vem na primeira mão da fase.', ink: '#6d42b0', price: 9 },
-  gold: { id: 'gold', name: 'Dourada', desc: '+3 de ouro em cada fase vencida em que ela foi colocada.', ink: '#b0861e', price: 8 },
+  guard: { id: 'guard', name: 'Guardada', desc: 'Não vai para o descarte na Nova mão: fica na mão até você usar.', ink: '#2f6fa8', price: 20 },
+  double: { id: 'double', name: 'Dupla', desc: 'Vale por 2: ao colocar, saem duas peças na trilha.', ink: '#b8322a', price: 28 },
+  lucky: { id: 'lucky', name: 'Sortuda', desc: 'Quando sai da caixa, traz mais uma peça junto.', ink: '#3a8a46', price: 22 },
+  first: { id: 'first', name: 'Primeira', desc: 'Sempre vem na primeira mão da fase.', ink: '#6d42b0', price: 18 },
+  gold: { id: 'gold', name: 'Dourada', desc: '+3 de ouro em cada fase vencida em que ela foi colocada.', ink: '#b0861e', price: 16 },
 };
 export const SEAL_ORDER: SealId[] = ['guard', 'double', 'lucky', 'first', 'gold'];
 export const MAX_SEALS = 2;

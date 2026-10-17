@@ -13,12 +13,12 @@ export interface BuffDef {
 }
 
 export const BUFFS: Record<BuffId, BuffDef> = {
-  bighand: { id: 'bighand', name: 'Mão Grande', desc: '+1 peça em cada mão.', price: 30, max: 2, color: '#e8dcc0' },
-  breath: { id: 'breath', name: 'Fôlego', desc: '+1 tentativa em toda fase.', price: 24, max: 1, color: '#7fd0ff' },
-  vigor: { id: 'vigor', name: 'Vigor', desc: '+3 de vida máxima (e cura 3).', price: 16, max: 3, color: '#ff5a5a' },
-  greed: { id: 'greed', name: 'Avareza', desc: '+30% de ouro ao vencer uma fase.', price: 20, max: 1, color: '#f2c14e' },
-  seer: { id: 'seer', name: 'Vidente', desc: 'A caixa mostra qual é a próxima peça.', price: 14, max: 1, color: '#b98cff' },
-  recycle: { id: 'recycle', name: 'Reciclagem', desc: 'A primeira Nova mão de cada tentativa devolve as sobras para a caixa, em vez de descartar.', price: 18, max: 1, color: '#7ee0a0' },
+  bighand: { id: 'bighand', name: 'Mão Grande', desc: '+1 peça em cada mão.', price: 60, max: 2, color: '#e8dcc0' },
+  breath: { id: 'breath', name: 'Fôlego', desc: '+1 tentativa em toda fase.', price: 48, max: 1, color: '#7fd0ff' },
+  vigor: { id: 'vigor', name: 'Vigor', desc: '+3 de vida máxima (e cura 3).', price: 32, max: 3, color: '#ff5a5a' },
+  greed: { id: 'greed', name: 'Avareza', desc: '+30% de ouro ao vencer uma fase.', price: 40, max: 1, color: '#f2c14e' },
+  seer: { id: 'seer', name: 'Vidente', desc: 'A caixa mostra qual é a próxima peça.', price: 28, max: 1, color: '#b98cff' },
+  recycle: { id: 'recycle', name: 'Reciclagem', desc: 'A primeira Nova mão de cada tentativa devolve as sobras para a caixa, em vez de descartar.', price: 36, max: 1, color: '#7ee0a0' },
 };
 export const BUFF_ORDER: BuffId[] = ['bighand', 'breath', 'vigor', 'greed', 'seer', 'recycle'];
 

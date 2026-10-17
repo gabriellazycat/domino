@@ -32,7 +32,7 @@ Outros comandos:
    **Clique no chão** para colocar a trilha de uma vez. Para continuar, clique numa ponta (anel brilhante) e repita. Curvas fechadas demais não valem.
 2. **Sua mão:** a cada fase as suas peças são misturadas numa **caixa** e você pega **7** por vez, sem olhar
    (elas ficam vivas no leque embaixo). Só dá para colocar o que está na mão. Usou tudo? Você pega mais
-   sozinho. **Nova mão** (`D`) joga o resto no pote de descarte e pega mais. Ao pegar, as peças já
+   sozinho. **Nova mão** (`N`) joga o resto no pote de descarte e pega mais. Ao pegar, as peças já
    colocadas ficam fixas na mesa.
 3. **DISPARAR!** (ou `Enter`) — o primeiro dominó cai e a onda corre pela corrente.
 4. Derrube todos os soldadinhos. Cada sobrevivente tira 1 de vida. Você tem 3 tentativas por fase:
@@ -54,7 +54,7 @@ Peças: **Comum**, **Pesada** (derruba brutamontes), **Grande** (pula lava e vã
 **Explosiva** (TNT, explode em área), **Corredora** (é lançada para frente) e **Bifurcação**
 (divide a corrente em duas).
 
-Controles: `1–7` troca a peça · `D` nova mão · botão direito remove a ponta · `Ctrl+Z` desfaz o traço · `R` limpa a mão atual ·
+Controles: `1–7` troca a peça · `N` nova mão · botão direito remove a ponta · `Ctrl+Z` desfaz o traço · `R` limpa a mão atual ·
 câmera: botão direito/meio arrasta, roda = zoom, `WASD` move · `Esc` pausa.
 
 ## Por que web?

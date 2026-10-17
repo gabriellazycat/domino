@@ -57,6 +57,8 @@ interface Item {
   ring?: THREE.Mesh;
   hoverK: number;
   baseY: number;
+  /** pai original do objeto (se mudar, o objeto saiu do lugar e o hover não mexe nele) */
+  home: THREE.Object3D | null;
 }
 
 const easeOutBack = (k: number) => { const c = 1.9; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
@@ -209,8 +211,8 @@ export abstract class EventScene {
   }
   protected wait(sec: number): Promise<void> { return this.tween(sec, () => { /* espera */ }); }
 
-  protected addItem(it: Omit<Item, 'hoverK' | 'baseY'>): Item {
-    const full: Item = { ...it, hoverK: 0, baseY: it.obj.position.y };
+  protected addItem(it: Omit<Item, 'hoverK' | 'baseY' | 'home'>): Item {
+    const full: Item = { ...it, hoverK: 0, baseY: it.obj.position.y, home: it.obj.parent };
     const ring = P.hoverRing(0.75);
     ring.position.set(it.obj.position.x, 0.03, it.obj.position.z);
     this.group.add(ring);
@@ -303,7 +305,9 @@ export abstract class EventScene {
     for (const it of this.items) {
       const want = it === this.hover ? 1 : 0;
       it.hoverK += (want - it.hoverK) * Math.min(1, dt * 12);
-      if (!this.spawns.some((s) => s.o === it.obj)) it.obj.position.y = it.baseY + it.hoverK * 0.14;
+      // objeto que saiu do lugar (ex.: carimbo levado para a prensa) é animado pela cena, não pelo hover
+      const away = it.obj.parent !== it.home;
+      if (!away &&!this.spawns.some((s) => s.o === it.obj)) it.obj.position.y = it.baseY + it.hoverK * 0.14;
       if (it.ring) (it.ring.material as THREE.MeshBasicMaterial).opacity = it.hoverK * 0.85;
       // etiqueta presa no objeto
       if (it.tag) {
@@ -671,17 +675,21 @@ class PressScene extends EventScene {
     const from = new THREE.Vector3();
     d.die.getWorldPosition(from);
     this.group.attach(d.die);
-    const slot = this.press.ram.localToWorld(this.press.dieSlot.clone());
-    slot.y -= 0.3;
-    await this.tween(0.6, (k) => {
-      d.die.position.set(lerp(from.x, slot.x, k), lerp(from.y, slot.y, k) + Math.sin(k * Math.PI) * 1.4, lerp(from.z, slot.z, k));
-      d.die.rotation.x = k * Math.PI;
-    }, easeInOut);
+    // o carimbo continua EM PÉ (face de latão para baixo): voa até logo abaixo do soquete, girando no eixo
+    // do cabo, e depois sobe encaixando o cabo no cabeçote
     this.press.ram.attach(d.die);
-    d.die.position.copy(this.press.dieSlot);
-    d.die.position.y += 0.3;
-    d.die.rotation.set(Math.PI, 0, 0);
+    const start = d.die.position.clone(), r0 = d.die.rotation.y;
+    const slot = this.press.dieSlot.clone();
+    const below = slot.clone().setY(slot.y - 0.55);
+    await this.tween(0.55, (k) => {
+      d.die.position.lerpVectors(start, below, k);
+      d.die.position.y += Math.sin(k * Math.PI) * 1.2;
+      d.die.rotation.set(Math.sin(k * Math.PI) * 0.35, lerp(r0, Math.PI * 2, k), 0);
+    }, easeInOut);
+    d.die.rotation.set(0, 0, 0);
+    await this.tween(0.14, (k) => d.die.position.lerpVectors(below, slot, k), easeIn);
     audio.clang();
+    this.ctx.rig.addTrauma(0.12);
     this.loaded = { seal, die: d.die, item: d.item, home, homeParent };
     this.ctx.ui.hand.hide(false);
     this.ctx.ui.hand.chooseStart(kindsOf(this.ctx.run.cards, (c) => canSeal(c, seal)));
@@ -703,12 +711,12 @@ class PressScene extends EventScene {
     saveRun(this.ctx.run);
     L.homeParent.attach(L.die);
     const from = L.die.position.clone();
-    const r0 = L.die.rotation.x;
     await this.tween(0.5, (k) => {
       L.die.position.lerpVectors(from, L.home, k);
       L.die.position.y += Math.sin(k * Math.PI) * 1.2;
-      L.die.rotation.x = lerp(r0, 0, k);
+      L.die.rotation.set(Math.sin(k * Math.PI) * 0.35, 0, 0);
     });
+    L.die.rotation.set(0, 0, 0);
     L.item.sold = false;
     L.item.baseY = L.home.y;
     this.loaded = null;
@@ -740,20 +748,42 @@ class PressScene extends EventScene {
     await this.tween(0.35, (k) => d.position.set(bed.x, bed.y + (1 - k) * 1.4, bed.z), easeIn);
     audio.card(0, true);
     await this.wait(0.3);
-    // o volante gira e o cabeçote desce
+    // armando: o cabeçote sobe um pouco e o volante gira para trás (antecipação)
     const up = pr.ramUp;
-    await this.tween(0.75, (k) => {
-      pr.ram.position.y = lerp(up, pr.ramDown, k);
-      pr.wheel.rotation.y = k * Math.PI * 3;
-      pr.needle.rotation.z = -k * 2.2;
-    }, easeIn);
+    const cock = up + 0.22;
+    await this.tween(0.22, (k) => {
+      pr.ram.position.y = lerp(up, cock, k);
+      pr.wheel.rotation.y = -k * 0.6;
+      pr.needle.rotation.z = k * 0.4;
+    }, easeOut);
+    await this.wait(0.08);
+    // DESCE: rápido e acelerando até bater
+    await this.tween(0.13, (k) => {
+      pr.ram.position.y = lerp(cock, pr.ramDown, k);
+      pr.wheel.rotation.y = -0.6 + k * Math.PI * 4;
+      pr.needle.rotation.z = 0.4 - k * 2.8;
+    }, (k) => k * k * k);
     // TUM
     audio.stamp();
-    this.ctx.rig.addTrauma(0.55);
+    audio.thud();
+    this.ctx.rig.addTrauma(0.9);
+    this.ctx.fx.flash = Math.min(0.3, this.ctx.fx.flash + 0.18);
     const bw = pr.g.localToWorld(bed.clone());
-    this.ctx.fx.sparkBurst(bw.x, bw.y + 0.05, bw.z, 28, SEALS[L.seal].ink, 2.6);
-    this.ctx.fx.dust(bw.x, bw.z, 0.7);
+    const ink = SEALS[L.seal].ink;
+    this.ctx.fx.sparkBurst(bw.x, bw.y + 0.05, bw.z, 46, ink, 4.2);
+    this.ctx.fx.sparkBurst(bw.x, bw.y + 0.05, bw.z, 18, '#fff3d0', 3);
+    this.ctx.fx.ring(bw.x, bw.z, 1.6, ink, 0.35);
+    this.ctx.fx.ring(bw.x, bw.z, 0.9, '#fff3d0', 0.22);
+    this.ctx.fx.dust(bw.x, bw.z, 0.9);
+    this.ctx.fx.text(bw.x, bw.y + 1.1, bw.z, 'TUM!', 'boom', 1.1);
     if (canSeal(card, L.seal)) card.seals.push(L.seal);
+    // a peça achata com a pancada (na espessura) e a prensa inteira treme
+    const base = pr.g.position.clone();
+    const squash = (k: number) => {
+      const s = Math.sin(k * Math.PI) * Math.exp(-k * 2.5);
+      d.scale.set(1 + 0.12 * s, 1 + 0.12 * s, 1 - 0.45 * s);
+      pr.g.position.set(base.x + (Math.random() - 0.5) * 0.06 * (1 - k), base.y, base.z + (Math.random() - 0.5) * 0.04 * (1 - k));
+    };
     saveRun(run);
     // troca a peça pela versão carimbada (mesmo lugar)
     const stamped = this.domino(card, card.uid, 'dizzy');
@@ -762,12 +792,19 @@ class PressScene extends EventScene {
     pr.g.add(stamped);
     pr.g.remove(d);
     d = stamped;
-    await this.wait(0.3);
-    // o cabeçote sobe e o carimbo usado some
-    await this.tween(0.7, (k) => {
+    // quique do cabeçote + peça achatando, prensa tremendo
+    await this.tween(0.32, (k) => {
+      pr.ram.position.y = pr.ramDown + Math.sin(k * Math.PI) * Math.exp(-k * 3) * 0.06;
+      squash(k);
+    });
+    d.scale.set(1, 1, 1);
+    pr.g.position.copy(base);
+    await this.wait(0.2);
+    // o cabeçote sobe devagar (o peso já foi) e o carimbo usado some
+    await this.tween(0.6, (k) => {
       pr.ram.position.y = lerp(pr.ramDown, up, k);
-      pr.wheel.rotation.y = Math.PI * 3 * (1 - k);
-      pr.needle.rotation.z = -2.2 * (1 - k);
+      pr.wheel.rotation.y = -0.6 + Math.PI * 4 * (1 - k);
+      pr.needle.rotation.z = -2.4 * (1 - k);
     }, easeOut);
     await this.tween(0.25, (k) => L.die.scale.setScalar(Math.max(0.0001, 1 - k)), easeIn);
     L.die.visible = false;

@@ -43,7 +43,7 @@ export const PIECES: Record<PieceId, PieceDef> = {
   },
   blast: {
     id: 'blast', name: 'Explosiva', plural: 'Explosivas', short: 'BUM',
-    desc: 'Explode ao cair ou ao tocar um inimigo. Derruba tudo em volta!',
+    desc: 'Explode ao tocar um inimigo. Derruba tudo em volta!',
     w: 0.40, h: 0.80, t: 0.14, step: 0.38,
     color: '#e5493a', pip: '#ffe9b0', cost: 3,
   },

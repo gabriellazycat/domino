@@ -87,6 +87,7 @@ button { font-family: var(--display); cursor: pointer; border: none; }
 .enemy-icons i.brute { width: 18px; background: #4a4c54; box-shadow: inset 0 -4px 0 #24262b; }
 .enemy-icons i.general { width: 20px; background: #6a1a2e; box-shadow: inset 0 -4px 0 #2a0812, 0 0 8px rgba(255, 30, 30, .5); }
 .enemy-icons i.patroller { background: #7a5a2a; box-shadow: inset 0 -4px 0 #3a2a10; }
+.enemy-icons i.torcher { background: #8a3a16; box-shadow: inset 0 -4px 0 #2a0e04, 0 -3px 6px rgba(255, 140, 40, .7); }
 .enemy-icons i.down { transform: rotate(90deg) scale(.8); opacity: .2; }
 .pieces-par { font-size: 13px; color: var(--muted); font-weight: 700; }
 .pieces-par b { color: var(--cream); font-family: var(--num); font-weight: 400; }

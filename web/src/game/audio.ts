@@ -343,6 +343,15 @@ export class Audio {
     this.noise(t + 0.43, 0.08, 0.22, 'lowpass', 700, 0.8, this.sfx);
   }
 
+  /** Peça pegando fogo na tocha: "fuuush" de chama + estalinhos de madeira queimando. */
+  ignite(x = 0) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.noise(t, 0.6, 0.5, 'bandpass', 400, 1.2, this.panFor(x), 1600);
+    this.noise(t, 0.9, 0.25, 'lowpass', 700, 0.7, this.sfx, 200);
+    for (let i = 0; i < 6; i++) this.noise(t + 0.08 + Math.random() * 0.6, 0.03, 0.18, 'bandpass', 2000 + Math.random() * 2500, 2, this.sfx);
+  }
+
   whoosh() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;

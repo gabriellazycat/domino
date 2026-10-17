@@ -5,7 +5,7 @@ import { Board } from './board';
 import { Fx } from './fx';
 import { Decals } from './decals';
 import { audio } from './audio';
-import { Sim, SimEnemy, Cause } from './sim';
+import { Sim, SimEnemy, Cause, BURN_TIME } from './sim';
 import { UI } from '../ui/ui';
 import { generatePhase, PhaseSpec, ENEMY_HP, wallExtents } from '../core/mapgen';
 import { Layout, FAIL_TEXT, Fail, Placed } from '../core/layout';
@@ -31,7 +31,7 @@ type Mode = 'menu' | 'planning' | 'sim' | 'result' | 'screen' | 'transition' | '
 interface Settings { master: number; music: number; sfx: number; shake: number; post: boolean; tilt: boolean; crt: boolean; ao: boolean; ink: boolean; dof: boolean }
 const SETTINGS_KEY = 'topple.settings.v1';
 
-const ENEMY_COLORS: Record<string, string> = { soldier: '#8a2a24', brute: '#5a5c64', patroller: '#8a6a32', general: '#7a2a3a' };
+const ENEMY_COLORS: Record<string, string> = { soldier: '#8a2a24', brute: '#5a5c64', patroller: '#8a6a32', torcher: '#a8461a', general: '#7a2a3a' };
 /** Cursores de tinta (SVG inline): pena para navegar, anel verde sobre a ponta, mira enquanto traça. */
 const cursorSvg = (body: string, hot: number, fallback: string) =>
   `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'>${body}</svg>`)}") ${hot} ${hot}, ${fallback}`;
@@ -40,7 +40,7 @@ const CURSOR_RING = cursorSvg("<circle cx='14' cy='14' r='7' fill='none' stroke=
 const CURSOR_CROSS = cursorSvg("<path d='M14 4v8M14 16v8M4 14h8M16 14h8' stroke='#ffb347' stroke-width='2' stroke-linecap='round'/><circle cx='14' cy='14' r='2' fill='#ffb347'/>", 14, 'crosshair');
 
 /** Tinta escura que fica na mesa onde o inimigo tomba (mais fechada que a cor do soldadinho). */
-const ENEMY_INK: Record<string, string> = { soldier: '#2c0604', brute: '#15171b', patroller: '#221605', general: '#24040e' };
+const ENEMY_INK: Record<string, string> = { soldier: '#2c0604', brute: '#15171b', patroller: '#221605', torcher: '#1a0c06', general: '#24040e' };
 
 export class Game {
   world: World;
@@ -64,6 +64,7 @@ export class Game {
   timeScale = 1;
   slowmoUntil = 0;
   hitstop = 0;
+  private torchTmp: THREE.Vector3[] = [];
   simEndAt = -1;
   paused = false;
   settings: Settings = { master: 0.8, music: 0.5, sfx: 0.9, shake: 1, post: true, tilt: true, crt: true, ao: true, ink: false, dof: false };
@@ -198,7 +199,7 @@ export class Game {
         if (e.ctrlKey && k === 'z') { e.preventDefault(); this.undo(); return; }
         if (k === ' ' || k === 'enter') { e.preventDefault(); this.fire(); return; }
         if (k === 'r' && !e.ctrlKey) { this.clearLayout(); return; }
-        if (k === 'd' && !e.ctrlKey) { this.newHand(); return; }
+        if (k === 'n' && !e.ctrlKey) { this.newHand(); return; }
         const n = Number(k);
         if (n >= 1 && n <= 9) { const id = this.ui.hand.kinds()[n - 1]; if (id) this.select(id); }
       } else if (this.mode === 'sim') {
@@ -297,7 +298,7 @@ export class Game {
   private emptyText(): string {
     const k = this.layout.uses(this.selected);
     const pile = this.layout.pile?.size ?? 0;
-    if (k <= 0) return pile ? 'Mão vazia — Nova mão (D) compra mais' : 'Acabaram as peças — DISPARE!';
+    if (k <= 0) return pile ? 'Mão vazia — Nova mão (N) compra mais' : 'Acabaram as peças — DISPARE!';
     const t = kindType(this.selected);
     const what = `${k} ${k === 1 ? PIECES[t].name : PIECES[t].plural}`;
     return pile ? `Sua mão só tem ${what} — coloque e pegue mais` : `Só restam ${what} — a caixa acabou`;
@@ -619,6 +620,15 @@ export class Game {
         this.decals.scorch(x, z, r);
       },
       bulldoze: (x, z) => { if (this.mode === 'sim') { this.fx.text(x, 1, z, 'EMPURRÃO!', 'small'); audio.ui('deny'); } },
+      burn: (i, x, z) => {
+        if (this.mode !== 'sim' && !this.demo) return;
+        const h = PIECES[sim.pieces[i].p.type].h;
+        this.fx.ignite(x, z, h);
+        this.fx.text(x, h + 0.5, z, 'QUEIMOU!', 'small');
+        audio.ignite(x);
+        this.decals.scorch(x, z, 0.35);
+        this.rig.addTrauma(0.08);
+      },
       runner: () => audio.whoosh(),
       impact: (speed, x, y, z, material) => this.onImpact(speed, x, y, z, material),
       allDown: () => {
@@ -1110,6 +1120,12 @@ export class Game {
       this.board.syncSim(this.sim);
       // rastro dos foguetes
       for (const s of this.sim.pieces) if (s.launched >= 0) { const t = s.body.translation(); this.fx.trail(t.x, t.y, t.z); }
+      // peças queimando (tocheiro)
+      if (simDt > 0) for (const s of this.sim.pieces) {
+        if (s.burned < 0) continue;
+        const k = (this.sim.t - s.burned) / BURN_TIME;
+        if (k < 1) { const t = s.body.translation(); this.fx.burning(t.x, t.z, PIECES[s.p.type].h, k); }
+      }
       // faísca das explosivas acesas
       if (this.mode === 'sim' && !this.rig.userMoved) this.followCascade();
       if (this.mode === 'sim') this.alarmCheck();
@@ -1147,6 +1163,8 @@ export class Game {
     this.board.updateSpawn(realDt);
     this.board.update(dt, planning || (this.mode === 'menu' && !this.sim), this.patrolT);
     this.fx.update(dt);
+    // brasas subindo das tochas acesas
+    if (dt > 0 && Math.random() < dt * 14) for (const p of this.board.torchTips(this.torchTmp)) this.fx.ember(p.x, p.y + 0.05, p.z);
     this.world.lamp.intensity *= Math.exp(-dt * 6);
     this.rig.update(dt, !this.paused && this.mode !== 'menu' && this.mode !== 'transition' && !this.ui.hasScreen());
     this.updateGaze(dt);

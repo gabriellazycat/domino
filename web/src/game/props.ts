@@ -266,6 +266,10 @@ export function press(): Press {
   mesh(box(0.7, 0.04, 0.6, 0.015), M.brass(), ram, 0, -0.16, 0);
   for (const sx of [-1, 1]) mesh(cyl(0.13, 0.13, 0.3, 16), M.ironDark(), ram, sx * 0.85, 0, 0);
   mesh(box(1.7, 0.08, 0.16, 0.03), M.ironDark(), ram, 0, 0.05, 0);
+  // soquete embaixo do cabeçote: o cabo do carimbo entra nele (face de latão virada para a mesa)
+  const SOCKET = 0.15;
+  mesh(cyl(0.1, 0.12, SOCKET, 20), M.ironDark(), ram, 0, -0.18 - SOCKET / 2, 0);
+  mesh(cyl(0.125, 0.125, 0.025, 20), M.brass(), ram, 0, -0.18 - SOCKET + 0.012, 0);
   const ramUp = 2.45;
   ram.position.set(0, ramUp, 0);
   g.add(ram);
@@ -281,13 +285,14 @@ export function press(): Press {
   gauge.add(needle);
   gauge.position.set(-0.85, 1.55, 0.16);
   g.add(gauge);
-  // o carimbo (h 0.2) fica com a base logo abaixo do cabeçote; a peça deitada tem ~0.12 de espessura
-  const dieH = 0.2;
+  // o carimbo fica EM PÉ: cabo dentro do soquete, colar de latão (topo em 0,13) encostado na boca dele.
+  // A origem do carimbo é a face de latão; a peça deitada tem ~0,12 de espessura.
+  const dieFace = -0.18 - SOCKET - 0.13;
   return {
     g, wheel, ram, ramUp,
-    ramDown: bedTop + 0.12 + dieH + 0.15,
+    ramDown: bedTop + 0.12 - dieFace,
     bed: new THREE.Vector3(0, bedTop, 0),
-    dieSlot: new THREE.Vector3(0, -0.17 - dieH / 2, 0),
+    dieSlot: new THREE.Vector3(0, dieFace, 0),
     needle,
   };
 }

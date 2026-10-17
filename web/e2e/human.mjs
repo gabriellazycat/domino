@@ -72,7 +72,7 @@ try {
     await page.waitForTimeout(900);
     const st = await page.evaluate(() => { const g = window.__topple.game; const h = g.layout.heads()[0]; return { h: [h.x, h.z], hand: g.layout.handCount(), pile: g.layout.pile.size }; });
     if (Math.hypot(st.h[0] - ex, st.h[1] - ez) < 1.0 || (st.hand === 0 && st.pile === 0)) break;
-    if (st.hand === 0) { await page.keyboard.press('d'); continue; }
+    if (st.hand === 0) { await page.keyboard.press('n'); continue; }
     const p2 = await toScreen(st.h[0], st.h[1]);
     await trace(p2, c, 15);
     await page.mouse.click(c.x, c.y);

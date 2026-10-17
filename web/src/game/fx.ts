@@ -75,6 +75,9 @@ class Pool {
 interface Puff { sp: THREE.Sprite; life: number; max: number; grow: number; vy: number; base: number }
 interface Ring { m: THREE.Mesh; life: number; max: number; r: number }
 
+/** Brilho (linear) das faíscas/brasas: precisa passar do limiar do bloom (3,8) mesmo nas cores laranja escuras. */
+const SPARK_HDR = 11;
+
 const WORDS_KNOCK = ['POW!', 'BAM!', 'CRASH!', 'TOMBO!', 'PLOFT!', 'BONK!', 'KABUM!', 'ZÁS!'];
 
 export class Fx {
@@ -105,7 +108,7 @@ export class Fx {
   }
 
   sparkBurst(x: number, y: number, z: number, n: number, color: string, speed: number) {
-    const c = new THREE.Color(color).multiplyScalar(4);
+    const c = new THREE.Color(color).multiplyScalar(SPARK_HDR);
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, e = Math.random() * 1.2;
       const sp = speed * (0.5 + Math.random());
@@ -135,6 +138,30 @@ export class Fx {
     }
   }
 
+  /** Brasinha subindo da ponta de uma tocha (chamado a cada poucos quadros). */
+  ember(x: number, y: number, z: number) {
+    const c = new THREE.Color(Math.random() < 0.5 ? '#ff8a2a' : '#ffc45a').multiplyScalar(SPARK_HDR);
+    this.sparks.spawn({ x: x + (Math.random() - 0.5) * 0.04, y, z: z + (Math.random() - 0.5) * 0.04, vx: (Math.random() - 0.5) * 0.3, vy: 0.5 + Math.random() * 0.5, vz: (Math.random() - 0.5) * 0.3, wx: 8, wy: 8, wz: 0, s: 0.018 + Math.random() * 0.016, max: 0.5 + Math.random() * 0.5, g: 0.6, drag: 1.5 }, c);
+    if (Math.random() < 0.12) this.puff(x, y + 0.1, z, 0.22, '#2a221e', 0.7, 0.35);
+  }
+
+  /** A peça pega fogo: lufada de chama, faíscas e fumaça. */
+  ignite(x: number, z: number, h: number) {
+    this.ring(x, z, 0.5, '#ff6a1a', 0.3);
+    this.sparkBurst(x, h * 0.6, z, 22, '#ff7a2a', 2.2);
+    for (let i = 0; i < 3; i++) this.puff(x + (Math.random() - 0.5) * 0.15, h * 0.5 + i * 0.12, z + (Math.random() - 0.5) * 0.15, 0.55 + i * 0.1, i < 2 ? '#ff7a2a' : '#3a2c26', 0.45 + i * 0.15, 0.7);
+  }
+
+  /** Fogo lambendo uma peça que está queimando (`k` = 0 começo, 1 virou cinza). */
+  burning(x: number, z: number, h: number, k: number) {
+    const top = h * (1 - k);
+    for (let i = 0; i < 2; i++) {
+      const c = new THREE.Color(Math.random() < 0.6 ? '#ff6a1a' : '#ffd66a').multiplyScalar(SPARK_HDR);
+      this.sparks.spawn({ x: x + (Math.random() - 0.5) * 0.12, y: Math.random() * top + 0.02, z: z + (Math.random() - 0.5) * 0.12, vx: (Math.random() - 0.5) * 0.4, vy: 1 + Math.random() * 0.8, vz: (Math.random() - 0.5) * 0.4, wx: 10, wy: 10, wz: 0, s: 0.03 + Math.random() * 0.03, max: 0.35 + Math.random() * 0.3, g: 1.5, drag: 2 }, c);
+    }
+    if (Math.random() < 0.25) this.puff(x, top + 0.15, z, 0.35, Math.random() < 0.4 ? '#ff7a2a' : '#2a221e', 0.6, 0.45);
+  }
+
   confetti(x: number, z: number, n = 140) {
     // brasas e cinzas (em vez de confete colorido)
     const cols = ['#ff8a3c', '#ffb347', '#ff5a2a', '#3a302a', '#6a5a4a', '#cbbf9f'];
@@ -145,7 +172,7 @@ export class Fx {
   }
 
   trail(x: number, y: number, z: number) {
-    this.sparks.spawn({ x, y, z, vx: (Math.random() - 0.5), vy: 0.5, vz: (Math.random() - 0.5), wx: 10, wy: 10, wz: 0, s: 0.05, max: 0.35, g: 0, drag: 3 }, new THREE.Color('#ffb347').multiplyScalar(4));
+    this.sparks.spawn({ x, y, z, vx: (Math.random() - 0.5), vy: 0.5, vz: (Math.random() - 0.5), wx: 10, wy: 10, wz: 0, s: 0.05, max: 0.35, g: 0, drag: 3 }, new THREE.Color('#ffb347').multiplyScalar(SPARK_HDR));
     if (Math.random() < 0.4) this.puff(x, y, z, 0.3, '#cfc3b0', 0.4);
   }
 

@@ -7,7 +7,7 @@ import { Deck, deckTotal } from './pieces';
 export const BOARD = { w: 16, d: 10 };
 export const BOARD_MARGIN = 0.3;
 
-export type EnemyKind = 'soldier' | 'brute' | 'patroller' | 'general';
+export type EnemyKind = 'soldier' | 'brute' | 'patroller' | 'torcher' | 'general';
 export interface Vec2 { x: number; z: number }
 export interface EnemySpec {
   kind: EnemyKind;
@@ -34,8 +34,8 @@ export interface PhaseSpec {
   hint?: string;
 }
 
-export const ENEMY_RADIUS: Record<EnemyKind, number> = { soldier: 0.19, brute: 0.3, patroller: 0.2, general: 0.4 };
-export const ENEMY_HP: Record<EnemyKind, number> = { soldier: 1, patroller: 1, brute: 2, general: 4 };
+export const ENEMY_RADIUS: Record<EnemyKind, number> = { soldier: 0.19, brute: 0.3, patroller: 0.2, torcher: 0.2, general: 0.4 };
+export const ENEMY_HP: Record<EnemyKind, number> = { soldier: 1, patroller: 1, torcher: 1, brute: 2, general: 4 };
 
 const AREAS = ['Campo de Treino', 'Vila do Moinho', 'Ponte Velha', 'Pátio do Quartel', 'Mercado', 'Muralhas', 'Bosque Sombrio', 'Forja', 'Torre Norte', 'Cidadela'];
 
@@ -256,8 +256,11 @@ function tryGenerate(rng: Rng, runSeed: number, depth: number, deckCards: number
         return segPointDist(p.x, p.z, q.x, q.z, e.x, e.z) < 0.55;
       }));
       if (clash) continue;
+      // da fase 6 em diante, cerca de metade dos patrulheiros carrega uma TOCHA (queima peça em pé no caminho).
+      // Sorteio derivado da rota (não consome o rng, para não mexer no resto da fase).
+      const torch = depth >= 5 && ((Math.floor(Math.abs(ox * 97 + oz * 61)) + i) % 2 === 0);
       enemies.push({
-        kind: 'patroller', x: pts[0].x, z: pts[0].z, yaw: Math.PI / 2, squad: 100 + i,
+        kind: torch ? 'torcher' : 'patroller', x: pts[0].x, z: pts[0].z, yaw: Math.PI / 2, squad: 100 + i,
         patrol: { pts, speed: Math.min(0.95, 0.45 + 0.035 * depth) },
       });
       break;
@@ -350,6 +353,7 @@ function tryGenerate(rng: Rng, runSeed: number, depth: number, deckCards: number
   else if (depth === 2) hint = 'Dois pelotões: use a BIFURCAÇÃO para dividir a corrente.';
   else if (enemies.some((e) => e.kind === 'brute') && depth <= 4) hint = 'Brutamontes aguentam 2 golpes. Pesada ou Torre derrubam de uma vez!';
   else if (enemies.some((e) => e.patrol) && depth <= 4) hint = 'Patrulheiro! Ele empurra peças em pé no caminho dele. Dispare na hora certa.';
+  else if (enemies.some((e) => e.kind === 'torcher') && depth <= 7 && !boss) hint = 'Tocheiro! A tocha dele QUEIMA peças em pé no caminho. Mas uma peça caindo nele derruba.';
   else if (boss) hint ='O GENERAL aguenta 4 golpes. Explosivas e Pesadas ajudam muito!';
 
   return {

@@ -158,7 +158,7 @@ class ContactAO extends GTAOPass {
   }
 }
 
-/** Brasas que sobem das chamas das velas (aditivas; brilham no bloom porque passam de 1,4). */
+/** Brasas que sobem das chamas das velas (aditivas; brilham no bloom porque passam do limiar de 3,8). */
 const EmberShader = {
   uniforms: {
     uPx: { value: 800 },
@@ -178,7 +178,7 @@ const EmberShader = {
     uniform sampler2D uMap; varying float vL;
     void main(){
       float a = texture2D(uMap, gl_PointCoord).a * smoothstep(0.0, 0.12, vL) * (1.0 - vL);
-      gl_FragColor = vec4(vec3(1.0, 0.5, 0.2) * 2.2, a);
+      gl_FragColor = vec4(vec3(1.0, 0.5, 0.2) * 6.5, a);
     }`,
 };
 const N_EMBERS = 56;
@@ -444,8 +444,9 @@ export class World {
           gl_FragColor = vec4(min(c.rgb, vec3(64.0)), c.a);
         }`,
     }));
-    // limiar alto: só o que é realmente quente (chamas, faíscas, olhos) brilha; o topo iluminado dos dominós não
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.55, 1.4);
+    // limiar alto: só o que é realmente quente (chamas, faíscas, olhos) brilha. O topo dos dominós sob a
+    // lâmpada chega a ~3–3,5 (linear), por isso o limiar fica acima disso; faíscas/brasas usam ×11 para passar.
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.55, 3.8);
     this.composer.addPass(this.bloom);
     this.ink = new ShaderPass(InkShader);
     this.ink.enabled = false;

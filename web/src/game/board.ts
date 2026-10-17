@@ -3,7 +3,7 @@ import { PIECES } from '../core/pieces';
 import { Placed } from '../core/layout';
 import { PhaseSpec, ENEMY_RADIUS } from '../core/mapgen';
 import { makeDomino, makeEnemy, makeWall, makeTrigger, makeHeadRing, dominoGeometry, ghostMaterial, glow } from './models';
-import { Sim, patrolPos, ENEMY_HEIGHT, quatYaw } from './sim';
+import { Sim, BLAST_RADIUS, BURN_TIME, patrolPos, ENEMY_HEIGHT, quatYaw } from './sim';
 import { FaceRig, FaceBase, tiltOfQuat } from './faces';
 import { EnemyFaceRig } from './enemyFaces';
 import type { SweepTarget } from './hand';
@@ -12,7 +12,7 @@ import type { SweepTarget } from './hand';
 interface PieceView { mesh: THREE.Mesh; p: Placed; pop: number; face: FaceRig; simExpr: FaceBase | null }
 /** Humor geral das peças: preocupadas no planejamento (olhos correndo), suando antes do disparo, felizes/tristes no resultado. */
 export type Mood = 'calm' | 'nervous' | 'happy' | 'sad';
-interface EnemyView { pivot: THREE.Group; ring: THREE.Mesh; hpPips?: THREE.Group; bob: number; hitT: number; face: EnemyFaceRig; down: boolean }
+interface EnemyView { pivot: THREE.Group; ring: THREE.Mesh; hpPips?: THREE.Group; bob: number; hitT: number; face: EnemyFaceRig; down: boolean; flame?: THREE.Object3D }
 
 export class Board {
   root = new THREE.Group();
@@ -23,6 +23,7 @@ export class Board {
   heads: THREE.Mesh[] = [];
   ghost: THREE.Mesh;
   trailMeshes: THREE.Mesh[] = [];
+  blastRings: THREE.LineLoop[] = [];
   hoverRing: THREE.Mesh;
   spec!: PhaseSpec;
   t = 0;
@@ -77,7 +78,7 @@ export class Board {
       ring.rotation.x = -Math.PI / 2;
       this.root.add(pivot);
       this.root.add(ring);
-      const v: EnemyView = { pivot, ring, bob: Math.random() * 6, hitT: -1, face: pivot.userData.face as EnemyFaceRig, down: false };
+      const v: EnemyView = { pivot, ring, bob: Math.random() * 6, hitT: -1, face: pivot.userData.face as EnemyFaceRig, down: false, flame: pivot.getObjectByName('flame') };
       if (e.kind === 'brute' || e.kind === 'general') {
         v.hpPips = new THREE.Group();
         this.root.add(v.hpPips);
@@ -113,6 +114,7 @@ export class Board {
       v.ring.position.set(x, 0.015, z);
       v.hitT = -1;
       v.down = false;
+      if (v.flame) v.flame.visible = true;
       v.face.reset();
       if (v.hpPips) { v.hpPips.visible = true; this.setHp(i, e.kind === 'general' ? 4 : 2, e.kind === 'general' ? 4 : 2); }
     });
@@ -157,6 +159,7 @@ export class Board {
       v.mesh.quaternion.setFromEuler(new THREE.Euler(0, v.p.yaw, 0));
       v.mesh.visible = true;
       v.mesh.scale.setScalar(1);
+      this.char(v.mesh, 0); // desfaz o carvão de uma tentativa anterior
       v.pop = 1;
       v.simExpr = null;
     }
@@ -200,6 +203,25 @@ export class Board {
       m.position.set(p.x, PIECES[p.type].h / 2, p.z);
       m.rotation.set(0, p.yaw, 0);
     });
+    // Explosivas na trilha: círculo tracejado com o raio real da explosão
+    const blasts = list.filter((p) => p.type === 'blast');
+    while (this.blastRings.length < blasts.length) {
+      const pts: THREE.Vector3[] = [];
+      for (let i = 0; i < 72; i++) { const a = (i / 72) * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * BLAST_RADIUS, 0, Math.sin(a) * BLAST_RADIUS)); }
+      const ring = new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineDashedMaterial({ color: 0xff6a30, dashSize: 0.14, gapSize: 0.1, transparent: true, opacity: 0.9, depthWrite: false }),
+      );
+      ring.computeLineDistances();
+      ring.renderOrder = 3;
+      this.blastRings.push(ring);
+      this.scene.add(ring);
+    }
+    this.blastRings.forEach((r, i) => {
+      const p = blasts[i];
+      r.visible = !!p;
+      if (p) r.position.set(p.x, 0.03, p.z);
+    });
   }
 
   showGhost(g: { x: number; z: number; yaw: number } | null, type: keyof typeof PIECES = 'common') {
@@ -221,6 +243,17 @@ export class Board {
       v.mesh.position.set(t.x, t.y, t.z);
       v.mesh.quaternion.set(q.x, q.y, q.z, q.w);
       if (s.exploded) v.mesh.visible = false;
+      // queimada pelo tocheiro: encolhe, afunda e enegrece até virar cinza
+      if (s.burned >= 0) {
+        const k = Math.min(1, (sim.t - s.burned) / BURN_TIME);
+        const d = PIECES[s.p.type];
+        v.mesh.scale.set(1 - 0.35 * k, Math.max(0.02, 1 - k), 1 - 0.35 * k);
+        v.mesh.position.y = (d.h / 2) * (1 - k);
+        v.mesh.visible = k < 1;
+        v.simExpr = 'scream';
+        this.char(v.mesh, k);
+        return;
+      }
       const tilt = tiltOfQuat(q);
       let ex: FaceBase;
       if (tilt > 1.15) {
@@ -239,12 +272,37 @@ export class Board {
       v.ring.position.set(t.x, 0.015, t.z);
       v.ring.visible = e.alive;
       if (v.hpPips) v.hpPips.visible = e.alive;
-      if (!e.alive && !v.down) { v.down = true; v.face.base = 'dizzy'; v.face.react('dizzy', 0); }
+      if (!e.alive && !v.down) {
+        v.down = true; v.face.base = 'dizzy'; v.face.react('dizzy', 0);
+        if (v.flame) v.flame.visible = false; // a tocha apaga na queda
+      }
       // some num "puf" depois de cair
       if (!e.alive && sim.t - e.knockedAt > 1.6) {
         const k = Math.max(0, 1 - (sim.t - e.knockedAt - 1.6) / 0.35);
         v.pivot.scale.setScalar(k);
         if (k <= 0) v.pivot.visible = false;
+      }
+    });
+  }
+
+  /**
+   * Carboniza a peça (k 0→1): troca os materiais (compartilhados no cache) por cópias que escurecem
+   * e ganham brilho de brasa. `k = 0` devolve os originais.
+   */
+  private char(mesh: THREE.Object3D, k: number) {
+    mesh.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      if (k <= 0) { if (m.userData.origMat) { m.material = m.userData.origMat; delete m.userData.origMat; } return; }
+      if (!m.userData.origMat) {
+        m.userData.origMat = m.material;
+        const clone = (x: THREE.Material) => { const c = x.clone(); c.userData.base = (x as THREE.MeshStandardMaterial).color?.clone(); return c; };
+        m.material = Array.isArray(m.material) ? m.material.map(clone) : clone(m.material);
+      }
+      for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
+        const s = mat as THREE.MeshStandardMaterial;
+        if (s.userData.base && s.color) s.color.copy(s.userData.base).multiplyScalar(Math.max(0.06, 1 - k * 1.6));
+        if (s.emissive) { s.emissive.set('#ff4a10'); s.emissiveIntensity = Math.sin(Math.min(1, k * 1.3) * Math.PI) * 0.9; }
       }
     });
   }
@@ -373,6 +431,25 @@ export class Board {
       const k = 0.4 + Math.sin(this.t * 6) * 0.1;
       for (const m of this.trailMeshes) if (m.visible) (m.material as THREE.MeshBasicMaterial).opacity = k;
     }
+    for (const r of this.blastRings) if (r.visible) r.rotation.y = this.t * 0.4;
+    // chama das tochas tremulando
+    this.enemyViews.forEach((v, i) => {
+      const f = v.flame;
+      if (!f) return;
+      const n = Math.sin(this.t * 17 + i) * 0.5 + Math.sin(this.t * 29 + i * 2) * 0.3;
+      f.scale.set(1 + n * 0.12, 1 + n * 0.25, 1 + n * 0.12);
+      f.rotation.z = Math.sin(this.t * 11 + i) * 0.15;
+    });
+  }
+
+  /** Ponta acesa de cada tocha de tocheiro de pé (mundo), para o jogo soltar brasas. */
+  torchTips(out: THREE.Vector3[] = []): THREE.Vector3[] {
+    out.length = 0;
+    for (const v of this.enemyViews) {
+      if (!v.flame || v.down || !v.pivot.visible) continue;
+      out.push(v.flame.getWorldPosition(new THREE.Vector3()));
+    }
+    return out;
   }
 
   /** Tira tudo da mesa (eventos entre as fases acontecem com a mesa vazia). */

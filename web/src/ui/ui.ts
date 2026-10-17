@@ -369,11 +369,11 @@ export class UI {
     p.innerHTML = `<h1 class="wob">${wob('Como jogar')}</h1><div class="how-demo" aria-hidden="true">${demo}</div><p class="how-cap">trilha → disparar → derrube</p><ol class="howto">
       <li><b>Clique</b> no <b>marcador VERDE</b> e mova o mouse: aparece uma <b>trilha fantasma</b>. <b>Clique no chão</b> para colocar as peças de uma vez. Depois, continue de qualquer <b>ponta brilhante</b>.</li>
       <li>Embaixo fica a sua <b>mão</b>: ${RULES.handSize} peças tiradas da <b>caixa</b>, sem olhar. Clique numa peça (ou teclas <b>1–7</b>) para escolher o tipo. Só dá para colocar o que está na mão.</li>
-      <li>Usou tudo? Você pega mais da caixa sozinho. Quer trocar? <b>Nova mão</b> (<b>D</b>) joga o resto no <b>pote de descarte</b> e pega mais. Ao pegar, as peças já colocadas <b>ficam fixas</b> na mesa (desfazer só vale para a mão atual). Quando a caixa esvazia, é hora de disparar.</li>
+      <li>Usou tudo? Você pega mais da caixa sozinho. Quer trocar? <b>Nova mão</b> (<b>N</b>) joga o resto no <b>pote de descarte</b> e pega mais. Ao pegar, as peças já colocadas <b>ficam fixas</b> na mesa (desfazer só vale para a mão atual). Quando a caixa esvazia, é hora de disparar.</li>
       <li>Aperte <b>DISPARAR</b> (Espaço): a 1ª peça cai e a corrente faz o resto. Derrube <b>todos</b> os inimigos!</li>
       <li><b>3 tentativas</b> por fase. Errou? A fase recomeça do zero com todas as peças <b>misturadas de novo</b> na caixa. Sobrou inimigo de pé no fim? Cada um tira <b>1 ${icon('heart')}</b>.</li>
       <li><b>Brutamontes</b> têm 2 de vida, o <b>General</b> 4. Cada dominó ou inimigo que bate neles tira <b>1</b>; a <b>Pesada</b> e a <b>Explosiva</b> tiram <b>4</b> (derrubam na hora) e a <b>Torre</b> tira 3.</li>
-      <li><b>Patrulheiros</b> empurram peças em pé no caminho deles. <b>Muros</b> podem ser retos, em L ou curvos: contorne!</li>
+      <li><b>Patrulheiros</b> empurram peças em pé no caminho deles; o <b>Tocheiro</b> queima e faz sumir as que ainda estão de pé (uma peça caindo derruba ele). <b>Muros</b> podem ser retos, em L ou curvos: contorne!</li>
       <li>Vencer dá <b>ouro</b> e peças novas. Entre as fases, às vezes a mesa recebe um <b>evento</b>: a <b>Loja</b>, a <b>Prensa de Selos</b> (carimba um poder numa peça: Guardada, Dupla, Sortuda, Primeira, Dourada — até 2 por peça) ou o <b>Altar Místico</b> (bênçãos que valem a run inteira). Você escolhe comprar ou ir embora. ${icon('star')} extra por usar ≤ par de peças e por vencer de primeira.</li>
       <li>Câmera: <b>botão direito</b> gira, <b>roda</b> dá zoom, <b>WASD</b> move, <b>Q/E</b> giram. Botão direito numa ponta remove a peça.</li></ol>`;
     const b = h('div', 'btns');

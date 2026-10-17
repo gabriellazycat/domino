@@ -7,8 +7,10 @@ import { EnemySpec, ENEMY_HP, ENEMY_RADIUS, PhaseSpec, BOARD } from '../core/map
 // Assistência "encostou, derruba" (herdada do Topple Unity): peça em pé tocada por corpo dinâmico
 // recebe um giro para onde APONTA — a física anima a queda, a corrente nunca morre por raspão.
 
-export const ENEMY_HEIGHT: Record<string, number> = { soldier: 0.9, patroller: 0.9, brute: 1.15, general: 1.35 };
-const ENEMY_DENSITY: Record<string, number> = { soldier: 8, patroller: 8, brute: 20, general: 22 };
+export const ENEMY_HEIGHT: Record<string, number> = { soldier: 0.9, patroller: 0.9, torcher: 0.9, brute: 1.15, general: 1.35 };
+const ENEMY_DENSITY: Record<string, number> = { soldier: 8, patroller: 8, torcher: 8, brute: 20, general: 22 };
+/** quanto tempo a peça queimada leva para virar cinza e sumir (só visual; a física some na hora) */
+export const BURN_TIME = 0.9;
 export const BLAST_RADIUS = 1.7;
 const GRAVITY = -11;
 const DT = 1 / 120;
@@ -27,6 +29,8 @@ export interface SimEvents {
   enemyKnock?(e: SimEnemy, cause: Cause, combo: number): void;
   explosion?(x: number, y: number, z: number, r: number): void;
   bulldoze?(x: number, z: number): void;
+  /** Tocheiro encostou a tocha numa peça em pé: ela pega fogo e some. */
+  burn?(i: number, x: number, z: number): void;
   runner?(i: number): void;
   allDown?(): void;
   /** Impacto real entre dois corpos (velocidade antes do contato): dá o volume e o timbre do som. */
@@ -42,6 +46,7 @@ export interface SimPiece {
   launched: number; // t do lançamento (foguete), -1 = não
   exploded: boolean;
   blastArm: number; // t em que a explosiva detona (-1 = não)
+  burned: number; // t em que o tocheiro queimou a peça (-1 = não)
 }
 
 export interface SimEnemy {
@@ -145,7 +150,7 @@ export class Sim {
         RAPIER.ColliderDesc.cuboid(d.w / 2, d.h / 2, d.t / 2).setFriction(0.6).setRestitution(0.02)
           .setDensity(p.type === 'heavy' ? 14 : 6).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), body);
       this.owner.set(col.handle, { kind: 'piece', i, v: 0 });
-      this.pieces.push({ p, body, touched: false, kicked: false, fallen: false, launched: -1, exploded: false, blastArm: -1 });
+      this.pieces.push({ p, body, touched: false, kicked: false, fallen: false, launched: -1, exploded: false, blastArm: -1, burned: -1 });
     });
 
     spec.enemies.forEach((e, i) => {
@@ -251,7 +256,6 @@ export class Sim {
         const tr = s.body.translation();
         this.recentFalls.push({ x: tr.x, z: tr.z, t: this.t });
         this.ev.pieceFall?.(i, tr.x, tr.y, tr.z, this.chain);
-        if (s.p.type === 'blast' && !s.exploded && s.blastArm < 0) s.blastArm = this.t + 0.04;
       }
       // golpe por proximidade: o topo da peça caindo varre o inimigo (perdoa mira de raspão)
       if (s.kicked && !s.exploded && tilt > 0.5 && tilt < 1.45) {
@@ -341,8 +345,12 @@ export class Sim {
       } else {
         const e = this.enemies[other.i];
         if (e.spec.patrol && e.alive) {
-          // patrulheiro empurra peça em pé (estraga o caminho); peça caindo mata ele
-          if (!s.kicked && tiltOf(s.body.rotation()) < STANDING) this.bulldoze(s, e);
+          // patrulheiro empurra peça em pé (estraga o caminho); o tocheiro queima; peça caindo mata os dois
+          // (Explosiva encostada na tocha não queima: detona logo abaixo)
+          if (!s.kicked && tiltOf(s.body.rotation()) < STANDING) {
+            if (e.spec.kind !== 'torcher') this.bulldoze(s, e);
+            else if (s.p.type !== 'blast') return this.burn(s, me.i);
+          }
         } else if (!e.alive) {
           s.touched = true; // corpo arremessado derruba peça
         }
@@ -356,6 +364,11 @@ export class Sim {
         const moving = s.kicked || s.fallen || s.launched >= 0;
         if (!moving) return;
         if (e.spec.patrol && !s.fallen && tiltOf(s.body.rotation()) < 0.25 && s.launched < 0) return;
+        // patrulheiro andando sobre peça já caída e parada não morre: só vale contato com a peça em movimento
+        if (e.spec.patrol && s.launched < 0) {
+          const lv = s.body.linvel(), av = s.body.angvel();
+          if (s.body.isSleeping() || Math.hypot(lv.x, lv.y, lv.z) < 0.25 && Math.hypot(av.x, av.y, av.z) < 0.6) return;
+        }
         const dmg = pieceDamage(s.p.type);
         this.hit(e, other.i, dmg, s.body.translation(), dmg > 1 ? 'heavy' : s.launched >= 0 ? 'runner' : 'piece');
       } else {
@@ -408,7 +421,7 @@ export class Sim {
     // pelotão cai junto (respingo em cadeia): vizinho a ≤ SPLASH_R tomba ou leva 1 de dano
     for (const o of this.enemies) {
       if (!o.alive || o === e || o.spec.squad !== e.spec.squad) continue;
-      if (o.spec.kind === 'patroller') continue;
+      if (o.spec.patrol) continue;
       if (Math.hypot(o.spec.x - e.spec.x, o.spec.z - e.spec.z) <= SPLASH_R + 1e-6 && !this.pendingSplash.some((s) => s.e === o && s.src === e.idx))
         this.pendingSplash.push({ e: o, at: this.t + 0.09, fx: p.x, fz: p.z, src: e.idx });
     }
@@ -424,6 +437,17 @@ export class Sim {
     s.body.setLinvel({ x: dx * 1.6, y: 0.6, z: dz * 1.6 }, true);
     s.body.setAngvel({ x: dz * 5, y: 2, z: -dx * 5 }, true);
     this.ev.bulldoze?.(tp.x, tp.z);
+  }
+
+  /** A peça em pé pega fogo: sai da física na hora (a corrente quebra ali) e o Board a desfaz em cinza. */
+  private burn(s: SimPiece, i: number) {
+    if (s.burned >= 0) return;
+    s.burned = this.t;
+    s.kicked = true;
+    s.touched = false;
+    s.body.setEnabled(false);
+    const tp = s.body.translation();
+    this.ev.burn?.(i, tp.x, tp.z);
   }
 
   private launchRunner(s: SimPiece, i: number) {
@@ -458,7 +482,7 @@ export class Sim {
       const p = o.body.translation();
       const dx = p.x - c.x, dz = p.z - c.z;
       const d = Math.hypot(dx, dz);
-      if (d > BLAST_RADIUS || j === i) continue;
+      if (d > BLAST_RADIUS || j === i || o.burned >= 0) continue;
       const k = 1 - d / BLAST_RADIUS;
       o.body.wakeUp();
       const nx = d > 1e-3 ? dx / d : 0, nz = d > 1e-3 ? dz / d : 0;

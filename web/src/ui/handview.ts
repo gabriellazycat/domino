@@ -646,7 +646,7 @@ export class HandView {
     this.newBtn.disabled = this.drawReal === 0;
     this.newBtn.innerHTML = this.drawReal === 0
       ? `Caixa vazia`
-      : `<span class="l1">⟳ Nova mão<span class="kbd">D</span></span><small>${inHand - kept ? `descarta ${inHand - kept} · ` : ''}pega ${buy}</small>`;
+      : `<span class="l1">⟳ Nova mão<span class="kbd">N</span></span><small>${inHand - kept ? `descarta ${inHand - kept} · ` : ''}pega ${buy}</small>`;
     this.handLbl.classList.toggle('done', inHand === 0 && this.drawReal === 0);
     // com o leque a mão já se conta sozinha; o letreiro só aparece quando ela esvazia
     this.handLbl.classList.toggle('on', inHand === 0 && !this.root.classList.contains('choose'));

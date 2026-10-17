@@ -3,7 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PIECES, PieceId } from '../core/pieces';
 import { EnemyKind, WallSpec } from '../core/mapgen';
-import { ATLAS_CELLS, pipAtlas, hedgeTexture, crateTexture } from './textures';
+import { ATLAS_CELLS, pipAtlas, hedgeTexture, crateTexture, softDot } from './textures';
 import { ENEMY_HEIGHT } from './sim';
 import { SealId, SEAL_ORDER } from '../core/cards';
 import { sealAtlas } from './sigils';
@@ -203,6 +203,7 @@ export function glow(color: string, intensity = 3): THREE.MeshBasicMaterial {
 const PALETTE: Record<EnemyKind, { coat: string; pants: string; hat: string; skin: string; trim: string; glint: string }> = {
   soldier: { coat: '#6a1f1b', pants: '#1c2232', hat: '#0d0d10', skin: '#b8b3a3', trim: '#7d6b3c', glint: '#ffe6b0' },
   patroller: { coat: '#6a4a22', pants: '#211910', hat: '#2a1a0c', skin: '#aaa594', trim: '#8a7a5a', glint: '#ffe6b0' },
+  torcher: { coat: '#3a2a22', pants: '#1a1210', hat: '#2a1c16', skin: '#a89a86', trim: '#8a3a1a', glint: '#ff8a2a' },
   brute: { coat: '#34363c', pants: '#1e1614', hat: '#25272c', skin: '#6c8556', trim: '#6a5a3a', glint: '#ff4a2a' },
   general: { coat: '#3e0f20', pants: '#121218', hat: '#8a6a2a', skin: '#c4bdac', trim: '#8a6a2a', glint: '#ff2a2a' },
 };
@@ -215,6 +216,8 @@ function part(geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: numb
   parent.add(m);
   return m;
 }
+
+let haloTex: THREE.Texture | undefined;
 
 /** Pivô no centro do corpo (igual ao corpo físico); modelo desce h/2. Frente = +Z. */
 export function makeEnemy(kind: EnemyKind): THREE.Group {
@@ -273,6 +276,49 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
     const pole = part(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 6), std('#2a1d12', 0.8), 0.2, bodyY + 0.05, 0.08, g);
     pole.rotation.x = 0.2;
     part(new THREE.SphereGeometry(0.045, 10, 8), glow('#ffb347', 6), 0.2, bodyY + 0.3, 0.12, g);
+  } else if (kind === 'torcher') {
+    // capuz pontudo de piromaníaco + lenço queimado no pescoço
+    part(new THREE.SphereGeometry(0.118, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), hat, 0, headY + 0.005, -0.008, g);
+    const tip = part(new THREE.ConeGeometry(0.075, 0.2, 12), hat, 0, headY + 0.14, -0.04, g);
+    tip.rotation.x = -0.45;
+    part(new THREE.TorusGeometry(0.1, 0.028, 6, 16), trim, 0, headY - 0.1, 0, g).rotation.x = Math.PI / 2;
+    // marcas de fuligem no casaco
+    for (const [x, y] of [[0.06, 0.04], [-0.07, -0.06]]) {
+      const soot = part(new THREE.CircleGeometry(0.035, 8), std('#0e0a08', 1), x, bodyY + y, 0.152, g);
+      soot.castShadow = false;
+    }
+    // tocha erguida na mão direita: cabo de madeira, trapo enrolado e a chama (bloom)
+    const torch = new THREE.Group();
+    torch.name = 'torch';
+    torch.position.set(0.2, bodyY - 0.13, 0.07);
+    torch.rotation.set(0.35, 0, -0.18);
+    g.add(torch);
+    part(new THREE.CylinderGeometry(0.016, 0.02, 0.36, 8), std('#3a2414', 0.85), 0, 0.15, 0, torch);
+    part(new THREE.CylinderGeometry(0.032, 0.026, 0.07, 10), std('#4a3a2a', 0.95), 0, 0.33, 0, torch);
+    const flame = new THREE.Group();
+    flame.name = 'flame';
+    flame.position.y = 0.4;
+    torch.add(flame);
+    // chama em gota: bolhas esticadas (vermelho por fora, amarelo por dentro) + duas línguas tortas
+    const blob = (r: number, sy: number, y: number, color: string, k: number, x = 0) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), glow(color, k));
+      m.scale.y = sy;
+      m.position.set(x, y, 0);
+      flame.add(m);
+      return m;
+    };
+    blob(0.05, 1.7, 0.04, '#ff4a10', 3.5);
+    blob(0.032, 1.6, 0.03, '#ffb347', 5);
+    blob(0.018, 1.4, 0.02, '#fff0b0', 7);
+    blob(0.022, 2.2, 0.1, '#ff6a1a', 4, 0.022).rotation.z = -0.4;
+    blob(0.018, 2.0, 0.09, '#ff6a1a', 4, -0.024).rotation.z = 0.5;
+    // halo da chama (sprite aditivo; sem PointLight para não recompilar shaders a cada fase)
+    haloTex ??= softDot();
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: new THREE.Color('#ff7a2a').multiplyScalar(1.6), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    halo.name = 'halo';
+    halo.scale.setScalar(0.42);
+    halo.position.y = 0.05;
+    flame.add(halo);
   } else if (kind === 'brute') {
     part(new THREE.SphereGeometry(0.12 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), hat, 0, headY + 0.02, 0, g);
     for (const sx of [-1, 1]) {

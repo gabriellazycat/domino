@@ -8,7 +8,9 @@
     "preview": "vite preview --port 4173",
     "test": "vitest run",
     "e2e": "node e2e/smoke.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "desktop": "vite build && electron .",
+    "dist:win": "npm run build && node scripts/package-win.mjs"
   },
   "license": "ISC",
   "dependencies": {
@@ -19,12 +21,15 @@
     "three": "^0.170.0"
   },
   "devDependencies": {
+    "@electron/packager": "^18.4.4",
     "@types/three": "^0.170.0",
+    "electron": "^38.8.6",
     "playwright": "1.49",
     "typescript": "5.6",
     "vite": "^6.4.4",
     "vitest": "^2.1.9"
   },
   "private": true,
-  "type": "module"
+  "type": "module",
+  "main": "electron/main.cjs"
 }

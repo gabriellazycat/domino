@@ -25,6 +25,17 @@ Outros comandos:
 | `npm test` | testes de física + bot (o bot resolve os tutoriais e uma bateria de fases geradas) |
 | `npm run e2e` | teste de fumaça no Chrome com screenshots em `e2e/shots/` |
 | `node e2e/human.mjs` | simula um jogador de verdade com o mouse (arrastar, desfazer, vencer, draft) |
+| `npm run desktop` | abre o jogo na janela desktop (Electron), igual à versão da Steam |
+| `npm run dist:win` | gera `release/TOPPLE-win32-x64/` e `release/TOPPLE-win32-x64.zip` para Windows |
+
+## Versão desktop (Steam)
+
+`npm run dist:win` empacota o jogo com o Electron num `TOPPLE.exe` que não precisa de nada instalado
+(nem Node, nem navegador): é só extrair o zip e abrir. Abre em tela cheia (`F11` ou `Alt+Enter` alterna),
+o menu ganha o botão **Sair do jogo** e o save fica em `%APPDATA%\TOPPLE`.
+
+Na Steamworks: suba o conteúdo da pasta `release/TOPPLE-win32-x64/` (ou o zip) como depot de Windows e
+configure a opção de launch com o executável `TOPPLE.exe`.
 
 ## Como jogar
 

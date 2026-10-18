@@ -169,14 +169,19 @@ export class Layout {
     return false;
   }
 
-  /** Ponto de partida de um traço: gatilho (vazio) ou ponta próxima. */
-  begin(x: number, z: number, kind: Kind): { stroke?: Stroke; placed?: Placed[]; fail?: Fail } {
+  /**
+   * Ponto de partida de um traço: gatilho (vazio) ou ponta próxima.
+   * `aim` (cursor) gira a 1ª peça do gatilho para o lado onde o jogador aponta; sem ele, vale o ângulo do gatilho.
+   */
+  begin(x: number, z: number, kind: Kind, aim?: { x: number; z: number }): { stroke?: Stroke; placed?: Placed[]; fail?: Fail } {
     const t = this.spec.trigger;
     const type = kindType(kind);
     if (this.pieces.length === 0) {
       if (Math.hypot(x - t.x, z - t.z) > 0.8) return { fail: 'trigger' };
       const id = ++this.strokeSeq;
-      const placed = this.placeAt(kind, t.x, t.z, t.yaw, -1, id, new Set());
+      const far = aim && Math.hypot(aim.x - t.x, aim.z - t.z) > 0.5;
+      const yaw = far ? Math.atan2(aim!.x - t.x, aim!.z - t.z) : t.yaw;
+      const placed = this.placeAt(kind, t.x, t.z, yaw, -1, id, new Set());
       if ('fail' in placed) return { fail: placed.fail };
       const last = placed.list[placed.list.length - 1];
       return { stroke: { head: last.id, done: splits(type), id }, placed: placed.list };
@@ -240,7 +245,7 @@ export class Layout {
     const placed: Placed[] = [];
     let s = st;
     if (!s) {
-      const b = this.begin(anchor.x, anchor.z, kind);
+      const b = this.begin(anchor.x, anchor.z, kind, cur);
       if (b.fail) return { stroke: null, placed, fail: b.fail };
       s = b.stroke!;
       if (b.placed) placed.push(...b.placed);

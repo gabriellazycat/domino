@@ -91,6 +91,8 @@ export interface HudCallbacks {
   fireHover?(on: boolean): void;
 }
 
+export type ResultCfg = { win: boolean; title: string; stars: number; rows: [string, string, string?][]; gold: number; buttons: { label: string; cls: string; fn: () => void }[] };
+
 export class UI {
   root = document.getElementById('ui')!;
   hud = h('div', 'hud');
@@ -552,7 +554,7 @@ export class UI {
     s.append(p);
   }
 
-  showResult(r: { win: boolean; title: string; stars: number; rows: [string, string, string?][]; gold: number; buttons: { label: string; cls: string; fn: () => void }[] }) {
+  showResult(r: ResultCfg) {
     const s = this.screen();
     const p = h('div', 'panel');
     const t = title(r.title, 'win-title');

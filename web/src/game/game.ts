@@ -6,7 +6,7 @@ import { Fx } from './fx';
 import { Decals } from './decals';
 import { audio } from './audio';
 import { Sim, SimEnemy, Cause, BURN_TIME } from './sim';
-import { UI } from '../ui/ui';
+import { UI, type ResultCfg } from '../ui/ui';
 import { generatePhase, PhaseSpec, ENEMY_HP, wallExtents, EnemyKind } from '../core/mapgen';
 import { Layout, FAIL_TEXT, Fail, Placed } from '../core/layout';
 import { CardMove, ScreenPt } from '../ui/handview';
@@ -97,6 +97,10 @@ export class Game {
   private attemptsUsed = 0;
   private demo: { loops: number; waitUntil: number; seed: number; endAt: number } | null = null;
   private phaseKnocked = 0;
+  /** o que foi disparado na última tentativa (para o replay): peças na ordem em que foram postas e a fase da patrulha */
+  private lastShot: { pieces: Placed[]; patrolT: number } | null = null;
+  private replaying = false;
+  private lastResult: ResultCfg | null = null;
   private alarmed = new Set<number>();
   private coachStep = 0;
   /** evento entre as fases em andamento (loja, prensa, altar) */
@@ -641,6 +645,7 @@ export class Game {
     this.mode = 'sim';
     this.board.mood = 'calm';
     this.phaseKnocked = 0;
+    this.lastShot = { pieces: [...this.layout.pieces], patrolT: this.patrolT };
     this.alarmed.clear();
     this.board.hideHeads();
     this.board.setHeads([], false);
@@ -649,7 +654,7 @@ export class Game {
     this.ui.setSimMode(true);
     this.ui.setStats(this.run!.life, this.run!.maxLife, this.run!.gold, this.attemptsLeft, this.attemptsMax);
     this.ui.resetEnemyIcons();
-    this.sim = this.makeSim(this.spec, this.layout, this.patrolT);
+    this.sim = this.makeSim(this.spec, this.layout.pieces, this.patrolT);
     this.simEndAt = -1;
     this.timeScale = 1;
     audio.setHeartbeat(false);
@@ -663,8 +668,8 @@ export class Game {
     setTimeout(() => this.sim?.fire(), 140);
   }
 
-  private makeSim(spec: PhaseSpec, layout: Layout, patrolT: number): Sim {
-    const sim = new Sim(spec, layout.pieces, patrolT, {
+  private makeSim(spec: PhaseSpec, pieces: Placed[], patrolT: number): Sim {
+    const sim = new Sim(spec, pieces, patrolT, {
       pieceFall: (i, x, _y, z, chain) => {
         const p = sim.pieces[i].p;
         if (PIECES[p.type].cursed && Math.random() < 0.35) this.curseTalk(p.type, 'fall', x, z);
@@ -862,6 +867,43 @@ export class Game {
     this.simEndAt = this.realT;
   }
 
+  /** Refaz a última tentativa: mesmas peças, mesma ordem, mesmos inimigos. Não mexe em ouro, vida nem tentativas. */
+  private replay() {
+    const shot = this.lastShot;
+    if (!shot || this.mode !== 'result') return;
+    this.disposeSim();
+    this.ui.closeScreen();
+    this.fx.clear();
+    this.decals.clear();
+    this.board.resetPieces();
+    this.board.resetEnemies(shot.patrolT);
+    this.board.mood = 'calm';
+    this.world.backdrop.mood = 'watch';
+    this.replaying = true;
+    this.mode = 'sim';
+    this.alarmed.clear();
+    this.ui.setSimMode(true);
+    this.ui.resetEnemyIcons();
+    this.sim = this.makeSim(this.spec, shot.pieces, shot.patrolT);
+    this.simEndAt = -1;
+    this.timeScale = 1;
+    audio.setTension(0.75);
+    this.rig.punchIn();
+    this.chase = null;
+    this.killcam = null;
+    audio.fire();
+    audio.setMusic(true, 0.5);
+    this.rig.userMoved = false;
+    setTimeout(() => this.sim?.fire(), 140);
+  }
+
+  /** Mostra a tela de resultado com o botão de rever a queda. */
+  private showResult(cfg: ResultCfg) {
+    const withReplay = { ...cfg, buttons: [...cfg.buttons, { label: '▶ Rever a queda', cls: 'btn dark small', fn: () => this.replay() }] };
+    this.lastResult = withReplay;
+    this.ui.showResult(withReplay);
+  }
+
   private onSimEnd() {
     const sim = this.sim!;
     const run = this.run!;
@@ -869,6 +911,19 @@ export class Game {
     this.ui.setVisible(true);
     audio.setMusic(true, 0);
     audio.setTension(0);
+    if (this.replaying) {
+      // fim do replay: volta para a mesma tela de resultado de antes, sem contar nada de novo
+      this.replaying = false;
+      this.mode = 'result';
+      this.board.mood = sim.win ? 'happy' : 'sad';
+      this.world.backdrop.mood = sim.win ? 'angry' : 'amused';
+      this.killcam = null;
+      this.rig.easeRest = 8;
+      this.rig.ease = 2;
+      this.frameBoard();
+      if (this.lastResult) this.ui.showResult(this.lastResult);
+      return;
+    }
     run.stats.bestCombo = Math.max(run.stats.bestCombo, sim.bestCombo);
     run.stats.explosions += sim.explosions;
     run.stats.knocked += sim.enemies.filter((e) => !e.alive).length;
@@ -897,7 +952,7 @@ export class Game {
       run.stats.stars += stars;
       audio.win();
       this.say(['Mais uma… e ainda estou de pé.', 'Sorte de principiante.'], true);
-      this.ui.showResult({
+      this.showResult({
         win: true, title: this.spec.boss ? 'GENERAL DERRUBADO!' : 'VITÓRIA!', stars,
         rows: [
           ['Inimigos derrubados', `${sim.enemies.length}/${sim.enemies.length}`, 'good'],
@@ -917,7 +972,7 @@ export class Game {
     if (this.attemptsLeft > 0) {
       audio.lose();
       this.say(['Quebrou. Como sempre.', 'A corrente sempre quebra no pior lugar.'], true);
-      this.ui.showResult({
+      this.showResult({
         win: false, title: 'Corrente quebrada!', stars: 0,
         rows: [
           ['Ainda de pé', `${survivors}`, 'bad'],
@@ -946,7 +1001,7 @@ export class Game {
     if (run.life <= 0) return this.gameOver();
     run.gold += 6;
     this.mode = 'result';
-    this.ui.showResult({
+    this.showResult({
       win: false, title: 'Fase perdida', stars: 0,
       rows: [['Sobreviventes', `${survivors}`, 'bad'], ['Dano', `−${dmg} ${icon('heart')}`, 'bad'], ['Vida', `${run.life}/${run.maxLife}`]],
       gold: 6,
@@ -1094,7 +1149,7 @@ export class Game {
     const reached = run.depth + 1;
     const record = reached > best;
     if (record) try { localStorage.setItem('topple.best', String(reached)); } catch { /* ok */ }
-    this.ui.showResult({
+    this.showResult({
       win: false, title: 'FIM DA RUN', stars: 0,
       rows: [
         ['Fase alcançada', `${reached}${record ? ' — RECORDE!' : ''}`, record ? 'good' : ''],
@@ -1218,7 +1273,7 @@ export class Game {
     const d = this.demo!;
     this.rig.goalAz += 0.0006;
     if (!this.sim && this.realT > d.waitUntil) {
-      this.sim = this.makeSim(this.spec, this.layout, 0);
+      this.sim = this.makeSim(this.spec, this.layout.pieces, 0);
       this.sim.fire();
       d.endAt = -1;
     }
@@ -1240,6 +1295,7 @@ export class Game {
   }
 
   private disposeSim() {
+    this.replaying = false;
     if (this.sim) { this.sim.dispose(); this.sim = null; }
   }
 

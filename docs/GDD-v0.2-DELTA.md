@@ -1,4 +1,4 @@
-# TOPPLE — Delta vivo sobre o GDD v0.2
+# DOMINOTION — Delta vivo sobre o GDD v0.2
 
 > O arquivo `TOPPLE — Game Design Document.docx` (v0.2, 09/out/2026) está
 > CONGELADO como baseline. Este documento é o registro vivo de tudo que mudou,

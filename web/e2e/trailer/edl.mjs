@@ -82,7 +82,7 @@ const igCaps = [
 const gifOpts = (width, fps, extra = {}) => ({ w: 1920, h: 1080, fps: 30, fadeOut: 0, sfxGain: 1, gif: { width, fps, ...extra } });
 export const GIFS = {
   // herói: mesa vazia → montagem → dispara → tudo cai → rebobina até a mesa vazia (loop sem emenda)
-  'topple-loop': { ...gifOpts(600, 12), segs: [
+  'dominotion-loop': { ...gifOpts(600, 12), segs: [
     S('hero-wide', 0.55, 1.0, { speed: 2.4 }),
     S('hero-wide', 2.95, 0.3, { speed: 2.33 }),
     S('hero-wide', 3.65, 2.75, { speed: 3 }),
@@ -96,6 +96,6 @@ export const GIFS = {
 
 export const EDL = {
   ...GIFS,
-  'topple-reels-instagram': { w: 1080, h: 1920, fps: 30, segs: igSegs, caps: igCaps, music: { src: 'music-ig' }, musicGain: 1.6, sfxGain: 1 },
-  'topple-trailer-youtube': { w: 1920, h: 1080, fps: 60, segs: ytSegs, caps: ytCaps, music: { src: 'music-yt' }, musicGain: 1.6, sfxGain: 1 },
+  'dominotion-reels-instagram': { w: 1080, h: 1920, fps: 30, segs: igSegs, caps: igCaps, music: { src: 'music-ig' }, musicGain: 1.6, sfxGain: 1 },
+  'dominotion-trailer-youtube': { w: 1920, h: 1080, fps: 60, segs: ytSegs, caps: ytCaps, music: { src: 'music-yt' }, musicGain: 1.6, sfxGain: 1 },
 };

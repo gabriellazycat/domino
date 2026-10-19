@@ -3,8 +3,8 @@
 /** Menu → run nova, em modo de planejamento. */
 export async function enterRun(page, seed = 42) {
   await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Jogar/.test(b.textContent))?.click());
-  await page.waitForFunction(() => window.__topple.state().mode === 'planning', null, { timeout: 30000 });
-  await page.evaluate((s) => window.__topple.newRun(s), seed);
+  await page.waitForFunction(() => window.__dominotion.state().mode === 'planning', null, { timeout: 30000 });
+  await page.evaluate((s) => window.__dominotion.newRun(s), seed);
   await page.waitForTimeout(2500);
 }
 
@@ -18,7 +18,7 @@ export async function loadPhase(page, { seed, depth, deck, strip = false, mutate
     const { solve } = await import('/src/game/solver.ts');
     const { Layout } = await import('/src/core/layout.ts');
     const { emptyDeck } = await import('/src/core/pieces.ts');
-    const g = window.__topple.game;
+    const g = window.__dominotion.game;
     const d = Object.assign(emptyDeck(), deck);
     const spec = generatePhase(seed, depth, d);
     if (strip) spec.enemies = spec.enemies.filter((e) => !e.patrol && e.kind !== 'archer');
@@ -41,7 +41,7 @@ export async function loadPhase(page, { seed, depth, deck, strip = false, mutate
 /** Põe as próximas `k` peças da solução na mesa (animação de colocar + som), move o cursor fake até a última. */
 export async function placeNext(page, k = 1) {
   return page.evaluate((k) => {
-    const g = window.__topple.game;
+    const g = window.__dominotion.game;
     const plan = window.__plan;
     let last = null;
     for (let j = 0; j < k && plan.length; j++) {
@@ -57,7 +57,7 @@ export async function placeNext(page, k = 1) {
 }
 
 export async function fire(page) {
-  await page.evaluate(() => { window.__cursorHide?.(); window.__topple.game.fire(); });
+  await page.evaluate(() => { window.__cursorHide?.(); window.__dominotion.game.fire(); });
 }
 
 /** Cursor de mouse desenhado (o headless não mostra o do sistema). Segue pontos do mundo. */
@@ -70,7 +70,7 @@ export async function installCursor(page) {
     document.body.appendChild(el);
     let tx = 0, tz = 0, sx = null, sy = null, on = false;
     const proj = (x, z) => {
-      const cam = window.__topple.game.world.camera;
+      const cam = window.__dominotion.game.world.camera;
       const v = new cam.position.constructor(x, 0.1, z).project(cam);
       return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight];
     };
@@ -98,7 +98,7 @@ export async function loadHero(page) {
   return page.evaluate(async () => {
     const D = await import('/e2e/trailer/director.ts');
     const { Layout } = await import('/src/core/layout.ts');
-    const g = window.__topple.game;
+    const g = window.__dominotion.game;
     const spec = D.heroSpec();
     const { layout, fails } = D.direct(spec);
     g.disposeSim?.();
@@ -117,7 +117,7 @@ export async function loadHero(page) {
 /** Trailer em inglês: traduz só os textos que saltam na mesa (o jogo continua em português). */
 export async function installEnglish(page) {
   await page.evaluate(() => {
-    const fx = window.__topple.game.fx;
+    const fx = window.__dominotion.game.fx;
     const EN = {
       'KABUM!': 'KABOOM!', 'VOOU!': 'YEET!', 'DOMINÓ!': 'DOMINO!', 'TUM!': 'THUD!', 'EMPURRÃO!': 'SHOVE!', 'QUEIMOU!': 'BURNED!',
       'FLECHADA!': 'ARROW!', 'ESMAGOU!': 'CRUSH!', 'BUUUM!': 'BOOOM!', 'CLIC!': 'CLICK!',
@@ -130,7 +130,7 @@ export async function installEnglish(page) {
       if (/[ÃÕÇÁÉÍÓÚ]/.test(t) && !EN[txt]) console.log('[pt]', txt);
       return orig(x, y, z, t, ...rest);
     };
-    const ui = window.__topple.game.ui;
+    const ui = window.__dominotion.game.ui;
     if (ui?.combo) { const oc = ui.combo.bind(ui); ui.combo = (...a) => oc(...a); }
   });
 }
@@ -141,7 +141,7 @@ export async function installEnglish(page) {
  */
 export async function installCineCam(page, cfg = {}) {
   await page.evaluate((cfg) => {
-    const g = window.__topple.game;
+    const g = window.__dominotion.game;
     window.__cine = Object.assign({ dist: 8.5, pol: 0.72, az: 0, azSpeed: 0, win: 0.5, ease: 2.2, on: true }, cfg);
     let sx = cfg.x0 ?? g.spec.trigger.x, sz = cfg.z0 ?? g.spec.trigger.z, lastT = performance.now();
     const orig = g.followCascade.bind(g);
@@ -171,7 +171,7 @@ export async function installCineCam(page, cfg = {}) {
 /** Câmera manual (planejamento/montagem). */
 export async function cam(page, { x = 0, z = 0.5, dist = 15, az = 0, pol = 0.86, snap = false }) {
   await page.evaluate(({ x, z, dist, az, pol, snap }) => {
-    const r = window.__topple.game.rig;
+    const r = window.__dominotion.game.rig;
     r.goalTarget.set(x, 0, z); r.goalDist = dist; r.goalAz = az; r.goalPol = pol;
     if (snap) r.snap();
   }, { x, z, dist, az, pol, snap });

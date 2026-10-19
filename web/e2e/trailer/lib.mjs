@@ -1,4 +1,4 @@
-// Gravação quadro a quadro do TOPPLE (Playwright + Chrome com GPU + relógio virtual de timeshim.js).
+// Gravação quadro a quadro do DOMINOTION (Playwright + Chrome com GPU + relógio virtual de timeshim.js).
 import { createServer } from 'vite';
 import { chromium } from 'playwright';
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
@@ -33,9 +33,9 @@ export async function openGame({ w = 1920, h = 1080, scale = 1, audioSeconds = 9
   page.on('console', (m) => { if (m.type() === 'error') console.error('[console]', m.text()); });
   await page.addInitScript((s) => { window.__CAP_AUDIO_SECONDS = s; }, audioSeconds);
   await page.addInitScript({ path: path.join(here, 'timeshim.js') });
-  await page.addInitScript((st) => { try { localStorage.clear(); if (st) localStorage.setItem('topple.cap', '1'); } catch {} }, settings);
+  await page.addInitScript((st) => { try { localStorage.clear(); if (st) localStorage.setItem('dominotion.cap', '1'); } catch {} }, settings);
   await page.goto(url);
-  await page.waitForFunction(() => window.__topple, null, { timeout: 90000 });
+  await page.waitForFunction(() => window.__dominotion, null, { timeout: 90000 });
   await page.waitForTimeout(1200);
   const gl = await page.evaluate(() => { const c = document.createElement('canvas').getContext('webgl2'); const e = c.getExtension('WEBGL_debug_renderer_info'); return c.getParameter(e ? e.UNMASKED_RENDERER_WEBGL : c.RENDERER); });
   console.log('GPU:', gl);

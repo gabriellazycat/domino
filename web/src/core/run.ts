@@ -77,6 +77,7 @@ export function damage(run: RunState, survivors: number): number {
   return d;
 }
 
+// chave antiga (do nome TOPPLE) mantida de propósito: é onde ficam os saves já existentes
 const KEY = 'topple.autosave.v1';
 
 export function saveRun(run: RunState) {

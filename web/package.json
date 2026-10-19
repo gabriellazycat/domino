@@ -1,7 +1,7 @@
 {
-  "name": "topple-web",
+  "name": "dominotion-web",
   "version": "1.0.0",
-  "description": "TOPPLE — roguelike de dominó (remake web: Three.js + Rapier)",
+  "description": "DOMINOTION — roguelike de dominó (remake web: Three.js + Rapier)",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

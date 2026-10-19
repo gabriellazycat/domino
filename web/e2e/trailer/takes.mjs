@@ -11,7 +11,7 @@ const until = (page, fps, pred, after) => {
     return end > 0 && i >= end;
   };
 };
-const simDone = () => { const s = window.__topple.state(); return s.mode !== 'sim'; };
+const simDone = () => { const s = window.__dominotion.state(); return s.mode !== 'sim'; };
 
 async function setup({ w = W, h = H, seed = 42, hud = true, audioSeconds = 40 } = {}) {
   const { browser, page } = await openGame({ w, h, audioSeconds });
@@ -65,11 +65,11 @@ const TAKES = {
     const { browser, page } = await setup({ hud: 'hand' });
     await page.evaluate(() => window.__cursorMouse(true));
     const toScreen = (x, z) => page.evaluate(([x, z]) => {
-      const g = window.__topple.game;
+      const g = window.__dominotion.game;
       const v = new (g.world.camera.position.constructor)(x, 0, z).project(g.world.camera);
       return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight };
     }, [x, z]);
-    const spec = await page.evaluate(() => { const s = window.__topple.game.spec; return { t: s.trigger, e: s.enemies.map((e) => [e.x, e.z]) }; });
+    const spec = await page.evaluate(() => { const s = window.__dominotion.game.spec; return { t: s.trigger, e: s.enemies.map((e) => [e.x, e.z]) }; });
     const ex = spec.e.reduce((a, b) => a + b[0], 0) / spec.e.length, ez = spec.e.reduce((a, b) => a + b[1], 0) / spec.e.length;
     await cam(page, { x: (spec.t.x + ex) / 2, z: spec.t.z + 0.3, dist: 9.5, pol: 0.8, snap: true });
     await page.waitForTimeout(800);
@@ -94,7 +94,7 @@ const TAKES = {
         if (s?.click) await page.mouse.click(s.click.x, s.click.y);
         if (s?.key) await page.keyboard.press(s.key);
         if (s?.headClick) {
-          const h = await page.evaluate(() => { const g = window.__topple.game; const hs = g.layout.heads(); const h = hs[hs.length - 1]; return h && [h.x, h.z]; });
+          const h = await page.evaluate(() => { const g = window.__dominotion.game; const hs = g.layout.heads(); const h = hs[hs.length - 1]; return h && [h.x, h.z]; });
           if (h) { const p = await toScreen(h[0], h[1]); await page.mouse.move(p.x, p.y); await page.mouse.click(p.x, p.y); }
         }
         if (s?.fire) {
@@ -115,7 +115,7 @@ const TAKES = {
       const R = await import('/e2e/trailer/runner.ts');
       const D = await import('/e2e/trailer/director.ts');
       const { Layout } = await import('/src/core/layout.ts');
-      const g = window.__topple.game;
+      const g = window.__dominotion.game;
       const spec = R.runnerSpec();
       const { layout } = D.direct(spec, R.RUNNER_CMDS);
       g.spec = spec; g.board.build(spec); g.layout = new Layout(spec, D.heroDeck()); g.decals.clear(); g.mode = 'planning';
@@ -135,7 +135,7 @@ const TAKES = {
     const { browser, page } = await setup({});
     const { loadPhase } = await import('./scene.mjs');
     console.log(await loadPhase(page, { seed: Number(process.env.ESEED ?? 1074), depth: Number(process.env.EDEPTH ?? 14), deck: { common: 140, fork: 5, heavy: 6, blast: 4, tower: 4 } }));
-    await page.evaluate(() => { const g = window.__topple.game; for (const p of window.__plan) { g.layout.pieces.push(p); g.board.addPiece(p, false); } });
+    await page.evaluate(() => { const g = window.__dominotion.game; for (const p of window.__plan) { g.layout.pieces.push(p); g.board.addPiece(p, false); } });
     await installCineCam(page, { dist: 7.5, pol: 0.66, az: 0.3, azSpeed: -0.03 });
     await page.waitForTimeout(1500);
     const fps = 120;
@@ -153,20 +153,20 @@ const TAKES = {
     await fire(page);
     await page.waitForFunction(simDone, null, { timeout: 60000 });
     await page.waitForTimeout(1500);
-    await page.evaluate(() => { window.__topple.game.ui.closeScreen?.(); });
+    await page.evaluate(() => { window.__dominotion.game.ui.closeScreen?.(); });
     await hideHud(page, true);
     const fps = 60;
-    await record(page, 'sweep', { seconds: 9, fps, onFrame: async (i) => { if (i === 20) await page.evaluate(() => window.__topple.transition()); } });
+    await record(page, 'sweep', { seconds: 9, fps, onFrame: async (i) => { if (i === 20) await page.evaluate(() => window.__dominotion.transition()); } });
     await closeAll(browser);
   },
 
   // eventos entre fases (sem textos): loja, prensa de selos, altar
   ...Object.fromEntries(['shop', 'press', 'mystic'].map((k) => [k, async () => {
     const { browser, page } = await setup({});
-    await page.evaluate((k) => window.__topple.openEvent(k), k);
+    await page.evaluate((k) => window.__dominotion.openEvent(k), k);
     await page.waitForTimeout(6000);
     await hideHud(page, true);
-    const r = await page.evaluate(() => { const r = window.__topple.game.rig; return { az: r.goalAz, d: r.goalDist, pol: r.goalPol, x: r.goalTarget.x, z: r.goalTarget.z }; });
+    const r = await page.evaluate(() => { const r = window.__dominotion.game.rig; return { az: r.goalAz, d: r.goalDist, pol: r.goalPol, x: r.goalTarget.x, z: r.goalTarget.z }; });
     const fps = 60, n = 7 * fps;
     await record(page, 'ev-' + k, {
       seconds: 7, fps,

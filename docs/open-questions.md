@@ -1,4 +1,4 @@
-# TOPPLE — open questions (GDD §15.7: em dúvida, registrar aqui e seguir o padrão do GDD)
+# DOMINOTION — open questions (GDD §15.7: em dúvida, registrar aqui e seguir o padrão do GDD)
 
 ## Decisões tomadas no T0 (com o dono do projeto)
 - Escopo: MVP T0-T3 primeiro (1 ato, Comum/Pesada/Rampa, Soldado), v1.0 depois.

@@ -12,7 +12,7 @@ async function boot() {
   await RAPIER.init();
   const canvas = document.getElementById('gl') as HTMLCanvasElement;
   const game = new Game(canvas);
-  (window as any).__topple = game.debugApi();
+  (window as any).__dominotion = game.debugApi();
   const bootEl = document.getElementById('boot')!;
   bootEl.classList.add('gone');
   setTimeout(() => bootEl.remove(), 600);

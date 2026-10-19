@@ -1,6 +1,6 @@
-# TOPPLE — versão web
+# DOMINOTION — versão web
 
-Remake do TOPPLE (ideia e GDD originais do Gamonga) rodando direto no navegador:
+Remake do DOMINOTION (antigo TOPPLE; ideia e GDD originais do Gamonga) rodando direto no navegador:
 **Three.js** (gráficos) + **Rapier** (física) + **TypeScript** + **Vite**.
 Todo o visual e todo o som são gerados por código — nenhum arquivo de arte ou áudio.
 
@@ -26,16 +26,16 @@ Outros comandos:
 | `npm run e2e` | teste de fumaça no Chrome com screenshots em `e2e/shots/` |
 | `node e2e/human.mjs` | simula um jogador de verdade com o mouse (arrastar, desfazer, vencer, draft) |
 | `npm run desktop` | abre o jogo na janela desktop (Electron), igual à versão da Steam |
-| `npm run dist:win` | gera `release/TOPPLE-win32-x64/` e `release/TOPPLE-win32-x64.zip` para Windows |
+| `npm run dist:win` | gera `release/DOMINOTION-win32-x64/` e `release/DOMINOTION-win32-x64.zip` para Windows |
 
 ## Versão desktop (Steam)
 
-`npm run dist:win` empacota o jogo com o Electron num `TOPPLE.exe` que não precisa de nada instalado
+`npm run dist:win` empacota o jogo com o Electron num `DOMINOTION.exe` que não precisa de nada instalado
 (nem Node, nem navegador): é só extrair o zip e abrir. Abre em tela cheia (`F11` ou `Alt+Enter` alterna),
-o menu ganha o botão **Sair do jogo** e o save fica em `%APPDATA%\TOPPLE`.
+o menu ganha o botão **Sair do jogo** e o save fica em `%APPDATA%\TOPPLE` (pasta mantida do nome antigo, para não perder saves).
 
-Na Steamworks: suba o conteúdo da pasta `release/TOPPLE-win32-x64/` (ou o zip) como depot de Windows e
-configure a opção de launch com o executável `TOPPLE.exe`.
+Na Steamworks: suba o conteúdo da pasta `release/DOMINOTION-win32-x64/` (ou o zip) como depot de Windows e
+configure a opção de launch com o executável `DOMINOTION.exe`.
 
 ## Como jogar
 

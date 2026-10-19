@@ -33,6 +33,7 @@ import { icon } from '../ui/icons';
 type Mode = 'menu' | 'planning' | 'sim' | 'result' | 'screen' | 'transition' | 'event';
 
 interface Settings { master: number; music: number; sfx: number; shake: number; post: boolean; tilt: boolean; crt: boolean; ao: boolean; ink: boolean; dof: boolean }
+// chaves antigas (do nome TOPPLE) mantidas de propósito: guardam configurações e recorde já salvos
 const SETTINGS_KEY = 'topple.settings.v1';
 /** Ritmo da simulação na velocidade 1×: um pouco mais lento que o tempo real para dar para acompanhar a onda. */
 const SIM_PACE = 0.75;
@@ -1414,7 +1415,7 @@ export class Game {
     rig.goalAz = Math.sin(sim.t * 0.22) * 0.1;
   }
 
-  /** API de depuração/testes (window.__topple). */
+  /** API de depuração/testes (window.__dominotion). */
   debugApi() {
     return {
       game: this,

@@ -399,14 +399,14 @@ export class UI {
     s.append(embers);
     const m = h('div', 'menu');
     const logo = h('div', 'logo');
-    'TOPPLE'.split('').forEach((ch, i) => { const sp = h('span', '', ch); sp.style.animationDelay = `${i * 0.12}s`; logo.append(sp); });
+    'DOMINOTION'.split('').forEach((ch, i) => { const sp = h('span', '', ch); sp.style.animationDelay = `${i * 0.12}s`; logo.append(sp); });
     m.append(logo, h('div', 'tagline', 'Monte a corrente. Aperte o gatilho. Derrube o exército.'));
     if (hasSave) m.append(this.btn(`${icon('play')} Continuar run`, 'btn big', on.cont));
     m.append(this.btn(hasSave ? 'Nova run' : `${icon('play')} Jogar`, hasSave ? 'btn teal' : 'btn big', on.play));
     m.append(this.btn('Como jogar', 'btn dark', on.howto), this.btn('Opções', 'btn dark', on.options));
     // versão desktop (Electron/Steam): precisa de um jeito de fechar o jogo
     if (navigator.userAgent.includes('Electron')) m.append(this.btn('Sair do jogo', 'btn red', () => window.close()));
-    s.append(m, h('div', 'menu-foot', 'TOPPLE — ideia original do Gamonga · remake web (Three.js + Rapier) · todo visual e som gerados por código'));
+    s.append(m, h('div', 'menu-foot', 'DOMINOTION — ideia original do Gamonga · remake web (Three.js + Rapier) · todo visual e som gerados por código'));
   }
 
   showHowTo(back: () => void) {

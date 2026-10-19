@@ -58,12 +58,12 @@ for (const [w, h, sfx] of [[1920, 1080, ''], [1080, 1920, '-v']]) {
     await render(n, `<div class="wrap" style="justify-content:flex-start;padding-top:${vert ? '36vh' : '84vh'}"><div class="small" style="font-size:${vert ? 72 : 64}px">${t}</div></div>`);
   }
   // tela final
-  const L = vert ? 210 : 230;
+  const L = vert ? 110 : 160;
   await render('endcard', `<div class="wrap" style="justify-content:center;gap:${vert ? 46 : 34}px">
-    <div class="logo" style="font-size:${L}px">TOPPLE</div>
+    <div class="logo" style="font-size:${L}px">DOMINOTION</div>
     <div class="cap" style="font-size:${vert ? 50 : 46}px;color:#e8dcc0">A domino roguelike</div>
     <div class="btn" style="font-size:${vert ? 58 : 54}px;margin-top:${vert ? 40 : 26}px">Wishlist now on Steam</div></div>`);
-  await render('logo', `<div class="wrap" style="justify-content:center"><div class="logo" style="font-size:${vert ? 220 : 260}px">TOPPLE</div></div>`);
+  await render('logo', `<div class="wrap" style="justify-content:center"><div class="logo" style="font-size:${vert ? 110 : 180}px">DOMINOTION</div></div>`);
   await page.close();
 }
 await browser.close();

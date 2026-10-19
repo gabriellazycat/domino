@@ -33,20 +33,20 @@ const wait = (ms) => page.waitForTimeout(ms);
 /** Começa a fase `depth` da run `seed` com o baralho pedido (contagem por tipo). */
 async function phase(seed, depth, deck) {
   await page.evaluate(([seed, depth, deck]) => {
-    const t = window.__topple; t.newRun(seed);
+    const t = window.__dominotion; t.newRun(seed);
     const g = t.game; g.run.seed = seed; g.run.depth = depth; g.run.cards = [];
     let uid = 9000;
     for (const [type, n] of Object.entries(deck)) for (let i = 0; i < n; i++) g.run.cards.push({ uid: uid++, type, seals: [] });
   }, [seed, depth, deck]);
   await wait(1600);
-  await page.evaluate(() => window.__topple.game.startPhase());
+  await page.evaluate(() => window.__dominotion.game.startPhase());
   await wait(2200);
 }
 
 /** Desenha traços: cada um é [tipo, x, z] a partir da ponta atual (o 1º sai do gatilho). */
 async function draw(strokes) {
   return page.evaluate((strokes) => {
-    const g = window.__topple.game, L = g.layout;
+    const g = window.__dominotion.game, L = g.layout;
     // a mão vira o baralho inteiro (sem limite de mão) para montar a cena de uma vez
     const pile = L.pile; while (pile && pile.size) L.newHand(99);
     let st = null;
@@ -71,21 +71,21 @@ async function fire(frames) {
 
 try {
   await page.goto(url);
-  await page.waitForFunction(() => window.__topple, null, { timeout: 60000 });
+  await page.waitForFunction(() => window.__dominotion, null, { timeout: 60000 });
   await wait(2500);
 
   // 1) fase gerada com porteira + arqueiro + patrulha
   await phase(1234, 6, { common: 36, fork: 3, heavy: 3, tower: 4, runner: 1, jumper: 1 });
   await shot('1-porteira-arqueiro');
   await wait(9500);
-  const gp = await page.evaluate(() => { const g = window.__topple.game; const v = g.board.gateViews[0]; const p = v.grate.getWorldPosition(new v.grate.position.constructor()); p.y = 0.35; p.project(g.world.camera); return { x: (p.x + 1) / 2 * innerWidth, y: (1 - p.y) / 2 * innerHeight }; });
+  const gp = await page.evaluate(() => { const g = window.__dominotion.game; const v = g.board.gateViews[0]; const p = v.grate.getWorldPosition(new v.grate.position.constructor()); p.y = 0.35; p.project(g.world.camera); return { x: (p.x + 1) / 2 * innerWidth, y: (1 - p.y) / 2 * innerHeight }; });
   console.log('grade na tela:', gp);
   await page.screenshot({ path: path.join(out, 'nov-1b-porteira-zoom.png'), clip: { x: Math.max(0, gp.x - 200), y: Math.max(0, gp.y - 130), width: 400, height: 260 } });
-  console.log('fase 1:', await page.evaluate(() => { const s = window.__topple.game.spec; return { gates: s.gates?.length, kinds: s.enemies.map((e) => e.kind).join(','), hint: s.hint }; }));
+  console.log('fase 1:', await page.evaluate(() => { const s = window.__dominotion.game.spec; return { gates: s.gates?.length, kinds: s.enemies.map((e) => e.kind).join(','), hint: s.hint }; }));
 
   // 2) Saltadora + Foguete numa fase sem nada no caminho (primeira fase): trajeto e arco desenhados
   await phase(7, 0, { common: 30, tower: 3, runner: 2, jumper: 2 });
-  const t = await page.evaluate(() => window.__topple.game.spec.trigger);
+  const t = await page.evaluate(() => window.__dominotion.game.spec.trigger);
   const dir = Math.sign(Math.sin(t.yaw)) || 1;
   console.log('cena 2:', await draw([
     ['common', t.x + dir * 1.2, t.z],
@@ -100,12 +100,12 @@ try {
   frames: {
     const f = [350, 350, 350, 450, 600, 900];
     f.tag = 'salto-';
-    await page.evaluate(() => { window.__topple.game.speed = 0.6; });
+    await page.evaluate(() => { window.__dominotion.game.speed = 0.6; });
     await fire(f);
   }
   await wait(2500);
-  console.log('estado:', await page.evaluate(() => window.__topple.state()));
-  console.log('peças:', await page.evaluate(() => { const s = window.__topple.game.sim; return s ? s.pieces.map((q) => q.p.type.slice(0, 3) + (q.fallen ? 'F' : '.') + (q.motion ? 'M' : '')).join(' ') : 'sem sim'; }));
+  console.log('estado:', await page.evaluate(() => window.__dominotion.state()));
+  console.log('peças:', await page.evaluate(() => { const s = window.__dominotion.game.sim; return s ? s.pieces.map((q) => q.p.type.slice(0, 3) + (q.fallen ? 'F' : '.') + (q.motion ? 'M' : '')).join(' ') : 'sem sim'; }));
 } catch (e) {
   console.error('ERRO', e);
   await shot('99-erro');

@@ -3,7 +3,7 @@ import { enterRun } from './scene.mjs';
 const { browser, page } = await openGame({});
 await enterRun(page, 11);
 await page.waitForTimeout(1500);
-await page.evaluate(() => { const g = window.__topple.game; g.run.life = 2; g.refreshTopStats(); });
+await page.evaluate(() => { const g = window.__dominotion.game; g.run.life = 2; g.refreshTopStats(); });
 await page.waitForTimeout(90);
 await shot(page, 'ui-hurt');
 await page.waitForTimeout(1600);

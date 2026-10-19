@@ -1,8 +1,11 @@
-// TOPPLE desktop: abre o build do Vite (dist/) numa janela própria, sem precisar de Node nem navegador.
+// DOMINOTION desktop: abre o build do Vite (dist/) numa janela própria, sem precisar de Node nem navegador.
 // O jogo é servido pelo protocolo app:// (origem fixa: módulos ES funcionam e o save no localStorage persiste).
 const { app, BrowserWindow, protocol, net, shell } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+
+// Os saves ficam na pasta de dados do app. Ela continua sendo %APPDATA%\TOPPLE (nome de antes do rename), para o save não sumir.
+app.setPath('userData', path.join(app.getPath('appData'), 'TOPPLE'));
 
 const DIST = path.join(__dirname, '..', 'dist');
 
@@ -24,7 +27,7 @@ function createWindow() {
     backgroundColor: '#000000',
     autoHideMenuBar: true,
     show: false,
-    title: 'TOPPLE',
+    title: 'DOMINOTION',
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
   });
   win.removeMenu();
@@ -43,6 +46,7 @@ function createWindow() {
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('app://')) e.preventDefault(); });
+  // a origem app://topple é fixa de propósito: é ela que guarda o localStorage (saves). Não trocar sem migrar.
   win.loadURL('app://topple/index.html');
 }
 

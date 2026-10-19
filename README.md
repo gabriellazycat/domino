@@ -1,4 +1,4 @@
-# TOPPLE
+# DOMINOTION
 
 Jogo de dominó tático: monte o caminho de peças e derrube a patrulha antes que ela derrube você.
 

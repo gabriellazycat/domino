@@ -27,7 +27,9 @@ const [dir] = await packager({
 
 const zip = `${dir}.zip`;
 rmSync(zip, { force: true });
-// tar do Windows 10+ (bsdtar) gera .zip com -a; o zip contém o conteúdo da pasta (DOMINOTION.exe na raiz)
-const tar = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe'); // não o tar do Git Bash
-execFileSync(tar,['-a', '-c', '-f', zip, '-C', dir, '.'], { stdio: 'inherit' });
+// zip com os arquivos direto na raiz (DOMINOTION.exe na raiz, sem "./" na frente: o tar do Windows grava assim e o
+// Explorer cria uma pasta "." ao extrair). Feito pelo .NET do próprio Windows, que não põe o diretório base.
+execFileSync('powershell.exe', ['-NoProfile', '-Command',
+  `Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::CreateFromDirectory('${dir}', '${zip}', 'Optimal', $false)`,
+], { stdio: 'inherit' });
 console.log(`\npasta: ${dir}\nzip:   ${zip}\nNa Steam: suba o conteúdo e configure o launch como DOMINOTION.exe`);

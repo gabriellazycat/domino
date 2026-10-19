@@ -200,7 +200,6 @@ export class Backdrop {
   /** 0 = calmo (planejando), 1 = cascata correndo: o redemoinho acelera e esquenta (suavizado) */
   tension = 0;
   tensionGoal = 0;
-  private audience: Audience;
   private wide = 0;
   private t = 0;
   private az = 0;
@@ -245,7 +244,6 @@ export class Backdrop {
     this.strings = this.build();
     this.head.scale.setScalar(HEAD_S);
     scene.add(this.head);
-    this.audience = new Audience(scene);
   }
 
   private build(): THREE.LineSegments {
@@ -395,7 +393,6 @@ export class Backdrop {
     this.swirlU.uPulse.value = this.pulse;
     this.tension += (this.tensionGoal - this.tension) * (1 - Math.exp(-dt * 1.5));
     this.swirlU.uTension.value = this.tension;
-    this.audience.update(dt, cam, this.target, Math.min(1, this.wide), this.tension);
     (this.swirlU.uRes.value as THREE.Vector2).set(window.innerWidth, window.innerHeight);
 
     // pendurado nas cordas atrás da borda de trás da mesa: balança devagar e vira o rosto para a câmera
@@ -461,143 +458,5 @@ export class Backdrop {
       a.setXYZ(j * 2 + 1, p.x * 1.6, 30, p.z - 2);
     });
     a.needsUpdate = true;
-  }
-}
-
-// ---------- a plateia no breu: pares de olhos que se abrem no escuro em volta da mesa ----------
-function eyeGlowTexture(): THREE.Texture {
-  const c = document.createElement('canvas');
-  c.width = 128; c.height = 64;
-  const g = c.getContext('2d')!;
-  // amêndoa luminosa: miolo quente, borda que some
-  g.save();
-  g.beginPath();
-  g.moveTo(6, 32);
-  g.quadraticCurveTo(64, -6, 122, 32);
-  g.quadraticCurveTo(64, 70, 6, 32);
-  g.closePath();
-  g.clip();
-  const r = g.createRadialGradient(64, 32, 2, 64, 32, 58);
-  r.addColorStop(0, 'rgba(255,250,215,1)'); r.addColorStop(0.3, 'rgba(255,210,120,1)'); r.addColorStop(0.75, 'rgba(230,110,30,1)'); r.addColorStop(1, 'rgba(110,20,0,1)');
-  g.fillStyle = r;
-  g.fillRect(0, 0, 128, 64);
-  g.restore();
-  // pálpebra: traço escuro em cima, dá forma de olho (e não de lâmpada)
-  g.strokeStyle = 'rgba(20,4,2,.95)'; g.lineWidth = 6;
-  g.beginPath(); g.moveTo(4, 33); g.quadraticCurveTo(64, -8, 124, 33); g.stroke();
-  g.lineWidth = 3;
-  g.beginPath(); g.moveTo(8, 32); g.quadraticCurveTo(64, 68, 120, 32); g.stroke();
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-function pupilTexture(): THREE.Texture {
-  const c = document.createElement('canvas');
-  c.width = 32; c.height = 64;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#080204';
-  g.beginPath(); g.ellipse(16, 32, 6, 28, 0, 0, Math.PI * 2); g.fill();
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-let haloTex: THREE.Texture | undefined;
-function softDotTex(): THREE.Texture {
-  const c = document.createElement('canvas');
-  c.width = c.height = 64;
-  const g = c.getContext('2d')!;
-  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(c);
-}
-
-interface Watcher {
-  g: THREE.Group; eyes: { glow: THREE.Sprite; pupil: THREE.Sprite }[];
-  base: THREE.Vector3; w: number;
-  open: number; goal: number; next: number; blink: number; ph: number;
-}
-
-/** Olhos que espiam do escuro: abrem devagar, piscam, seguem a ação e arregalam nos sustos. */
-class Audience {
-  private list: Watcher[] = [];
-  private t = 0;
-  private tmp = new THREE.Vector3();
-  private right = new THREE.Vector3();
-  private up = new THREE.Vector3();
-  constructor(scene: THREE.Scene) {
-    const glowTex = eyeGlowTexture(), pupTex = pupilTexture();
-    const r = new Rng(913);
-    // atrás e dos lados da mesa (fora do tabuleiro), em profundidades diferentes
-    const spots: [number, number, number][] = [
-      // a fileira que espia por cima da borda de trás da mesa (é a faixa de breu que a câmera da fase vê)
-      [-4.2, 0.5, -9.6], [-7.3, 0.9, -10.2], [-10.4, 1.2, -9.8], [-12.6, -0.3, -6.5],
-      [4.4, 0.6, -9.8], [7.6, 0.8, -10.4], [10.6, 1.0, -9.6], [12.7, -0.2, -6.2],
-      // mais alto e mais longe: aparecem nas câmeras abertas (menu, transição)
-      [-6, 3.5, -14], [6.5, 4.2, -15],
-    ];
-    const palette = ['#ffb347', '#ffb347', '#ff5a3a', '#ffd27a', '#ff7a2a', '#b6ff6a'];
-    spots.forEach(([x, y, z], i) => {
-      const g = new THREE.Group();
-      g.position.set(x, y, z);
-      scene.add(g);
-      const w = 0.85 + r.float() * 0.4;
-      const color = new THREE.Color(palette[i % palette.length]).multiplyScalar(2.3);
-      // halo fraco em volta do par (o brilho fica no ar, o olho continua nítido)
-      haloTex ??= softDotTex();
-      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: new THREE.Color(palette[i % palette.length]).multiplyScalar(1.2), transparent: true, depthWrite: false, toneMapped: false, fog: false, opacity: 0, blending: THREE.AdditiveBlending }));
-      halo.scale.set(w * 4.5, w * 2.2, 1);
-      halo.name = 'halo';
-      g.add(halo);
-      const eyes = [-1, 1].map((sx) => {
-        const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, depthWrite: false, toneMapped: false, fog: false, opacity: 0 }));
-        glow.position.x = sx * w * 0.85;
-        glow.scale.set(w, w * 0.5, 1);
-        const pupil = new THREE.Sprite(new THREE.SpriteMaterial({ map: pupTex, transparent: true, depthWrite: false, fog: false, opacity: 0 }));
-        pupil.scale.set(w * 0.2, w * 0.46, 1);
-        pupil.renderOrder = 1;
-        g.add(glow, pupil);
-        return { glow, pupil };
-      });
-      this.list.push({ g, eyes, base: new THREE.Vector3(x, y, z), w, open: 0, goal: 0, next: 1 + r.float() * 6, blink: -1, ph: r.float() * 6 });
-    });
-  }
-
-  update(dt: number, cam: THREE.Camera, target: THREE.Vector3, startle: number, tension: number) {
-    this.t += dt;
-    this.right.setFromMatrixColumn(cam.matrixWorld, 0);
-    this.up.setFromMatrixColumn(cam.matrixWorld, 1);
-    for (const a of this.list) {
-      // abre e fecha sozinho de tempos em tempos (com a tensão, mais olhos ficam abertos)
-      a.next -= dt;
-      if (a.next <= 0) {
-        a.goal = Math.random() < 0.55 + tension * 0.35 ? 1 : 0;
-        a.next = a.goal ? 4 + Math.random() * 8 : 2 + Math.random() * 6;
-      }
-      if (a.blink < 0 && a.goal > 0.5 && Math.random() < dt * 0.25) a.blink = 0;
-      let shut = 0;
-      if (a.blink >= 0) { a.blink += dt; shut = Math.max(0, 1 - Math.abs(a.blink - 0.09) / 0.09); if (a.blink > 0.2) a.blink = -1; }
-      const goal = Math.max(a.goal, startle > 0.3 ? 1 : 0);
-      a.open += (goal - a.open) * (1 - Math.exp(-dt * (goal > a.open ? 2.2 : 3.5)));
-      const lid = a.open * (1 - shut);
-      // flutua devagar no escuro
-      a.g.position.set(a.base.x + Math.sin(this.t * 0.31 + a.ph) * 0.25, a.base.y + Math.sin(this.t * 0.47 + a.ph * 2) * 0.18, a.base.z);
-      // pupila olha para o alvo (a ação na mesa), dentro da amêndoa
-      this.tmp.copy(target).sub(a.g.position).normalize();
-      const lx = THREE.MathUtils.clamp(this.tmp.dot(this.right) * 1.6, -1, 1) * a.w * 0.26;
-      const ly = THREE.MathUtils.clamp(this.tmp.dot(this.up) * 1.6, -1, 1) * a.w * 0.08;
-      const wide = 1 + startle * 0.35;
-      const halo = a.g.getObjectByName('halo') as THREE.Sprite;
-      halo.material.opacity = lid * (0.22 + startle * 0.3);
-      a.eyes.forEach((e, i) => {
-        const sx = i ? 1 : -1;
-        e.glow.scale.set(a.w * wide, a.w * 0.5 * Math.max(0.02, lid) * wide, 1);
-        e.glow.material.opacity = Math.min(1, lid * 1.4) * (0.75 + startle * 0.25);
-        e.pupil.position.set(sx * a.w * 0.85 + lx, ly, 0.01);
-        e.pupil.scale.set(a.w * (0.2 - startle * 0.08), a.w * 0.46 * Math.max(0.02, lid), 1);
-        e.pupil.material.opacity = Math.min(1, lid * 1.6);
-      });
-    }
   }
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { EnemySpec, GateSpec, PhaseSpec, WallSpec } from '../src/core/mapgen';
+import { EnemySpec, GateSpec, PhaseSpec, WallSpec, ARCHER_RANGE } from '../src/core/mapgen';
+import { archerTargets } from '../src/core/archer';
 import { Layout, Stroke } from '../src/core/layout';
 import { Sim } from '../src/game/sim';
 import { emptyDeck } from '../src/core/pieces';
@@ -29,34 +30,55 @@ function sim(L: Layout, offset = 0) {
 }
 
 describe('Arqueiro', () => {
-  it('a 1ª peça que se mexe no círculo leva a flecha e a corrente morre ali', () => {
+  it('a 1ª peça da corrente no círculo é o alvo: a corrente para ali (com aviso) e só ela queima', () => {
     const L = layout(spec([E('archer', 0, 0, 200)]));
     const st = L.begin(-6.6, 0, 'common').stroke!;
-    to(L, st, -0.4, 0);
+    const r = L.extend(st, -0.4, 0, 'common');
+    expect(r.fail).toBe('archer'); // parou na peça marcada
+    const target = L.get(st.head)!;
+    expect(L.archerTargetIds().has(target.id)).toBe(true);
+    expect(Math.hypot(target.x, target.z)).toBeLessThanOrEqual(ARCHER_RANGE);
+    // dela não se continua: nem estendendo o traço, nem começando outro na ponta
+    expect(L.extend(st, -0.2, 0, 'common').fail).toBe('archer');
+    expect(L.begin(target.x, target.z, 'common').fail).toBe('archer');
     const s = sim(L);
     expect(s.enemies[0].arrowUsed).toBe(true);
     expect(s.alive).toBe(1);
-    expect(s.pieces.filter((p) => p.burned >= 0).length).toBe(2);
+    expect(s.pieces.filter((p) => p.burned >= 0).length).toBe(1);
     s.dispose();
   });
 
-  it('com isca da Bifurcação: um ramo gasta a flecha, o outro derruba o arqueiro', () => {
+  it('com isca da Bifurcação: um ramo (o alvo) gasta a flecha, o outro derruba o arqueiro', () => {
     const L = layout(spec([E('archer', 0, 0, 200)]));
     const st = L.begin(-6.6, 0, 'common').stroke!;
     to(L, st, -3.6, 0);
     to(L, st, -3.2, 0, 'fork');
     const [a, b] = L.heads().sort((p, q) => q.z - p.z);
-    // isca: reto para dentro do círculo, logo
-    to(L, { head: a.id, done: false, id: 90 }, -1.9, 0.6);
-    // ramo principal: dá a volta por baixo (fora do alcance) e só depois entra
+    // isca: reto para dentro do círculo; a 1ª peça lá dentro vira o alvo e a corrente desse ramo termina
+    const bait = L.extend({ head: a.id, done: false, id: 90 }, -1.2, 0.5, 'common');
+    expect(bait.fail).toBe('archer');
+    // ramo principal: dá a volta por baixo (fora do alcance) e só depois entra — peças livres, a flecha já tem alvo
     const sb: Stroke = { head: b.id, done: false, id: 91 };
     to(L, sb, -3.0, -2.6);
     to(L, sb, -1.0, -2.9);
-    to(L, sb, -0.1, -0.5);
+    expect(L.extend(sb, -0.1, -0.5, 'common').fail).toBeUndefined();
     const s = sim(L);
     expect(s.enemies[0].arrowUsed).toBe(true);
     expect(s.win).toBe(true);
     s.dispose();
+  });
+
+  it('o alvo é a peça de menor ordem na corrente (não a que a física tocar primeiro) e o Foguete é imune', () => {
+    const sp = spec([E('archer', 0, 0, 200)]);
+    const P = (id: number, type: string, x: number, parent: number) => ({ id, type, x, z: 0, yaw: Math.PI / 2, parent, stroke: 1 } as unknown as Layout['pieces'][number]);
+    // fora, Foguete dentro do círculo (imune), duas Comuns dentro: o alvo é a 1ª Comum depois do Foguete
+    const pieces = [P(1, 'common', -3.5, -1), P(2, 'runner', -1.5, 1), P(3, 'common', -1.0, 2), P(4, 'common', -0.6, 3)];
+    expect(archerTargets(sp, pieces).map((t) => t.piece.id)).toEqual([3]);
+    // sem peça no círculo, não há alvo
+    expect(archerTargets(sp, [P(1, 'common', -3.5, -1)])).toEqual([]);
+    // empate de profundidade (meias de bifurcação): a de menor id
+    const fork = [P(1, 'common', -3.5, -1), { ...P(7, 'fork', -1.0, 1), z: 0.1 }, { ...P(6, 'fork', -1.0, 1), z: -0.1 }];
+    expect(archerTargets(sp, fork).map((t) => t.piece.id)).toEqual([6]);
   });
 
   it('o Foguete correndo é imune à flecha e atropela o arqueiro', () => {

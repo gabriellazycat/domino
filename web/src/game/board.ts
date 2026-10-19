@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { PIECES } from '../core/pieces';
 import { Placed } from '../core/layout';
 import { PhaseSpec, ENEMY_RADIUS, ENEMY_HP, ARCHER_RANGE } from '../core/mapgen';
+import { archerTargets } from '../core/archer';
 import { makeDomino, makeEnemy, makeWall, makeTrigger, makeHeadRing, dominoGeometry, ghostMaterial, glow, makeGate, makeLever } from './models';
 import { Sim, BLAST_RADIUS, BURN_TIME, patrolPos, ENEMY_HEIGHT, quatYaw, wanderOffset } from './sim';
-import { jumps, runnerPath, jumpLanding, JUMP_APEX } from '../core/motion';
+import { jumps, hopOf, runnerPath, jumpLanding, continuePoint } from '../core/motion';
 import { FaceRig, FaceBase, tiltOfQuat } from './faces';
 import { EnemyFaceRig } from './enemyFaces';
 import type { EnemyLook } from './toon';
@@ -12,6 +13,29 @@ import type { SweepTarget } from './hand';
 
 // Visual do tabuleiro: cenário da fase, peças do plano (com rosto), inimigos (com rosto); sincroniza com a física.
 interface PieceView { mesh: THREE.Mesh; p: Placed; pop: number; face: FaceRig; simExpr: FaceBase | null; heatT: number; baseEm: THREE.Color; baseEmK: number }
+
+/** Mira (reticle) desenhada uma vez: círculo, quatro tracinhos e ponto no centro. */
+let reticleTex: THREE.Texture | null = null;
+function reticle(): THREE.Texture {
+  if (reticleTex) return reticleTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d')!;
+  g.lineCap = 'round';
+  const draw = (w: number, col: string) => {
+    g.strokeStyle = col; g.fillStyle = col; g.lineWidth = w;
+    g.beginPath(); g.arc(64, 64, 34, 0, Math.PI * 2); g.stroke();
+    for (let k = 0; k < 4; k++) {
+      const a = (k * Math.PI) / 2;
+      g.beginPath(); g.moveTo(64 + Math.cos(a) * 24, 64 + Math.sin(a) * 24); g.lineTo(64 + Math.cos(a) * 56, 64 + Math.sin(a) * 56); g.stroke();
+    }
+    g.beginPath(); g.arc(64, 64, w > 8 ? 9 : 5, 0, Math.PI * 2); g.fill();
+  };
+  draw(13, '#1a0505'); draw(7, '#ffffff');
+  reticleTex = new THREE.CanvasTexture(c);
+  reticleTex.colorSpace = THREE.SRGBColorSpace;
+  return reticleTex;
+}
 
 /** Cor do "calor" que corre na frente da onda (a peça que acabou de cair brilha e esfria). */
 const HEAT = new THREE.Color('#ff9a3c');
@@ -25,36 +49,6 @@ interface EnemyView {
   hopT: number; nextHop: number; flashT: number; vanished: boolean;
 }
 
-/** Corações de vida (sprites): cheio e vazio, desenhados uma vez. */
-let hpTex: { full: THREE.Texture; empty: THREE.Texture } | null = null;
-function heartTextures() {
-  if (hpTex) return hpTex;
-  const make = (full: boolean) => {
-    const c = document.createElement('canvas');
-    c.width = c.height = 64;
-    const g = c.getContext('2d')!;
-    const heart = () => {
-      g.beginPath();
-      g.moveTo(32, 54);
-      g.bezierCurveTo(8, 38, 4, 22, 14, 14);
-      g.bezierCurveTo(22, 8, 30, 12, 32, 20);
-      g.bezierCurveTo(34, 12, 42, 8, 50, 14);
-      g.bezierCurveTo(60, 22, 56, 38, 32, 54);
-      g.closePath();
-    };
-    heart();
-    g.lineWidth = 7; g.strokeStyle = '#140608'; g.stroke();
-    const gr = g.createLinearGradient(0, 10, 0, 54);
-    if (full) { gr.addColorStop(0, '#ff7a64'); gr.addColorStop(1, '#a3141a'); } else { gr.addColorStop(0, '#4a3434'); gr.addColorStop(1, '#241818'); }
-    g.fillStyle = gr; heart(); g.fill();
-    if (full) { g.fillStyle = 'rgba(255,240,220,.75)'; g.beginPath(); g.ellipse(21, 21, 5, 3.5, -0.6, 0, Math.PI * 2); g.fill(); }
-    const t = new THREE.CanvasTexture(c);
-    t.colorSpace = THREE.SRGBColorSpace;
-    return t;
-  };
-  hpTex = { full: make(true), empty: make(false) };
-  return hpTex;
-}
 interface GateView { grate: THREE.Object3D; arm: THREE.Object3D; ring: THREE.Object3D }
 
 export class Board {
@@ -171,12 +165,9 @@ export class Board {
     const v = this.enemyViews[i];
     if (!v.hpPips) return;
     v.hpPips.clear();
-    const tex = heartTextures();
     for (let k = 0; k < max; k++) {
-      const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: k < hp ? tex.full : tex.empty, transparent: true, depthWrite: false, toneMapped: false }));
-      m.scale.setScalar(0.14);
-      m.position.set((k - (max - 1) / 2) * 0.12, 0, 0);
-      m.renderOrder = 6;
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), glow(k < hp ? '#ff5a4a' : '#3a2020', k < hp ? 2.5 : 1));
+      m.position.set((k - (max - 1) / 2) * 0.13, 0, 0);
       v.hpPips.add(m);
     }
   }
@@ -272,8 +263,8 @@ export class Board {
       const h = heads[i];
       r.visible = !!h;
       if (h) {
-        const f = PIECES[h.type].step * 0.55;
-        r.position.set(h.x + Math.sin(h.yaw) * f, 0.02, h.z + Math.cos(h.yaw) * f);
+        const a = continuePoint(h, this.spec);
+        r.position.set(a.x, 0.02, a.z);
       }
     });
     const ring = this.trigger?.getObjectByName('ring');
@@ -329,11 +320,11 @@ export class Board {
         const r = runnerPath(this.spec, p.x, p.z, p.yaw);
         lines.push({ pts: r.pts.map((q) => new THREE.Vector3(q.x, 0.04, q.z)), color: 0xf2c14e });
       } else if (jumps(p)) {
-        const to = jumpLanding(p);
+        const to = jumpLanding(p), apex = hopOf(p).apex;
         const pts: THREE.Vector3[] = [];
         for (let k = 0; k <= 24; k++) {
           const t = k / 24;
-          pts.push(new THREE.Vector3(p.x + (to.x - p.x) * t, 0.05 + 4 * JUMP_APEX * t * (1 - t), p.z + (to.z - p.z) * t));
+          pts.push(new THREE.Vector3(p.x + (to.x - p.x) * t, 0.05 + 4 * apex * t * (1 - t), p.z + (to.z - p.z) * t));
         }
         lines.push({ pts, color: 0x6fe07a });
       }
@@ -467,14 +458,47 @@ export class Board {
     });
   }
 
+  /** Mira vermelha do Arqueiro: no planejamento, marca a peça que ele vai queimar e liga a ela por uma linha. */
+  private aimMarks: { sprite: THREE.Sprite; line: THREE.Line }[] = [];
+  private aimT = 0;
+  setAimMarks(list: { ax: number; az: number; tx: number; tz: number; th: number }[]) {
+    while (this.aimMarks.length < list.length) {
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: reticle(), color: new THREE.Color('#ff3a2a').multiplyScalar(2.6), transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
+      sprite.renderOrder = 9;
+      const line = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ color: new THREE.Color('#ff4a3a').multiplyScalar(2), dashSize: 0.14, gapSize: 0.1, transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false }));
+      line.renderOrder = 8;
+      line.frustumCulled = false;
+      this.scene.add(sprite, line);
+      this.aimMarks.push({ sprite, line });
+    }
+    this.aimMarks.forEach((m, i) => {
+      const a = list[i];
+      m.sprite.visible = m.line.visible = !!a;
+      if (!a) return;
+      m.sprite.position.set(a.tx, a.th + 0.42, a.tz);
+      m.line.geometry.dispose();
+      m.line.geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(a.ax, 0.6, a.az), new THREE.Vector3(a.tx, a.th * 0.8, a.tz)]);
+      m.line.computeLineDistances();
+    });
+  }
+
+  /** Recalcula a mira com a corrente atual (só no planejamento). */
+  refreshAim(pieces: Placed[], on: boolean) {
+    if (!on || !this.spec) { this.setAimMarks([]); return; }
+    this.setAimMarks(archerTargets(this.spec, pieces).map((t) => {
+      const e = this.spec.enemies[t.archer];
+      return { ax: e.x, az: e.z, tx: t.piece.x, tz: t.piece.z, th: PIECES[t.piece.type].h };
+    }));
+  }
+
   /** A onda acabou de derrubar esta peça: ela acende e vai esfriando (rastro de calor da cascata). */
   pieceHeat(id: number) { const v = this.pieceViews.get(id); if (v) v.heatT = this.t; }
 
   private applyHeat(v: PieceView, k: number) {
     const m = (v.mesh.material as THREE.Material[])[0] as THREE.MeshPhysicalMaterial;
     if (v.mesh.userData.origMat) return; // carbonizando: o carvão manda
-    m.emissive.copy(v.baseEm).lerp(HEAT, Math.min(1, k * 1.4));
-    m.emissiveIntensity = v.baseEmK + k * 0.95;
+    m.emissive.copy(v.baseEm).lerp(HEAT, Math.min(1, k * 0.7));
+    m.emissiveIntensity = v.baseEmK + k * 0.2;
   }
 
   /** Levou golpe sem cair (Brutamontes/General): amassa e faz cara de dor. */
@@ -497,6 +521,7 @@ export class Board {
     }
     for (const c of this.stat.children) out.push({ o: c, kind: c.userData.sweep === 'fade' ? 'fade' : 'fly' });
     this.hideHeads();
+    this.setAimMarks([]);
     this.setTrail([]);
     this.setPaths([]);
     this.showGhost(null);
@@ -556,7 +581,7 @@ export class Board {
       v.face.base = ex;
       v.face.update(dt);
       if (v.heatT > -9) {
-        const hk = 1 - (this.t - v.heatT) / 0.75;
+        const hk = 1 - (this.t - v.heatT) / 0.5;
         this.applyHeat(v, Math.max(0, hk) ** 1.6);
         if (hk <= 0) v.heatT = -9;
       }
@@ -579,6 +604,12 @@ export class Board {
       if (ring) ring.scale.setScalar(1 + Math.sin(this.t * 4) * 0.06);
       const cloth = this.trigger.getObjectByName('cloth');
       if (cloth) cloth.rotation.y = Math.sin(this.t * 3.1) * 0.25;
+    }
+    this.aimT += dt;
+    for (const m of this.aimMarks) if (m.sprite.visible) {
+      const k = 1 + Math.sin(this.aimT * 7) * 0.12;
+      m.sprite.scale.setScalar(0.62 * k);
+      m.sprite.material.rotation = this.aimT * 0.9;
     }
     for (const r of this.heads) if (r.visible) {
       r.scale.setScalar(1 + Math.sin(this.t * 5) * 0.12);
@@ -668,5 +699,6 @@ export class Board {
     this.enemyViews = [];
     this.gateViews = [];
     this.hideHeads();
+    this.setAimMarks([]);
   }
 }

@@ -1,8 +1,9 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { PIECES } from '../core/pieces';
 import { Placed } from '../core/layout';
-import { EnemySpec, ENEMY_HP, ENEMY_RADIUS, PhaseSpec, BOARD, Vec2, GateSpec, ARCHER_RANGE } from '../core/mapgen';
-import { jumps, runnerPath, alongPath, RunPath, RUNNER_SPEED, JUMP_TIME, JUMP_APEX, jumpLanding } from '../core/motion';
+import { EnemySpec, ENEMY_HP, ENEMY_RADIUS, PhaseSpec, BOARD, Vec2, GateSpec } from '../core/mapgen';
+import { archerTargets } from '../core/archer';
+import { jumps, hopOf, runnerPath, alongPath, RunPath, RUNNER_SPEED, jumpLanding } from '../core/motion';
 
 // Simulação física (Rapier). Mesma física para o jogo ao vivo e para o bot/testes headless.
 // Assistência "encostou, derruba" (herdada do Topple Unity): peça em pé tocada por corpo dinâmico
@@ -89,7 +90,7 @@ export interface SimPiece {
 
 type Motion =
   | { kind: 'run'; t0: number; dur: number; path: RunPath }
-  | { kind: 'jump'; t0: number; dur: number; from: Vec2; to: Vec2; yaw: number };
+  | { kind: 'jump'; t0: number; dur: number; from: Vec2; to: Vec2; yaw: number; yaw0: number; apex: number; flip: boolean };
 
 export interface SimEnemy {
   idx: number;
@@ -320,7 +321,8 @@ export class Sim {
     s.kicked = true;
     s.launched = this.t;
     s.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
-    s.motion = { kind: 'jump', t0: this.t, dur: JUMP_TIME, from: { x: s.p.x, z: s.p.z }, to: jumpLanding(s.p), yaw: s.p.yaw };
+    const hp = hopOf(s.p);
+    s.motion = { kind: 'jump', t0: this.t, dur: hp.time, from: { x: s.p.x, z: s.p.z }, to: jumpLanding(s.p), yaw: hp.yaw, yaw0: s.p.yaw, apex: hp.apex, flip: hp.flip };
     this.ev.jump?.(i);
   }
 
@@ -340,10 +342,15 @@ export class Sim {
       } else {
         // arco + uma cambalhota para a frente; o giro fecha aos 75% (desce já em pé, sem varrer a peça do pouso)
         const x = m.from.x + (m.to.x - m.from.x) * k, z = m.from.z + (m.to.z - m.from.z) * k;
-        const y = h + 4 * JUMP_APEX * k * (1 - k);
+        const y = h + 4 * m.apex * k * (1 - k);
         const r = Math.min(1, k / 0.75);
-        const th = Math.PI * 2 * (r * r * (3 - 2 * r));
-        const sy = Math.sin(m.yaw / 2), cy = Math.cos(m.yaw / 2), sx = Math.sin(th / 2), cx = Math.cos(th / 2);
+        const ease = r * r * (3 - 2 * r);
+        const th = m.flip ? Math.PI * 2 * ease : 0; // a Torta só vira de lado, sem cambalhota
+        // a Torta vira de frente para o lado do pulo enquanto sobe (a Saltadora já parte virada para ele)
+        let dy = (m.yaw - m.yaw0) % (Math.PI * 2);
+        if (dy > Math.PI) dy -= Math.PI * 2; else if (dy < -Math.PI) dy += Math.PI * 2;
+        const yaw = m.yaw0 + dy * ease;
+        const sy = Math.sin(yaw / 2), cy = Math.cos(yaw / 2), sx = Math.sin(th / 2), cx = Math.cos(th / 2);
         s.body.setNextKinematicTranslation({ x, y, z });
         s.body.setNextKinematicRotation({ x: cy * sx, y: sy * cx, z: -sy * sx, w: cy * cx });
       }
@@ -719,25 +726,29 @@ export class Sim {
     });
     for (const e of this.enemies) {
       if (!e.alive || e.spec.kind !== 'archer' || e.arrowUsed) continue;
-      const ep = e.body.translation();
-      for (let i = 0; i < this.pieces.length; i++) {
-        const s = this.pieces[i];
-        if (!s.kicked || s.fallen || s.burned >= 0 || s.crushed >= 0 || s.exploded || s.motion?.kind === 'run') continue;
-        // dentro do círculo: onde a peça foi COLOCADA (quem está saltando conta onde está agora)
-        const tr = s.body.translation();
-        const at = s.motion ? tr : s.p;
-        if (Math.hypot(at.x - ep.x, at.z - ep.z) > ARCHER_RANGE) continue;
-        e.arrowUsed = true;
-        this.ev.arrow?.(e, i, tr.x, tr.z);
-        // flecha de FOGO: a peça atingida e a seguinte (o fogo pula) — o buraco fica maior que a queda de uma Comum
-        this.burn(s, i);
-        for (const c of this.childIdx.get(s.p.id) ?? []) {
-          const o = this.pieces[c];
-          if (!o.kicked && o.burned < 0) this.burn(o, c);
-        }
-        break;
+      // o alvo é fixo (a 1ª peça da corrente no círculo, a mesma que o planejamento marcou): a flecha sai quando a onda a alcança
+      const i = (this.archerAim ??= this.aimMap()).get(e.idx);
+      if (i === undefined) continue;
+      const s = this.pieces[i];
+      if (!s.kicked || s.fallen || s.burned >= 0 || s.crushed >= 0 || s.exploded) continue;
+      const tr = s.body.translation();
+      e.arrowUsed = true;
+      this.ev.arrow?.(e, i, tr.x, tr.z);
+      // flecha de FOGO: a peça atingida e a seguinte (o fogo pula) — o buraco fica maior que a queda de uma Comum
+      this.burn(s, i);
+      for (const c of this.childIdx.get(s.p.id) ?? []) {
+        const o = this.pieces[c];
+        if (!o.kicked && o.burned < 0) this.burn(o, c);
       }
     }
+  }
+
+  private archerAim?: Map<number, number>;
+  /** índice do inimigo Arqueiro → índice da peça que ele vai queimar */
+  private aimMap(): Map<number, number> {
+    const m = new Map<number, number>();
+    for (const t of archerTargets(this.spec, this.pieces.map((s) => s.p))) m.set(t.archer, this.pieces.findIndex((s) => s.p.id === t.piece.id));
+    return m;
   }
 
   /** A peça em pé pega fogo: sai da física na hora (a corrente quebra ali) e o Board a desfaz em cinza. */

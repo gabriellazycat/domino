@@ -86,6 +86,33 @@ describe('Foguete', () => {
   });
 });
 
+describe('anel de continuação', () => {
+  it('Torre, Foguete e Saltadora: o anel fica onde a próxima peça nasce e clicar nele continua a corrente', () => {
+    for (const kind of ['tower', 'runner', 'jumper'] as Kind[]) {
+      const L = layout(spec([]));
+      const st = L.begin(-6.6, 0, 'common').stroke!;
+      one(L, st, 'common');
+      const h = one(L, st, kind);
+      const a = L.anchorOf(h);
+      expect(Math.hypot(a.x - h.x, a.z - h.z), `${kind}: anel longe da peça`).toBeGreaterThan(0.9);
+      // clicar exatamente no anel escolhe esta ponta
+      expect(L.begin(a.x, a.z, 'common').stroke?.head, `${kind}: clique no anel`).toBe(h.id);
+      // e a peça seguinte nasce justamente no anel
+      const next = one(L, st, 'common');
+      expect(Math.hypot(next.x - a.x, next.z - a.z), `${kind}: próxima peça no anel`).toBeLessThan(0.06);
+    }
+  });
+
+  it('peça comum: o anel continua logo à frente dela (como antes)', () => {
+    const L = layout(spec([]));
+    const st = L.begin(-6.6, 0, 'common').stroke!;
+    const h = one(L, st, 'common');
+    const a = L.anchorOf(h);
+    expect(Math.hypot(a.x - h.x, a.z - h.z)).toBeLessThan(0.3);
+    expect(L.begin(h.x, h.z, 'common').stroke?.head).toBe(h.id);
+  });
+});
+
 describe('Saltadora', () => {
   it('pula o muro e a corrente segue do outro lado até o inimigo', () => {
     const wall: WallSpec = { x: -3.9, z: 0, w: 0.35, d: 3, h: 0.7, style: 'hedge' };

@@ -671,8 +671,9 @@ Decisões (roadmap, em ordem):
    contorno de muro. Ronda em volta do pelotão inverte o `clash` atual.
 8. **Ogro patrulheiro**: lento, vida 3; **pisoteia** (some) peça em pé na rota; derrubado, **tomba
    como dominó gigante** na direção do golpe e esmaga onde cai (~1,5 m).
-9. **Arqueiro**: círculo de alcance visível; a 1ª peça que entra leva flecha de fogo (queima, igual
-   à tocha) — **uma vez só**. Solução: Bifurcação (um ramo é isca) ou Foguete (imune em movimento).
+9. **Arqueiro**: círculo de alcance visível; a 1ª peça da corrente que entra leva flecha de fogo (queima, igual
+   à tocha) — **uma vez só**. O planejamento a marca com uma mira vermelha e **dela não se continua** (aviso). Solução:
+   Bifurcação (um ramo é isca) ou Foguete (imune em movimento).
 10. **Porteira com alavanca**: alavanca derrubada abre a porta por N s e fecha; ramo da Bifurcação
     tem de chegar com ela aberta — o timing se ajusta pelo comprimento dos ramos (Comum "atrasa").
 Fora: evento de remover Comuns (dono vetou).
@@ -699,9 +700,10 @@ Feito (itens 2–10, 17/out/2026):
 - **Patrulhas**: retângulo maior e LINHA (vai e volta) desde a fase 4; CÍRCULO e RONDA em volta do pelotão da 6; OITO da 8.
 - **Ogro** (fase 7+, 40% das patrulhas): lento (0,3), vida 3, ESMAGA peça em pé na rota (some); derrubado, tomba na
   direção do golpe e derruba quem estiver numa faixa de 1,9 m à frente (e acorda peças da corrente ali).
-- **Arqueiro** (fase 6+, ~40%): círculo de 2,3 m; a 1ª peça COLOCADA no círculo que a onda alcança leva a flecha de fogo,
-  que queima ela e a SEGUINTE (só uma queimada a corrente pulava o buraco: a Comum alcança 0,8 m). Uma flecha só.
-  Foguete correndo é imune. Isca com Bifurcação provada em teste.
+- **Arqueiro** (fase 6+, ~40%): círculo de 1,9 m; o alvo é FIXO e visível: a 1ª peça da corrente (menor profundidade a partir
+  do gatilho; empate = menor id) cuja posição colocada cai no círculo. Mira vermelha no planejamento; não dá para continuar
+  a corrente dessa peça (aviso "O arqueiro vai destruir essa peça"). A flecha queima ela e a SEGUINTE (se existir; só uma
+  queimada a corrente pulava o buraco: a Comum alcança 0,8 m). Uma flecha só. Foguete é imune. Isca com Bifurcação provada em teste.
 - **Fortificações** (fase 5+): anel de muro em volta do pelotão — ABERTO (vão de ~1,2 m de lado), FECHADO de caixotes
   (só se o baralho tem Saltadora) ou com **PORTEIRA** (fase 7+): grade cinemática que afunda por 3 s quando uma peça
   cai na ALAVANCA (fora do anel, 1,8–2,6 m, ligada à grade por pontilhado). Peça que cairia em cima da grade é

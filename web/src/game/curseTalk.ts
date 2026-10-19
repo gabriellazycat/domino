@@ -9,7 +9,7 @@ export const CURSE_LINES: Partial<Record<PieceId, { idle: string[]; placed: stri
   },
   crooked: {
     idle: ['Ops, virei de novo?', 'Reto é tão sem graça.', 'Hihihi.'],
-    placed: ['Opa, escorreguei!', 'Para lá é mais bonito!'],
+    placed: ['Vou pular para o lado!', 'Para lá é mais bonito!'],
     fall: ['Wheee!', 'Foi de propósito!'],
   },
   minion: {

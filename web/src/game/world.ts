@@ -48,7 +48,7 @@ const FinishShader = {
     // amostra com tilt-shift opcional (desfoca topo e base da tela)
     vec3 samp(vec2 uv){
       float band = abs(uv.y - 0.46);
-      float amt = smoothstep(0.16, 0.5, band) * 2.4 * uTilt;
+      float amt = smoothstep(0.16, 0.5, band) * 1.2 * uTilt;
       vec3 c = texture2D(tDiffuse, uv).rgb;
       if (amt < 0.01) return c;
       vec2 px = amt / uRes;

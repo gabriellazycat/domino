@@ -2,7 +2,8 @@ import { PIECE_ORDER, PieceId, Deck, emptyDeck, isCursed, splits, splitOffsets }
 import { DrawPile } from './draw';
 import { Card, Kind, kindOf, kindType, usesOf } from './cards';
 import { BOARD, BOARD_MARGIN, ENEMY_RADIUS, PhaseSpec, rectDist } from './mapgen';
-import { launchOf } from './motion';
+import { launchOf, continuePoint, CROOK_DIST } from './motion';
+import { archerTargets } from './archer';
 
 // Modelo do planejamento (puro): peças colocadas, mão, traçado por arrasto.
 // Regra: tabuleiro vazio → a 1ª peça nasce no gatilho; depois só se continua de uma PONTA
@@ -18,12 +19,14 @@ export interface Placed {
   group?: number[];
   /** a peça da caixa que virou esta peça na mesa (selos, ouro da Dourada) */
   card?: Card;
+  /** Torta: para que lado ela pula quando é derrubada (+1 = esquerda da direção dela, −1 = direita) */
+  side?: 1 | -1;
 }
 
 /** Uma peça na mão: a carta + quantas peças ela ainda põe na mesa (Dupla começa com 2). */
 export interface HandEntry { card: Card; kind: Kind; left: number }
 
-export type Fail = 'board' | 'wall' | 'enemy' | 'piece' | 'empty' | 'nohead' | 'trigger' | 'lever' | 'gate';
+export type Fail = 'board' | 'wall' | 'enemy' | 'piece' | 'empty' | 'nohead' | 'trigger' | 'lever' | 'gate' | 'archer';
 
 export const FAIL_TEXT: Record<Fail, string> = {
   board: 'Fora da mesa!',
@@ -35,6 +38,7 @@ export const FAIL_TEXT: Record<Fail, string> = {
   trigger: 'Comece no marcador VERDE!',
   lever: 'Muito perto da alavanca: deixe espaço para a peça cair nela.',
   gate: 'Em cima da porteira: atravesse a grade reto.',
+  archer: 'O arqueiro vai destruir essa peça! Continue de outra ponta.',
 };
 
 /** Distância mínima de uma peça até a alavanca (a peça cai por cima dela). */
@@ -186,9 +190,34 @@ export class Layout {
       const last = placed.list[placed.list.length - 1];
       return { stroke: { head: last.id, done: splits(type), id }, placed: placed.list };
     }
-    const h = this.nearestHead(x, z, 0.65);
+    const h = this.nearestAnchor(x, z, 0.65);
     if (!h) return { fail: 'nohead' };
+    if (this.archerTargetIds().has(h.id)) return { fail: 'archer' };
     return { stroke: { head: h.id, done: false, id: ++this.strokeSeq } };
+  }
+
+  /** Peças que um Arqueiro vai queimar (ver `archerTargets`): não se continua a corrente a partir delas. */
+  archerTargetIds(): Set<number> {
+    if (!this.spec.enemies.some((e) => e.kind === 'archer')) return new Set();
+    return new Set(archerTargets(this.spec, this.pieces).map((t) => t.piece.id));
+  }
+
+  /** Onde clicar (e onde o anel aparece) para continuar a partir da ponta `h`. */
+  anchorOf(h: Placed): { x: number; z: number } { return continuePoint(h, this.spec); }
+
+  /**
+   * Ponta cujo anel está mais perto do ponto. Nas pontas de lançamento longo (Torre, Foguete, Saltadora/Mola, Torta) o
+   * anel fica onde a próxima peça nasce; clicar nele ou na própria peça continua dali. Nas demais, vale a peça.
+   */
+  nearestAnchor(x: number, z: number, maxD: number): Placed | undefined {
+    let best: Placed | undefined, bd = maxD;
+    for (const h of this.heads()) {
+      let d = Math.hypot(h.x - x, h.z - z);
+      const a = this.anchorOf(h);
+      if (Math.hypot(a.x - h.x, a.z - h.z) > 0.6) d = Math.min(d, Math.hypot(a.x - x, a.z - z));
+      if (d < bd) { bd = d; best = h; }
+    }
+    return best;
   }
 
   nearestHead(x: number, z: number, maxD: number): Placed | undefined {
@@ -207,6 +236,8 @@ export class Layout {
     for (let guard = 0; guard < 60 && !st.done; guard++) {
       const h = this.get(st.head);
       if (!h) { st.done = true; break; }
+      // a peça que o Arqueiro vai queimar não continua a corrente
+      if (this.archerTargetIds().has(h.id)) return { placed: out, fail: 'archer', ghost: this.nextSpot(h) };
       // a próxima peça sai de onde a PONTA leva a onda: a queda dela (Torre vai longe), o fim da
       // corrida do Foguete ou o outro lado do salto da Saltadora/Mola
       const o = launchOf(h, this.spec);
@@ -235,8 +266,15 @@ export class Layout {
       out.push(...res.list);
       st.head = res.list[res.list.length - 1].id;
       if (splits(type)) st.done = true;
+      else if (this.archerTargetIds().has(st.head)) return { placed: out, fail: 'archer', ghost: this.nextSpot(res.list[res.list.length - 1]) };
     }
     return { placed: out };
+  }
+
+  /** Onde a peça seguinte nasceria a partir da ponta `h` (fantasma vermelho do aviso). */
+  private nextSpot(h: Placed): { x: number; z: number; yaw: number } {
+    const o = launchOf(h, this.spec);
+    return { x: o.x + Math.sin(o.yaw) * o.step, z: o.z + Math.cos(o.yaw) * o.step, yaw: o.yaw };
   }
 
   /** Traço completo: nasce em `anchor` (só se ainda não há ponta) e estende até `cur`. Muta o layout. */
@@ -288,9 +326,9 @@ export class Layout {
     } else {
       const f = this.check(x, z, ignore);
       if (f) return { fail: f };
-      // Torta: dá um pulinho e vira 90° (para o lado mais livre; empate = sorteio pelo id)
-      if (type === 'crooked') yaw = this.crookedYaw(x, z, yaw, ignore);
-      list = [{ id: this.nextId++, type, x, z, yaw, parent, stroke, card: e.card }];
+      // Torta: fica em pé como uma peça comum e, derrubada, pula 90° para o lado mais livre (empate = sorteio pelo id)
+      const side = type === 'crooked' ? this.crookedSide(x, z, yaw, ignore) : undefined;
+      list = [{ id: this.nextId++, type, x, z, yaw, parent, stroke, card: e.card, ...(side ? { side } : {}) }];
     }
     this.pieces.push(...list);
     e.left--;
@@ -300,13 +338,14 @@ export class Layout {
     return { list };
   }
 
-  private crookedYaw(x: number, z: number, yaw: number, ignore: Set<number>): number {
-    const sides = this.nextId % 2 ? [1, -1] : [-1, 1];
+  /** Lado do pulo da Torta: o primeiro em que a próxima peça cabe (onde ela pousa). */
+  private crookedSide(x: number, z: number, yaw: number, ignore: Set<number>): 1 | -1 {
+    const sides: (1 | -1)[] = this.nextId % 2 ? [1, -1] : [-1, 1];
     for (const sd of sides) {
-      const y = wrapAngle(yaw + sd * Math.PI / 2);
-      if (this.check(x + Math.sin(y) * 0.38, z + Math.cos(y) * 0.38, ignore) === null) return y;
+      const y = yaw + sd * Math.PI / 2;
+      if (this.check(x + Math.sin(y) * CROOK_DIST, z + Math.cos(y) * CROOK_DIST, ignore) === null) return sd;
     }
-    return wrapAngle(yaw + sides[0] * Math.PI / 2);
+    return sides[0];
   }
 
   /** Uma peça tirada da mesa volta para a mão (a Dupla recupera o uso que tinha gastado). */

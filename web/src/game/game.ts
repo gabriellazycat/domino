@@ -397,7 +397,7 @@ export class Game {
     }
     // primeiro clique: só marca de onde a trilha sai (nada é colocado ainda)
     const r = this.layout.preview(null, g, g, this.selected);
-    if (r.fail && (r.fail === 'trigger' || r.fail === 'nohead' || r.fail === 'empty')) { this.failFeedback(r.fail, null); return; }
+    if (r.fail && (r.fail === 'trigger' || r.fail === 'nohead' || r.fail === 'empty' || r.fail === 'archer')) { this.failFeedback(r.fail, null); return; }
     this.trailAnchor = { x: g.x, z: g.z };
     this.previewTrail();
     this.refreshHud();
@@ -463,7 +463,7 @@ export class Game {
     if (f !== this.lastFail || now - this.lastFailT > 1.2) {
       this.ui.toast(f === 'empty' ? this.emptyText() : FAIL_TEXT[f]);
       if (f === 'empty') this.ui.hand.nudge();
-      if (f === 'trigger' || f === 'nohead' || f === 'empty') audio.ui('deny');
+      if (f === 'trigger' || f === 'nohead' || f === 'empty' || f === 'archer') audio.ui('deny');
       this.lastFail = f;
       this.lastFailT = now;
     }
@@ -528,7 +528,10 @@ export class Game {
     this.ui.setStats(this.run.life, this.run.maxLife, this.run.gold, this.attemptsLeft, this.attemptsMax);
     this.ui.setPieces(this.layout.cardsUsed(), this.spec.par);
     this.ui.setFireEnabled(this.layout.pieces.length > 0);
-    this.board.setHeads(this.mode === 'planning' ? this.layout.heads() : [], this.layout.pieces.length === 0 && this.mode === 'planning');
+    // a peça que o Arqueiro vai queimar não tem anel de continuação (e a mira vermelha a marca)
+    const doomed = this.mode === 'planning' ? this.layout.archerTargetIds() : new Set<number>();
+    this.board.setHeads(this.mode === 'planning' ? this.layout.heads().filter((h) => !doomed.has(h.id)) : [], this.layout.pieces.length === 0 && this.mode === 'planning');
+    this.board.refreshAim(this.layout.pieces, this.mode === 'planning');
     if (!this.trailAnchor) this.board.setPaths(this.mode === 'planning' ? this.layout.pieces : []);
     this.driveCoach();
   }
@@ -1266,7 +1269,7 @@ export class Game {
     if (this.mode === 'planning') this.curseChatter(dt);
     this.impactBudget = 6;
     this.checkPerformance();
-    this.world.setLensTarget(this.settings.dof && this.mode === 'sim' ? 1 : 0);
+    this.world.setLensTarget(this.settings.dof && this.mode === 'sim' ? 0.4 : 0);
     // o fundo esquenta com a cascata: tensão alta enquanto há inimigos de pé
     this.world.backdrop.tensionGoal = this.mode === 'sim' && this.sim ? 0.55 + 0.45 * (this.sim.alive / Math.max(1, this.sim.enemies.length)) : this.mode === 'result' ? 0.2 : 0;
     // música reage ao jogo: tensão sobe com os inimigos vivos, percussão acompanha o combo
@@ -1313,8 +1316,12 @@ export class Game {
           const t = this.spec.trigger;
           if (Math.hypot(g.x - t.x, g.z - t.z) < 0.8) target = t;
         } else {
-          const hd = this.layout.nearestHead(g.x, g.z, 0.65);
-          if (hd) target = hd;
+          const hd = this.layout.nearestAnchor(g.x, g.z, 0.65);
+          if (hd && !this.layout.archerTargetIds().has(hd.id)) {
+            // pontas de lançamento longo (Torre, Foguete, pulo): o anel fica onde a próxima peça nasce; nas demais, na peça
+            const a = this.layout.anchorOf(hd);
+            target = Math.hypot(a.x - hd.x, a.z - hd.z) > 0.6 ? a : hd;
+          }
         }
       }
       this.board.hoverRing.visible = !!target;

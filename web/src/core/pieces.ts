@@ -80,7 +80,7 @@ export const PIECES: Record<PieceId, PieceDef> = {
   },
   crooked: {
     id: 'crooked', name: 'Torta', plural: 'Tortas', short: 'TOR', cursed: true,
-    desc: 'Maldita. Ao ser colocada dá um pulinho e vira 90° para o lado: a trilha segue torta.',
+    desc: 'Maldita. Fica em pé como uma peça comum; ao ser derrubada dá um pulinho de 90° para o lado e a trilha segue torta.',
     w: 0.40, h: 0.80, t: 0.12, step: 0.38,
     color: CURSE_BODY, pip: CURSE_PIP, cost: 0,
   },

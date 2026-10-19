@@ -18,9 +18,25 @@ export const JUMP_TIME = 0.75;
 /** Folga entre o fim da corrida do Foguete e a peça seguinte (ele tomba em cima dela). */
 const RUN_GAP = 0.3;
 
-/** A peça salta quando é derrubada: Saltadora ou qualquer peça com o selo Mola. */
+/** Pulinho de lado da Torta: curto e baixo (a Saltadora é que atravessa muros). */
+export const CROOK_DIST = 1.0;
+export const CROOK_APEX = 0.7;
+export const CROOK_TIME = 0.5;
+
+/** A peça salta quando é derrubada: Saltadora, peça com o selo Mola ou a Torta (pulinho de 90° para o lado). */
 export function jumps(p: Pick<Placed, 'type' | 'card'>): boolean {
-  return p.type === 'jumper' || !!p.card?.seals.includes('spring');
+  return p.type === 'jumper' || p.type === 'crooked' || !!p.card?.seals.includes('spring');
+}
+
+export interface Hop { dist: number; apex: number; time: number; yaw: number; flip: boolean }
+
+/**
+ * Salto de uma peça que salta. Saltadora/Mola: reto na direção dela, por cima de muros. Torta: fica em pé como uma
+ * peça comum (leva a pancada de frente, então SEMPRE cai) e, derrubada, pula 90° para o lado marcado em `side`.
+ */
+export function hopOf(p: Pick<Placed, 'type' | 'yaw' | 'side'>): Hop {
+  if (p.type === 'crooked') return { dist: CROOK_DIST, apex: CROOK_APEX, time: CROOK_TIME, yaw: p.yaw + (p.side ?? 1) * Math.PI / 2, flip: false };
+  return { dist: JUMP_DIST, apex: JUMP_APEX, time: JUMP_TIME, yaw: p.yaw, flip: true };
 }
 
 export interface RunPath { pts: Vec2[]; end: Vec2; yaw: number; len: number }
@@ -100,12 +116,27 @@ export function launchOf(h: Placed, spec: PhaseSpec): { x: number; z: number; ya
     const back = PIECES.common.step - RUN_GAP;
     return { x: r.end.x - fx * back, z: r.end.z - fz * back, yaw: r.yaw, step: PIECES.common.step, kind: 'run' };
   }
-  if (jumps(h)) return { x: h.x, z: h.z, yaw: h.yaw, step: JUMP_DIST, kind: 'jump' };
+  if (jumps(h)) { const hp = hopOf(h); return { x: h.x, z: h.z, yaw: hp.yaw, step: hp.dist, kind: 'jump' }; }
   return { x: h.x, z: h.z, yaw: h.yaw, step: PIECES[h.type].step, kind: 'fall' };
 }
 
+/**
+ * Onde o jogador clica (e onde o anel amarelo aparece) para continuar a corrente a partir da ponta `h`.
+ * Peça comum/Pesada/Explosiva e as bifurcações: logo à frente dela (como sempre). Torre, Foguete, Saltadora/Mola e
+ * Torta: onde a PRÓXIMA PEÇA nasce de verdade, que fica longe da ponta.
+ */
+export function continuePoint(h: Placed, spec: PhaseSpec): Vec2 {
+  const o = launchOf(h, spec);
+  if (o.kind === 'fall' && o.step <= 0.6) {
+    const f = o.step * 0.55;
+    return { x: h.x + Math.sin(h.yaw) * f, z: h.z + Math.cos(h.yaw) * f };
+  }
+  return { x: o.x + Math.sin(o.yaw) * o.step, z: o.z + Math.cos(o.yaw) * o.step };
+}
+
 /** Onde a peça que salta pousa (um pouco antes de onde a seguinte nasce). */
-export function jumpLanding(p: Pick<Placed, 'x' | 'z' | 'yaw'>): Vec2 {
-  const d = JUMP_DIST - JUMP_SHORT;
-  return { x: p.x + Math.sin(p.yaw) * d, z: p.z + Math.cos(p.yaw) * d };
+export function jumpLanding(p: Pick<Placed, 'type' | 'x' | 'z' | 'yaw' | 'side'>): Vec2 {
+  const hp = hopOf(p);
+  const d = hp.dist - JUMP_SHORT;
+  return { x: p.x + Math.sin(hp.yaw) * d, z: p.z + Math.cos(hp.yaw) * d };
 }

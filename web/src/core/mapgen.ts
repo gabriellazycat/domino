@@ -45,8 +45,8 @@ export interface PhaseSpec {
 
 export const ENEMY_RADIUS: Record<EnemyKind, number> = { soldier: 0.19, brute: 0.3, patroller: 0.2, torcher: 0.2, general: 0.4, ogre: 0.34, archer: 0.2 };
 export const ENEMY_HP: Record<EnemyKind, number> = { soldier: 1, patroller: 1, torcher: 1, brute: 2, general: 4, ogre: 3, archer: 1 };
-/** Raio do círculo do Arqueiro: a 1ª peça da corrente que se mexer aqui dentro leva a flecha de fogo. */
-export const ARCHER_RANGE = 2.3;
+/** Raio do círculo do Arqueiro: a 1ª peça da corrente que entrar aqui dentro leva a flecha de fogo (e dela não se continua). */
+export const ARCHER_RANGE = 1.9;
 
 const AREAS = ['Campo de Treino', 'Vila do Moinho', 'Ponte Velha', 'Pátio do Quartel', 'Mercado', 'Muralhas', 'Bosque Sombrio', 'Forja', 'Torre Norte', 'Cidadela'];
 
@@ -348,8 +348,8 @@ function tryGenerate(rng: Rng, runSeed: number, depth: number, reach: number, bo
     }
   }
 
-  // arqueiro (fase 6+, ~40%): vigia um pelotão de perto, do lado do gatilho. A 1ª peça da corrente que se mexer
-  // no círculo dele leva a flecha (uma só): uma Bifurcação dá a isca, o Foguete passa imune.
+  // arqueiro (fase 6+, ~40%): vigia um pelotão de perto, do lado do gatilho. A 1ª peça da corrente dentro do círculo
+  // dele leva a flecha (uma só; o jogo a marca e não deixa continuar dela): uma Bifurcação dá a isca, o Foguete passa imune.
   if (depth >= 5 && rng.chance(0.4)) {
     for (let k = 0; k < 14; k++) {
       const c = rng.pick(centers);
@@ -521,7 +521,7 @@ function tryGenerate(rng: Rng, runSeed: number, depth: number, reach: number, bo
   else if (boss) hint ='O GENERAL aguenta 4 golpes. Explosivas e Pesadas ajudam muito!';
   if (!boss && depth <= 9) {
     if (gates.length) hint = 'PORTEIRA! Derrube a ALAVANCA e a grade abre por 3 s. Use a Bifurcação: um ramo na alavanca, o outro passa pela grade.';
-    else if (enemies.some((e) => e.kind === 'archer')) hint = 'ARQUEIRO! A 1ª peça que se mexer no círculo dele leva a flecha. Dê uma isca (Bifurcação) ou mande o Foguete.';
+    else if (enemies.some((e) => e.kind === 'archer')) hint = 'ARQUEIRO! A mira vermelha marca a peça que ele vai queimar — dela não dá para continuar. Dê uma isca (Bifurcação) ou mande o Foguete.';
     else if (enemies.some((e) => e.kind === 'ogre')) hint = 'OGRO! Ele esmaga peças em pé no caminho e aguenta 3 golpes. Derrubado, cai como um dominó gigante.';
     else if (walls.some((w) => w.group && w.style === 'crate' && walls.filter((o) => o.group === w.group).length > 8)) hint = 'Pelotão cercado! Só a SALTADORA passa por cima dos caixotes.';
   }

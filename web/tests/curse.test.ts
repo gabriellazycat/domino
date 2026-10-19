@@ -7,6 +7,7 @@ import { emptyDeck, PieceId, CURSED } from '../src/core/pieces';
 import { canSeal } from '../src/core/cards';
 import { rollEvent, curseOffers, EventKind } from '../src/core/events';
 import { Rng } from '../src/core/rng';
+import { launchOf, CROOK_DIST } from '../src/core/motion';
 
 // Peças malditas (evento "Presente do Dono") e o próprio evento.
 const spec = (): PhaseSpec => ({ enemies: [], walls: [], trigger: { x: 0, z: -3, yaw: 0 } } as unknown as PhaseSpec);
@@ -50,13 +51,57 @@ describe('peças malditas', () => {
     expect(sim.alive).toBe(0);
   });
 
-  it('Torta vira 90° ao ser colocada', () => {
+  it('Torta fica em pé como peça comum (não gira) e guarda o lado do pulo', () => {
     const d = emptyDeck();
     d.crooked = 1;
     const L = new Layout(spec(), d);
     const r = L.begin(0, -3, 'crooked');
     expect(r.placed?.[0].type).toBe('crooked');
-    expect(Math.abs(Math.abs(r.placed![0].yaw) - Math.PI / 2)).toBeLessThan(1e-6);
+    expect(Math.abs(r.placed![0].yaw)).toBeLessThan(1e-6); // de frente para a corrente
+    expect([1, -1]).toContain(r.placed![0].side);
+  });
+
+  it('a Torta derruba a corrente 90° para o lado: a peça seguinte nasce onde ela pousa e o soldado cai', () => {
+    // corrente em +x; depois da Torta ela segue para o lado do pulo (±z) até um soldado
+    const mkSpec = () => ({ depth: 3, seed: 1, title: 't', subtitle: '', trigger: { x: -6.6, z: 0, yaw: Math.PI / 2 }, enemies: [], walls: [], par: 30, boss: false } as unknown as PhaseSpec);
+    const sides = new Set<number>();
+    for (const n of [3, 4]) { // paridade diferente dos ids: a Torta escolhe lados diferentes
+      const sp = mkSpec();
+      const d = emptyDeck(); d.common = 40; d.crooked = 1;
+      const L = new Layout(sp, d);
+      const st = L.begin(-6.6, 0, 'common').stroke!;
+      for (let i = 0; i < n; i++) {
+        const h = L.get(st.head)!;
+        L.extend(st, h.x + 0.4, h.z, 'common');
+      }
+      const h0 = L.get(st.head)!;
+      const cr = L.extend(st, h0.x + 0.4, h0.z, 'crooked').placed[0];
+      expect(cr.type).toBe('crooked');
+      expect(Math.abs(cr.yaw - Math.PI / 2)).toBeLessThan(1e-6); // em pé, de frente para a corrente
+      sides.add(cr.side!);
+      const dz = Math.cos(cr.yaw + cr.side! * Math.PI / 2); // direção do pulo no eixo z
+      // as peças depois da Torta saem para o lado do pulo
+      for (let i = 0; i < 6; i++) {
+        const h = L.get(st.head)!;
+        const o = launchOf(h, L.spec);
+        const r = L.extend(st, o.x + Math.sin(o.yaw) * o.step * 1.02, o.z + Math.cos(o.yaw) * o.step * 1.02, 'common');
+        if (i === 0) {
+          expect(r.placed[0], `peça depois da Torta: ${r.fail}`).toBeTruthy();
+          expect(Math.abs(r.placed[0].z - cr.z)).toBeCloseTo(CROOK_DIST, 2);
+          expect(Math.sign(r.placed[0].z - cr.z)).toBe(Math.sign(dz));
+          expect(Math.abs(r.placed[0].x - cr.x)).toBeLessThan(0.05);
+          const an = L.anchorOf(cr); // o anel da Torta fica onde a próxima peça nasce
+          expect(Math.hypot(r.placed[0].x - an.x, r.placed[0].z - an.z)).toBeLessThan(0.06);
+        }
+      }
+      const last = L.get(st.head)!;
+      sp.enemies.push({ kind: 'soldier', x: last.x, z: last.z + Math.sign(dz) * 0.55, yaw: 0, squad: 0 });
+      const sim = new Sim(sp, L.pieces, 0, {});
+      sim.runHeadless();
+      expect(sim.win, `Torta (lado ${cr.side}, ${n} comuns antes)`).toBe(true);
+      sim.dispose();
+    }
+    expect(sides.size).toBe(2);
   });
 
   it('maldita na mão trava a Nova mão; não aceita selo', () => {

@@ -27,6 +27,7 @@ const FinishShader = {
     uCrt: { value: 1.0 },
     uSwirlT: { value: 0 },
     uPulse: { value: 0 },
+    uTension: { value: 0 },
     uAz: { value: 0 },
     uRes: { value: new THREE.Vector2(1, 1) },
     // onda de choque de explosão: centro em UV e progresso (1 = parada)
@@ -39,7 +40,7 @@ const FinishShader = {
   fragmentShader: `
     uniform sampler2D tDiffuse; uniform float uVignette; uniform float uTilt; uniform float uTime; uniform float uFlash;
     uniform float uImpact; uniform float uCrt; uniform vec2 uRes;
-    uniform float uSwirlT; uniform float uPulse; uniform float uAz;
+    uniform float uSwirlT; uniform float uPulse; uniform float uTension; uniform float uAz;
     uniform vec2 uShockC; uniform float uShockT; uniform float uLens;
     varying vec2 vUv;
     float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)) + uTime) * 43758.5453); }
@@ -105,7 +106,7 @@ const FinishShader = {
       if (swirlK > 0.002) {
         vec2 suv = (vUv - 0.5) * vec2(uRes.x / uRes.y, 1.0);
         suv.x += uAz * 0.25;
-        c += swirl(suv, uSwirlT, uPulse) * swirlK;
+        c += swirl(suv, uSwirlT, uPulse, uTension) * swirlK;
       }
       // scanlines + máscara fina de fósforo
       float sl = 0.5 + 0.5 * sin(uv.y * uRes.y * 2.094);
@@ -296,6 +297,34 @@ const MoteShader = {
     }`,
 };
 
+/** Cinzas no ar em volta da mesa: pontinhos que descem e derivam devagar, dão profundidade ao breu. */
+const AshShader = {
+  uniforms: { uTime: { value: 0 }, uPx: { value: 800 }, uMap: { value: null as THREE.Texture | null } },
+  vertexShader: `
+    attribute float aPh; attribute float aSz;
+    uniform float uTime; uniform float uPx;
+    varying float vA; varying float vWarm;
+    void main(){
+      vec3 p = position;
+      float t = uTime * (0.08 + aPh * 0.06) + aPh * 40.0;
+      p.y = mod(p.y - uTime * (0.12 + aPh * 0.1), 9.0) - 1.0;
+      p.x += sin(t * 1.7) * 0.6 + sin(uTime * 0.05 + aPh * 9.0) * 1.2;
+      p.z += cos(t * 1.3) * 0.5;
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = aSz * uPx / -mv.z;
+      vA = (0.35 + 0.65 * sin(uTime * (0.6 + aPh) + aPh * 30.0) * 0.5 + 0.5) * smoothstep(-1.0, 0.5, p.y) * (1.0 - smoothstep(6.0, 8.0, p.y));
+      vWarm = step(0.6, fract(aPh * 7.0));
+    }`,
+  fragmentShader: `
+    uniform sampler2D uMap; varying float vA; varying float vWarm;
+    void main(){
+      float d = texture2D(uMap, gl_PointCoord).a;
+      vec3 c = mix(vec3(0.62, 0.52, 0.78), vec3(1.0, 0.62, 0.32), vWarm);
+      gl_FragColor = vec4(c, d * vA * 0.45);
+    }`,
+};
+
 interface Flame { m: THREE.Object3D; base: number; ph: number }
 
 export class World {
@@ -343,6 +372,8 @@ export class World {
   private emberLife = new Float32Array(N_EMBERS);
   private emberMax = new Float32Array(N_EMBERS);
   private emberVel = new Float32Array(N_EMBERS * 3);
+  private ash!: THREE.Points;
+  private ashMat!: THREE.ShaderMaterial;
 
   constructor(public canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -420,6 +451,8 @@ export class World {
     this.buildProps();
     this.embers = this.makeEmbers();
     this.scene.add(this.embers);
+    this.ash = this.makeAsh();
+    this.scene.add(this.ash);
     this.backdrop = new Backdrop(this.scene);
 
     // o composer desenha em um alvo com MSAA (4x): sem isso, o pós-processamento serrilha as bordas.
@@ -564,6 +597,36 @@ export class World {
     }
     pos.needsUpdate = true;
     life.needsUpdate = true;
+  }
+
+  /** Cinzas: espalhadas num volume em volta da mesa (mais nas bordas e no fundo, pouco em cima do tabuleiro). */
+  private makeAsh(): THREE.Points {
+    const N = 260;
+    const pos = new Float32Array(N * 3), ph = new Float32Array(N), sz = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      let x = 0, z = 0;
+      for (let k = 0; k < 8; k++) {
+        x = (Math.random() - 0.5) * 34; z = -16 + Math.random() * 26;
+        if (Math.abs(x) > 8.5 || z < -5.5 || z > 6) break; // evita o meio do tabuleiro
+      }
+      pos[i * 3] = x; pos[i * 3 + 1] = Math.random() * 9; pos[i * 3 + 2] = z;
+      ph[i] = Math.random();
+      sz[i] = 0.03 + Math.random() * 0.05;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('aPh', new THREE.BufferAttribute(ph, 1));
+    g.setAttribute('aSz', new THREE.BufferAttribute(sz, 1));
+    this.ashMat = new THREE.ShaderMaterial({
+      uniforms: THREE.UniformsUtils.clone(AshShader.uniforms), vertexShader: AshShader.vertexShader, fragmentShader: AshShader.fragmentShader,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    this.ashMat.uniforms.uMap.value = softDot();
+    const pts = new THREE.Points(g, this.ashMat);
+    pts.frustumCulled = false;
+    pts.renderOrder = 5;
+    pts.userData.noAO = true;
+    return pts;
   }
 
   /** Poeira: pontos espalhados dentro do cone da lâmpada (coordenadas locais ao balanço). */
@@ -725,6 +788,7 @@ export class World {
     (this.ink.uniforms.uRes.value as THREE.Vector2).set(w * pr, h * pr);
     this.moteMat.uniforms.uPx.value = (h * pr) / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
     if (this.emberMat) this.emberMat.uniforms.uPx.value = this.moteMat.uniforms.uPx.value;
+    if (this.ashMat) this.ashMat.uniforms.uPx.value = this.moteMat.uniforms.uPx.value;
   }
 
   /** Onda de choque saindo de um ponto do mundo (explosões). */
@@ -770,12 +834,14 @@ export class World {
     u.uImpact.value = this.impact;
     u.uSwirlT.value = this.clockT;
     u.uPulse.value = this.backdrop.pulse;
+    u.uTension.value = this.backdrop.tension;
     u.uAz.value = Math.atan2(this.camera.position.x, this.camera.position.z);
     this.shockT = Math.min(1, this.shockT + dt * 1.3);
     u.uShockT.value = this.shockT;
     (u.uShockC.value as THREE.Vector2).copy(this.shockUV);
     this.beamMat.uniforms.uTime.value = this.clockT;
     this.moteMat.uniforms.uTime.value = this.clockT;
+    this.ashMat.uniforms.uTime.value = this.clockT;
     this.emberMat.uniforms.uPx.value = this.moteMat.uniforms.uPx.value;
     this.lens += (this.lensTarget - this.lens) * (1 - Math.exp(-dt * 3));
     u.uLens.value = this.lens;
@@ -794,6 +860,7 @@ export class World {
   private applyQuality() {
     this.ao.enabled = this.aoOn && !this.lowQ;
     this.embers.visible = !this.lowQ;
+    this.ash.visible = !this.lowQ;
   }
   /** Posição do "dono da mesa" na tela, em pixels (para o balão de fala). */
   maskScreenPos(): { x: number; y: number } {

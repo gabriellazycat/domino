@@ -1,0 +1,12 @@
+import RAPIER from '@dimforge/rapier3d-compat';
+import { Sim } from '../../src/game/sim';
+import { heroSpec, direct } from './director';
+await RAPIER.init();
+const spec = heroSpec();
+const { layout, fails } = direct(spec);
+const by: Record<string, number> = {};
+for (const p of layout.pieces) by[p.type] = (by[p.type] ?? 0) + 1;
+console.log('peças', layout.pieces.length, by, 'falhas', fails);
+const sim = new Sim(spec, layout.pieces, 0);
+sim.runHeadless();
+console.log('win', sim.win, 'alive', sim.alive, 'de', spec.enemies.length);

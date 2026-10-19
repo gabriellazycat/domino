@@ -73,6 +73,55 @@ class Pool {
 }
 
 interface Puff { sp: THREE.Sprite; life: number; max: number; grow: number; vy: number; base: number }
+/** Sprite animado de vida curta: estrela de impacto (cresce rápido e some) ou alminha (sobe ondulando). */
+interface Flick { sp: THREE.Sprite; life: number; max: number; kind: 'star' | 'soul'; size: number; x: number; y: number; z: number; ph: number; spin: number }
+
+/** Estrela de impacto de gibi: miolo claro, pontas finas e irregulares, contorno escuro. */
+function starTexture(): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d')!;
+  const path = (r0: number, r1: number) => {
+    g.beginPath();
+    const n = 9;
+    for (let i = 0; i < n * 2; i++) {
+      const a = (i / (n * 2)) * Math.PI * 2 - Math.PI / 2;
+      const r = i % 2 ? r0 : r1 * (0.78 + ((i * 37) % 7) / 24);
+      const x = 64 + Math.cos(a) * r, y = 64 + Math.sin(a) * r;
+      if (i) g.lineTo(x, y); else g.moveTo(x, y);
+    }
+    g.closePath();
+  };
+  path(22, 60); g.fillStyle = '#1a0805'; g.fill();
+  path(17, 52); g.fillStyle = '#ffffff'; g.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Alminha: fantasminha de pano com dois olhos, a barra ondulada embaixo. */
+function soulTexture(): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = 96; c.height = 128;
+  const g = c.getContext('2d')!;
+  const glow = g.createRadialGradient(48, 52, 4, 48, 52, 48);
+  glow.addColorStop(0, 'rgba(255,255,255,.35)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, 96, 128);
+  g.beginPath();
+  g.moveTo(22, 64);
+  g.bezierCurveTo(22, 22, 74, 22, 74, 64);
+  g.lineTo(74, 104);
+  for (let i = 0; i < 4; i++) { const x0 = 74 - i * 13; g.quadraticCurveTo(x0 - 3.5, 96, x0 - 6.5, 104); g.quadraticCurveTo(x0 - 9.5, 112, x0 - 13, 104); }
+  g.closePath();
+  g.fillStyle = 'rgba(255,255,255,.92)'; g.fill();
+  g.fillStyle = '#10080c';
+  g.beginPath(); g.ellipse(39, 58, 5, 7.5, 0, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(57, 58, 5, 7.5, 0, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(48, 76, 4.5, 3, 0, 0, Math.PI * 2); g.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 interface Ring { m: THREE.Mesh; life: number; max: number; r: number }
 
 /** Brilho (linear) das faíscas/brasas: precisa passar do limiar do bloom (3,8) mesmo nas cores laranja escuras. */
@@ -85,8 +134,11 @@ export class Fx {
   sparks: Pool;
   puffs: Puff[] = [];
   rings: Ring[] = [];
+  flicks: Flick[] = [];
   flash = 0;
   private dot = softDot();
+  private starTex = starTexture();
+  private soulTex = soulTexture();
   constructor(public scene: THREE.Scene, public cam: THREE.Camera, public layer: HTMLElement) {
     this.chips = new Pool(new THREE.BoxGeometry(1, 0.4, 0.7), new THREE.MeshStandardMaterial({ roughness: 0.6 }), 900, true);
     this.sparks = new Pool(new THREE.OctahedronGeometry(0.5, 0), new THREE.MeshBasicMaterial({ toneMapped: false }), 700, false);
@@ -105,6 +157,26 @@ export class Fx {
     this.sparkBurst(x, y, z, big ? 26 : 14, '#ff9a4a', 3.5);
     this.puff(x, 0.15, z, big ? 1.3 : 0.8, '#5a4e44', 0.5);
     this.ring(x, z, big ? 1.4 : 0.9, '#ff7a4a');
+    this.star(x, y + 0.15, z, big ? 1.25 : 0.8, '#fff1d0');
+  }
+
+  /** Estrela de impacto (gibi): aparece num estalo, gira um pouco e some em ~0,25 s. */
+  star(x: number, y: number, z: number, size: number, color: string, life = 0.26) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.starTex, color: new THREE.Color(color).multiplyScalar(2.2), transparent: true, depthWrite: false, depthTest: false, toneMapped: false, rotation: Math.random() * Math.PI }));
+    sp.position.set(x, y, z);
+    sp.scale.setScalar(0.01);
+    sp.renderOrder = 8;
+    this.scene.add(sp);
+    this.flicks.push({ sp, life: 0, max: life, kind: 'star', size, x, y, z, ph: 0, spin: (Math.random() - 0.5) * 3 });
+  }
+
+  /** Alminha do inimigo derrubado: sobe ondulando, brilhando de leve, e some lá em cima. */
+  soul(x: number, y: number, z: number, color = '#cfe0ff') {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.soulTex, color: new THREE.Color(color).multiplyScalar(1.6), transparent: true, depthWrite: false, toneMapped: false, opacity: 0 }));
+    sp.position.set(x, y, z);
+    sp.renderOrder = 7;
+    this.scene.add(sp);
+    this.flicks.push({ sp, life: 0, max: 1.6, kind: 'soul', size: 0.42, x, y, z, ph: Math.random() * 6, spin: 0 });
   }
 
   sparkBurst(x: number, y: number, z: number, n: number, color: string, speed: number) {
@@ -129,6 +201,7 @@ export class Fx {
     this.flash = Math.min(0.55, this.flash + 0.45);
     this.ring(x, z, r * 1.4, '#ffb347', 0.55);
     this.ring(x, z, r * 0.9, '#fff1c4', 0.35);
+    this.star(x, y + 0.5, z, r * 1.6, '#ffe2a0', 0.32);
     this.sparkBurst(x, y + 0.2, z, 70, '#ffb347', 7);
     this.sparkBurst(x, y + 0.2, z, 30, '#fff3d0', 4);
     for (let i = 0; i < 6; i++) this.puff(x + (Math.random() - 0.5) * 0.8, 0.3 + Math.random() * 0.4, z + (Math.random() - 0.5) * 0.8, 1.3 + Math.random() * 0.8, i < 3 ? '#ff8a3c' : '#3a2c26', 0.9 + Math.random() * 0.5, 0.8);
@@ -196,6 +269,13 @@ export class Fx {
   text(x: number, y: number, z: number, txt: string, cls = '', scale = 1) {
     const v = new THREE.Vector3(x, y, z).project(this.cam);
     if (v.z > 1) return;
+    // legibilidade: não empilha textos — se já tem um recente ali perto, este não aparece
+    // (os grandes, de explosão/marco, só cedem lugar para outro grande)
+    const now = performance.now(), sx = (v.x + 1) * 0.5 * innerWidth, sy = (1 - v.y) * 0.5 * innerHeight;
+    const big = cls === 'boom' || cls === 'gold';
+    this.recentPops = this.recentPops.filter((r) => now - r.t < 420);
+    if (this.recentPops.some((r) => Math.hypot(r.x - sx, r.y - sy) < (big ? 90 : 120) && (!big || r.big))) return;
+    this.recentPops.push({ x: sx, y: sy, t: now, big });
     const el = document.createElement('div');
     el.className = `pop ${cls}`;
     el.textContent = txt;
@@ -206,6 +286,8 @@ export class Fx {
     this.layer.appendChild(el);
     setTimeout(() => el.remove(), 1300);
   }
+
+  private recentPops: { x: number; y: number; t: number; big: boolean }[] = [];
 
   knockWord(): string { return WORDS_KNOCK[Math.floor(Math.random() * WORDS_KNOCK.length)]; }
 
@@ -241,6 +323,26 @@ export class Fx {
       r.m.scale.setScalar(Math.max(0.01, r.r * e));
       (r.m.material as THREE.MeshBasicMaterial).opacity = 1 - t;
     }
+    for (let i = this.flicks.length - 1; i >= 0; i--) {
+      const f = this.flicks[i];
+      f.life += dt;
+      const t = f.life / f.max;
+      if (t >= 1) { this.scene.remove(f.sp); f.sp.material.dispose(); this.flicks.splice(i, 1); continue; }
+      const m = f.sp.material;
+      if (f.kind === 'star') {
+        // estalo: chega ao tamanho em 20% da vida, depois encolhe um pouco enquanto some
+        const s = t < 0.2 ? f.size * (0.35 + 0.65 * (t / 0.2)) : f.size * (1 - (t - 0.2) * 0.35);
+        f.sp.scale.setScalar(s);
+        m.rotation += f.spin * dt;
+        m.opacity = t < 0.55 ? 1 : 1 - (t - 0.55) / 0.45;
+      } else {
+        const up = t * 1.5;
+        f.sp.position.set(f.x + Math.sin(f.ph + t * 7) * 0.12, f.y + 0.2 + up, f.z);
+        f.sp.scale.set(f.size * (0.9 + 0.1 * Math.sin(t * 9)), f.size * 1.33 * (0.9 + 0.1 * Math.cos(t * 9)), 1);
+        m.rotation = Math.sin(f.ph + t * 6) * 0.25;
+        m.opacity = Math.min(1, t * 6) * (1 - Math.pow(t, 2)) * 0.85;
+      }
+    }
     this.flash = Math.max(0, this.flash - dt * 2.2);
   }
 
@@ -249,6 +351,8 @@ export class Fx {
     this.puffs = [];
     for (const r of this.rings) { this.scene.remove(r.m); }
     this.rings = [];
+    for (const f of this.flicks) { this.scene.remove(f.sp); f.sp.material.dispose(); }
+    this.flicks = [];
     this.chips.clear();
     this.sparks.clear();
     this.layer.innerHTML = '';

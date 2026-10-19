@@ -1,0 +1,34 @@
+// Capturas de revisão de arte: node e2e/trailer/look.mjs [prefixo]
+import { openGame, shot, closeAll } from './lib.mjs';
+import { enterRun, loadHero, placeNext, fire, cam } from './scene.mjs';
+const P = process.argv[2] ?? 'look';
+const { browser, page } = await openGame({});
+await page.waitForTimeout(1500);
+await shot(page, `${P}-menu`);
+await enterRun(page, 11);
+await page.evaluate(() => window.__topple.newRun(11));
+await page.waitForTimeout(2500);
+await shot(page, `${P}-planning`);
+console.log(await loadHero(page));
+await placeNext(page, 999);
+await page.evaluate(() => window.__topple.game.refreshHud());
+await page.waitForTimeout(1200);
+await shot(page, `${P}-hero-hud`);
+// close de inimigos
+await cam(page, { x: 6.0, z: 0.2, dist: 4.2, az: -0.5, pol: 0.95 });
+await page.waitForTimeout(1500);
+await shot(page, `${P}-enemies-close`);
+await cam(page, { x: -0.6, z: 3.6, dist: 3.4, az: 0.3, pol: 1.0 });
+await page.waitForTimeout(1500);
+await shot(page, `${P}-enemies-close2`);
+await page.evaluate(() => window.__topple.game.frameBoard());
+await page.waitForTimeout(1500);
+await fire(page);
+await page.waitForTimeout(6300);
+await shot(page, `${P}-sim`);
+await page.waitForTimeout(4500);
+await shot(page, `${P}-sim-late`);
+await page.waitForFunction(() => window.__topple.state().mode !== 'sim', null, { timeout: 30000 }).catch(() => {});
+await page.waitForTimeout(2500);
+await shot(page, `${P}-result`);
+await closeAll(browser);

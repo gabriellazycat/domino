@@ -3,3 +3,10 @@ dist/
 e2e/shots/
 *.log
 release/
+e2e/trailer/raw/
+e2e/trailer/review/
+e2e/trailer/shots/
+e2e/trailer/hero-*.json
+e2e/trailer/*.log
+e2e/trailer/raw2/
+e2e/trailer/overlays/

@@ -69,6 +69,11 @@ export class Game {
   speed = 1;
   timeScale = 1;
   slowmoUntil = 0;
+  /** fechada no último inimigo derrubado (câmera lenta de vitória) */
+  private killcam: { x: number; z: number; until: number } | null = null;
+  /** ponto suavizado que a câmera persegue na cascata */
+  private chase: THREE.Vector3 | null = null;
+  private frameDist = 15;
   hitstop = 0;
   private torchTmp: THREE.Vector3[] = [];
   simEndAt = -1;
@@ -110,6 +115,11 @@ export class Game {
     this.board = new Board(this.world.scene);
     this.hand = new Hand(this.world.scene);
     this.fx = new Fx(this.world.scene, this.world.camera, document.getElementById('fx-layer')!);
+    // inimigo derrubado some: puf de tinta + a alminha subindo (cor do contorno do tipo)
+    this.board.onVanish = (x, y, z, kind) => {
+      this.fx.puff(x, 0.25, z, 0.9, '#2a2030', 0.55, 0.6);
+      this.fx.soul(x, Math.max(0.2, y), z, kind === 'general' ? '#ffb0a0' : kind === 'ogre' ? '#d8ffb0' : '#d8e4ff');
+    };
     this.decals = new Decals(this.world.scene);
     this.ui = new UI({
       select: (id) => this.select(id),
@@ -592,6 +602,8 @@ export class Game {
     this.frameBoard();
     if (animate) { this.board.spawnIn(); this.ui.phaseBanner(this.spec); }
     if (!glide) this.rig.snap();
+    // entrada de cena: a câmera chega girando e descendo devagar até o enquadramento
+    if (animate) { this.rig.az -= 0.42; this.rig.dist += 4.5; this.rig.pol -= 0.22; this.rig.ease = 1.6; }
     this.refreshHud();
     audio.setMusic(true, 0);
     if (this.spec.hint && run.depth > 0) setTimeout(() => { if (this.mode === 'planning') { this.coachStep = 1; this.ui.coach(null); } }, 9000);
@@ -611,6 +623,8 @@ export class Game {
     const aspect = window.innerWidth / window.innerHeight;
     const w = x1 - x0 + 3, d = z1 - z0 + 3;
     const dist = THREE.MathUtils.clamp(Math.max(d / (1.06 * 0.7), w / (0.69 * aspect * 0.88)), 8, 21);
+    this.frameDist = dist;
+    this.rig.easeRest = 8;
     this.rig.frame(new THREE.Vector3((x0 + x1) / 2, 0, (z0 + z1) / 2 + 0.5), dist, 0, 0.86);
   }
 
@@ -637,6 +651,8 @@ export class Game {
     audio.setHeartbeat(false);
     audio.setTension(0.75);
     this.rig.punchIn();
+    this.chase = null;
+    this.killcam = null;
     audio.fire();
     audio.setMusic(true, 0.5);
     this.rig.userMoved = false;
@@ -649,8 +665,9 @@ export class Game {
         const p = sim.pieces[i].p;
         if (PIECES[p.type].cursed && Math.random() < 0.35) this.curseTalk(p.type, 'fall', x, z);
         audio.clack(chain, p.type === 'heavy' || p.type === 'tower' ? 1.3 : 1, x);
+        this.board.pieceHeat(p.id);
         this.fx.dust(x, z, PIECES[p.type].h / 0.8);
-        this.rig.addTrauma(p.type === 'tower' ? 0.18 : p.type === 'heavy' ? 0.1 : 0.035);
+        this.rig.addTrauma(p.type === 'tower' ? 0.06 : p.type === 'heavy' ? 0.03 : 0.01);
         if (chain > 0 && chain % 15 === 0 && this.mode === 'sim') this.fx.text(x, 1.2, z, `${chain}!`, 'small', 0.9);
       },
       enemyKnock: (e, cause, combo) => this.onKnock(e, cause, combo),
@@ -662,7 +679,8 @@ export class Game {
           audio.clang();
           this.fx.text(p.x, p.y + 0.9, p.z, 'TUM!', 'hit');
           this.fx.sparkBurst(p.x, p.y + 0.3, p.z, 12, '#cfd6ff', 3);
-          this.rig.addTrauma(0.2);
+          this.fx.star(p.x, p.y + 0.3, p.z, 0.75, '#cfd6ff', 0.22);
+          this.rig.addTrauma(0.05);
         }
       },
       explosion: (x, y, z, r) => {
@@ -670,7 +688,8 @@ export class Game {
         audio.boom(x);
         this.fx.explosion(x, y, z, r);
         this.fx.text(x, y + 1.2, z, 'KABUM!', 'boom', 1.1);
-        this.rig.addTrauma(0.75);
+        this.rig.addTrauma(0.2);
+        this.rig.punchIn();
         this.hitstop = Math.max(this.hitstop, 0.09);
         this.world.lamp.position.set(x, 1.5, z);
         this.world.lamp.intensity = 60;
@@ -728,7 +747,7 @@ export class Game {
         this.fx.ring(x, z, 1.6, '#c8a060', 0.5);
         this.fx.text(x, 1.4, z, 'BUUUM!', 'boom', 1.1);
         audio.boom(x);
-        this.rig.addTrauma(0.6);
+        this.rig.addTrauma(0.2);
         this.hitstop = Math.max(this.hitstop, 0.07);
         this.decals.splat(x, z, 1.0, ENEMY_INK.ogre);
       },
@@ -744,6 +763,10 @@ export class Game {
       allDown: () => {
         this.slowmoUntil = this.realT + 1.1;
         if (this.mode === 'sim') {
+          // câmera lenta no último inimigo: a câmera fecha nele e depois abre para a mesa inteira
+          const last = this.sim?.enemies.reduce((a, b) => (b.knockedAt > a.knockedAt ? b : a));
+          const lp = last?.body.translation();
+          if (lp) this.killcam = { x: lp.x, z: lp.z, until: this.realT + 1.3 };
           const c = this.sim?.enemies.at(-1)?.body.translation();
           this.fx.confetti(c?.x ?? 0, c?.z ?? 0);
         }
@@ -794,7 +817,7 @@ export class Game {
     audio.impact(speed, x, material);
     if (speed > 1.8) {
       this.fx.dust(x, z, Math.min(1.2, speed / 2.5));
-      this.rig.addTrauma(Math.min(0.08, speed * 0.02));
+      this.rig.addTrauma(Math.min(0.02, speed * 0.005));
     }
     void y;
   }
@@ -805,7 +828,7 @@ export class Game {
     audio.knock(combo, big, p.x);
     this.fx.knockBurst(p.x, p.y, p.z, ENEMY_COLORS[e.spec.kind], big);
     this.decals.splat(p.x, p.z, big ? 0.8 : 0.5, ENEMY_INK[e.spec.kind]);
-    this.rig.addTrauma(big ? 0.45 : 0.22);
+    this.rig.addTrauma(big ? 0.12 : 0.05);
     this.hitstop = Math.max(this.hitstop, big ? 0.08 : 0.035);
     if (this.mode !== 'sim') return;
     this.phaseKnocked++;
@@ -847,6 +870,11 @@ export class Game {
     run.stats.knocked += sim.enemies.filter((e) => !e.alive).length;
     this.mode = 'result';
     this.board.mood = sim.win ? 'happy' : 'sad';
+    // fim da cascata: a câmera abre devagar mostrando a mesa inteira
+    this.killcam = null;
+    this.rig.easeRest = 8;
+    this.rig.ease = 2;
+    this.frameBoard();
     // o dono da mesa fecha a cara quando você vence e ri com os olhos quando você perde
     this.world.backdrop.mood = sim.win ? 'angry' : 'amused';
     if (sim.win) {
@@ -1239,6 +1267,8 @@ export class Game {
     this.impactBudget = 6;
     this.checkPerformance();
     this.world.setLensTarget(this.settings.dof && this.mode === 'sim' ? 1 : 0);
+    // o fundo esquenta com a cascata: tensão alta enquanto há inimigos de pé
+    this.world.backdrop.tensionGoal = this.mode === 'sim' && this.sim ? 0.55 + 0.45 * (this.sim.alive / Math.max(1, this.sim.enemies.length)) : this.mode === 'result' ? 0.2 : 0;
     // música reage ao jogo: tensão sobe com os inimigos vivos, percussão acompanha o combo
     if (this.mode === 'sim' && this.sim) {
       audio.setTension(0.45 + 0.4 * (this.sim.alive / Math.max(1, this.sim.enemies.length)));
@@ -1346,15 +1376,35 @@ export class Game {
     }
   }
 
+  /**
+   * Câmera da cascata: persegue a frente da onda (média das últimas quedas, suavizada) um pouco mais perto
+   * que o enquadramento da fase, com um giro lento; no último inimigo fecha nele em câmera lenta.
+   */
   private followCascade() {
     const sim = this.sim!;
-    const recent = sim.recentFalls.filter((f) => sim.t - f.t < 1.2);
-    if (!recent.length) return;
-    let x = 0, z = 0;
-    for (const f of recent) { x += f.x; z += f.z; }
-    x /= recent.length; z /= recent.length;
-    const k = 0.35;
-    this.rig.goalTarget.set(x * k, 0, 0.9 + (z - 0.9) * k);
+    const rig = this.rig;
+    rig.easeRest = 3.2;
+    if (this.killcam && this.realT < this.killcam.until) {
+      rig.goalTarget.set(this.killcam.x, 0, this.killcam.z + 0.2);
+      rig.goalDist = Math.max(6, this.frameDist * 0.5);
+      rig.goalPol = 0.8;
+      return;
+    }
+    const recent = sim.recentFalls.filter((f) => sim.t - f.t < 0.7);
+    const t = this.spec.trigger;
+    if (!this.chase) this.chase = new THREE.Vector3(t.x, 0, t.z);
+    if (recent.length) {
+      let x = 0, z = 0;
+      for (const f of recent) { x += f.x; z += f.z; }
+      x /= recent.length; z /= recent.length;
+      this.chase.lerp(new THREE.Vector3(x, 0, z), 0.06);
+    }
+    // meio caminho entre a onda e o centro da fase: a ação fica no quadro sem perder o contexto
+    const cx = this.chase.x * 0.62, cz = 0.5 + (this.chase.z - 0.5) * 0.55;
+    rig.goalTarget.set(cx, 0, cz);
+    rig.goalDist = this.frameDist * 0.8;
+    rig.goalPol = 0.8;
+    rig.goalAz = Math.sin(sim.t * 0.22) * 0.1;
   }
 
   /** API de depuração/testes (window.__topple). */

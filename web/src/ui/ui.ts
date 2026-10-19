@@ -123,6 +123,10 @@ export class UI {
   private fireW = 265;
 
   private vigEl = h('div', 'vig');
+  /** clarão vermelho nas bordas quando a vida cai, e o pulsar contínuo com a vida baixa */
+  private hurtEl = h('div', 'hurt');
+  private dangerEl = h('div', 'danger');
+  private lastLife = -1;
   private speedEl = h('div', 'speedlines');
   private speechEl = h('div', 'speech');
   /** balãozinho das peças (malditas falando na mesa / no evento) */
@@ -131,7 +135,7 @@ export class UI {
   private speechT = 0;
 
   constructor(cb: HudCallbacks) {
-    this.root.append(this.vigEl, this.speedEl, this.hud, this.comboEl, this.speechEl, this.pieceSpeechEl);
+    this.root.append(this.dangerEl, this.hurtEl, this.vigEl, this.speedEl, this.hud, this.comboEl, this.speechEl, this.pieceSpeechEl);
     const tl = h('div', 'top-left');
     this.obj.append(h('div', 'row', '<span>Inimigos</span>'), this.enemyIcons, this.piecesPar);
     tl.append(this.phaseBadge, this.obj);
@@ -257,11 +261,29 @@ export class UI {
     const bump = (el: HTMLElement, v: string) => { if (el.dataset.v !== v) { el.dataset.v = v; el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } };
     this.lifeEl.innerHTML = `${icon('heart')}${life}<small style="opacity:.5;font-size:15px">/${maxLife}</small>`;
     bump(this.lifeEl, String(life));
+    const low = life > 0 && life <= Math.max(2, Math.ceil(maxLife * 0.3));
+    this.lifeEl.classList.toggle('low', low);
+    this.dangerEl.classList.toggle('on', low);
+    if (this.lastLife >= 0 && life < this.lastLife) this.hurt(this.lastLife - life);
+    this.lastLife = life;
     this.goldEl.innerHTML = `${icon('coin')}${gold}`;
     bump(this.goldEl, String(gold));
     this.attEl.innerHTML = `<div class="att-pips" title="Tentativas">${Array.from({ length: attMax }, (_, i) => `<i class="${i < attMax - attLeft ? 'used' : ''}"></i>`).join('')}</div>`;
     this.attEl.title = `${attLeft} tentativa(s) restante(s)`;
   }
+  /** Perdeu vida: bordas da tela piscam em vermelho, o contador treme e solta o "−N". */
+  hurt(n: number) {
+    for (const el of [this.hurtEl, this.lifeEl]) { el.classList.remove('on', 'hit'); void el.offsetWidth; }
+    this.hurtEl.classList.add('on');
+    this.lifeEl.classList.add('hit');
+    const r = this.lifeEl.getBoundingClientRect();
+    const m = h('div', 'minus', `−${n}`);
+    m.style.left = `${r.left + r.width / 2}px`;
+    m.style.top = `${r.bottom + 6}px`;
+    this.root.append(m);
+    setTimeout(() => m.remove(), 1300);
+  }
+
   private tipHtml(html: string | null) {
     if (!html) { this.tipEl.classList.remove('on'); return; }
     this.tipEl.innerHTML = html;

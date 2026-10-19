@@ -7,13 +7,54 @@ import { Sim, BLAST_RADIUS, BURN_TIME, patrolPos, ENEMY_HEIGHT, quatYaw, wanderO
 import { jumps, runnerPath, jumpLanding, JUMP_APEX } from '../core/motion';
 import { FaceRig, FaceBase, tiltOfQuat } from './faces';
 import { EnemyFaceRig } from './enemyFaces';
+import type { EnemyLook } from './toon';
 import type { SweepTarget } from './hand';
 
 // Visual do tabuleiro: cenário da fase, peças do plano (com rosto), inimigos (com rosto); sincroniza com a física.
-interface PieceView { mesh: THREE.Mesh; p: Placed; pop: number; face: FaceRig; simExpr: FaceBase | null }
+interface PieceView { mesh: THREE.Mesh; p: Placed; pop: number; face: FaceRig; simExpr: FaceBase | null; heatT: number; baseEm: THREE.Color; baseEmK: number }
+
+/** Cor do "calor" que corre na frente da onda (a peça que acabou de cair brilha e esfria). */
+const HEAT = new THREE.Color('#ff9a3c');
 /** Humor geral das peças: preocupadas no planejamento (olhos correndo), suando antes do disparo, felizes/tristes no resultado. */
 export type Mood = 'calm' | 'nervous' | 'happy' | 'sad';
-interface EnemyView { pivot: THREE.Group; ring: THREE.Mesh; hpPips?: THREE.Group; bob: number; hitT: number; face: EnemyFaceRig; down: boolean; flame?: THREE.Object3D; range?: THREE.LineLoop }
+interface EnemyView {
+  pivot: THREE.Group; ring: THREE.Mesh; hpPips?: THREE.Group; bob: number; hitT: number; face: EnemyFaceRig; down: boolean;
+  flame?: THREE.Object3D; range?: THREE.LineLoop;
+  /** base do boneco (balanço de brinquedo, pulinhos) e materiais com contorno/clarão */
+  anim: THREE.Object3D; look: EnemyLook; h: number;
+  hopT: number; nextHop: number; flashT: number; vanished: boolean;
+}
+
+/** Corações de vida (sprites): cheio e vazio, desenhados uma vez. */
+let hpTex: { full: THREE.Texture; empty: THREE.Texture } | null = null;
+function heartTextures() {
+  if (hpTex) return hpTex;
+  const make = (full: boolean) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d')!;
+    const heart = () => {
+      g.beginPath();
+      g.moveTo(32, 54);
+      g.bezierCurveTo(8, 38, 4, 22, 14, 14);
+      g.bezierCurveTo(22, 8, 30, 12, 32, 20);
+      g.bezierCurveTo(34, 12, 42, 8, 50, 14);
+      g.bezierCurveTo(60, 22, 56, 38, 32, 54);
+      g.closePath();
+    };
+    heart();
+    g.lineWidth = 7; g.strokeStyle = '#140608'; g.stroke();
+    const gr = g.createLinearGradient(0, 10, 0, 54);
+    if (full) { gr.addColorStop(0, '#ff7a64'); gr.addColorStop(1, '#a3141a'); } else { gr.addColorStop(0, '#4a3434'); gr.addColorStop(1, '#241818'); }
+    g.fillStyle = gr; heart(); g.fill();
+    if (full) { g.fillStyle = 'rgba(255,240,220,.75)'; g.beginPath(); g.ellipse(21, 21, 5, 3.5, -0.6, 0, Math.PI * 2); g.fill(); }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  };
+  hpTex = { full: make(true), empty: make(false) };
+  return hpTex;
+}
 interface GateView { grate: THREE.Object3D; arm: THREE.Object3D; ring: THREE.Object3D }
 
 export class Board {
@@ -101,7 +142,11 @@ export class Board {
       ring.rotation.x = -Math.PI / 2;
       this.root.add(pivot);
       this.root.add(ring);
-      const v: EnemyView = { pivot, ring, bob: Math.random() * 6, hitT: -1, face: pivot.userData.face as EnemyFaceRig, down: false, flame: pivot.getObjectByName('flame') };
+      const v: EnemyView = {
+        pivot, ring, bob: Math.random() * 6, hitT: -1, face: pivot.userData.face as EnemyFaceRig, down: false, flame: pivot.getObjectByName('flame'),
+        anim: pivot.getObjectByName('anim')!, look: pivot.userData.look as EnemyLook, h: ENEMY_HEIGHT[e.kind],
+        hopT: -9, nextHop: 2 + Math.random() * 6, flashT: -9, vanished: false,
+      };
       if (ENEMY_HP[e.kind] > 1) {
         v.hpPips = new THREE.Group();
         this.root.add(v.hpPips);
@@ -126,9 +171,12 @@ export class Board {
     const v = this.enemyViews[i];
     if (!v.hpPips) return;
     v.hpPips.clear();
+    const tex = heartTextures();
     for (let k = 0; k < max; k++) {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), glow(k < hp ? '#ff5a4a' : '#3a2020', k < hp ? 2.5 : 1));
-      m.position.set((k - (max - 1) / 2) * 0.13, 0, 0);
+      const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: k < hp ? tex.full : tex.empty, transparent: true, depthWrite: false, toneMapped: false }));
+      m.scale.setScalar(0.14);
+      m.position.set((k - (max - 1) / 2) * 0.12, 0, 0);
+      m.renderOrder = 6;
       v.hpPips.add(m);
     }
   }
@@ -148,6 +196,12 @@ export class Board {
       v.ring.position.set(x, 0.015, z);
       v.hitT = -1;
       v.down = false;
+      v.vanished = false;
+      v.flashT = -9;
+      v.look.u.uFlash.value = 0;
+      v.anim.position.set(0, -h / 2, 0);
+      v.anim.rotation.set(0, 0, 0);
+      v.anim.scale.setScalar(1);
       if (v.flame) v.flame.visible = true;
       v.face.reset();
       if (v.hpPips) { v.hpPips.visible = true; this.setHp(i, ENEMY_HP[e.kind], ENEMY_HP[e.kind]); }
@@ -158,6 +212,11 @@ export class Board {
 
   addPiece(p: Placed, animate = true) {
     const mesh = makeDomino(p.type, p.id, p.card?.seals ?? []);
+    // material próprio do corpo: a peça esquenta sozinha quando a onda passa
+    const mats = (mesh.material as THREE.Material[]).slice();
+    mats[0] = mats[0].clone();
+    mesh.material = mats;
+    const body = mats[0] as THREE.MeshPhysicalMaterial;
     const d = PIECES[p.type];
     mesh.position.set(p.x, d.h / 2, p.z);
     mesh.rotation.set(0, p.yaw, 0);
@@ -168,7 +227,7 @@ export class Board {
     if (animate) face.startle(); // acabou de ser posta na mesa: leva um susto
     mesh.add(face.mesh);
     this.root.add(mesh);
-    this.pieceViews.set(p.id, { mesh, p, pop: animate ? 0 : 1, face, simExpr: null });
+    this.pieceViews.set(p.id, { mesh, p, pop: animate ? 0 : 1, face, simExpr: null, heatT: -9, baseEm: body.emissive.clone(), baseEmK: body.emissiveIntensity });
     // a corrente chegando perto: o inimigo se assusta
     if (animate) for (const v of this.enemyViews) {
       if (Math.hypot(v.pivot.position.x - p.x, v.pivot.position.z - p.z) < 1.6) v.face.react('alarm', 0.8);
@@ -198,6 +257,8 @@ export class Board {
       this.char(v.mesh, 0); // desfaz o carvão de uma tentativa anterior
       v.pop = 1;
       v.simExpr = null;
+      v.heatT = -9;
+      this.applyHeat(v, 0);
     }
   }
 
@@ -356,11 +417,16 @@ export class Board {
       if (v.range) v.range.visible = e.alive && !e.arrowUsed;
       if (!e.alive && !v.down) {
         v.down = true; v.face.base = 'dizzy'; v.face.react('dizzy', 0);
+        v.flashT = this.t;
+        v.anim.position.set(0, -v.h / 2, 0);
+        v.anim.rotation.set(0, 0, 0);
+        v.anim.scale.setScalar(1);
         if (v.flame) v.flame.visible = false; // a tocha apaga na queda
       }
       // some num "puf" depois de cair (o Ogro tombado fica mais um pouco no chão)
       if (!e.alive && sim.t - e.knockedAt > (e.spec.kind === 'ogre' ? 2.4 : 1.6)) {
         const k = Math.max(0, 1 - (sim.t - e.knockedAt - (e.spec.kind === 'ogre' ? 2.4 : 1.6)) / 0.35);
+        if (!v.vanished) { v.vanished = true; this.onVanish?.(t.x, t.y, t.z, e.spec.kind); }
         v.pivot.scale.setScalar(k);
         if (k <= 0) v.pivot.visible = false;
       }
@@ -401,11 +467,24 @@ export class Board {
     });
   }
 
+  /** A onda acabou de derrubar esta peça: ela acende e vai esfriando (rastro de calor da cascata). */
+  pieceHeat(id: number) { const v = this.pieceViews.get(id); if (v) v.heatT = this.t; }
+
+  private applyHeat(v: PieceView, k: number) {
+    const m = (v.mesh.material as THREE.Material[])[0] as THREE.MeshPhysicalMaterial;
+    if (v.mesh.userData.origMat) return; // carbonizando: o carvão manda
+    m.emissive.copy(v.baseEm).lerp(HEAT, Math.min(1, k * 1.4));
+    m.emissiveIntensity = v.baseEmK + k * 0.95;
+  }
+
   /** Levou golpe sem cair (Brutamontes/General): amassa e faz cara de dor. */
-  enemyHit(i: number) { const v = this.enemyViews[i]; v.hitT = this.t; v.face.react('hurt', 0.7); }
+  enemyHit(i: number) { const v = this.enemyViews[i]; v.hitT = this.t; v.flashT = this.t; v.face.react('hurt', 0.7); }
+
+  /** Inimigo derrubado vai sumir: o jogo solta a alminha e o "puf" (x, y, z do corpo). */
+  onVanish?: (x: number, y: number, z: number, kind: string) => void;
 
   /** Viu a onda chegando: pulinho + olhos arregalados. */
-  enemyAlarm(i: number) { const v = this.enemyViews[i]; v.hitT = this.t; v.face.react('alarm', 1.0); }
+  enemyAlarm(i: number) { const v = this.enemyViews[i]; v.hitT = this.t; v.hopT = this.t; v.face.react('alarm', 1.0); }
 
   /** Tudo que a mão vai varrer (peças, inimigos, cenário). Marcadores de UI somem na hora. */
   sweepTargets(): SweepTarget[] {
@@ -476,6 +555,11 @@ export class Board {
       else ex = this.mood === 'nervous' ? 'nervous' : 'worried';
       v.face.base = ex;
       v.face.update(dt);
+      if (v.heatT > -9) {
+        const hk = 1 - (this.t - v.heatT) / 0.75;
+        this.applyHeat(v, Math.max(0, hk) ** 1.6);
+        if (hk <= 0) v.heatT = -9;
+      }
       // Andarilha passeando enquanto o jogador planeja (mesmo relógio da patrulha e da física)
       if (planning && v.p.type === 'wander') {
         const o = wanderOffset(v.p, patrolT);
@@ -517,6 +601,24 @@ export class Board {
         }
         if (v.hpPips) v.hpPips.position.set(v.pivot.position.x, h + 0.25, v.pivot.position.z);
       });
+    }
+    // brinquedo vivo: balança na base, de vez em quando dá um pulinho (com amasso na chegada);
+    // o clarão branco do golpe some em ~0,16 s
+    const spawning = this.spawning.length > 0;
+    for (const v of this.enemyViews) {
+      v.look.u.uFlash.value = Math.max(0, 1 - (this.t - v.flashT) / 0.16);
+      if (v.down || spawning) continue;
+      const tt = this.t * 2.3 + v.bob;
+      if (this.t > v.nextHop) { v.hopT = this.t; v.nextHop = this.t + 3 + Math.random() * 6; }
+      const hk = (this.t - v.hopT) / 0.45;
+      let y = 0, sq = 0;
+      if (hk >= 0 && hk < 1) {
+        y = Math.sin(hk * Math.PI) * 0.075 * v.h;
+        sq = hk < 0.15 ? -0.12 * Math.sin((hk / 0.15) * Math.PI) : hk > 0.85 ? 0.14 * Math.sin(((hk - 0.85) / 0.15) * Math.PI) : -0.04;
+      }
+      v.anim.position.set(0, -v.h / 2 + y, 0);
+      v.anim.rotation.set(Math.sin(tt * 0.63 + 1.3) * 0.025, 0, Math.sin(tt) * 0.045);
+      v.anim.scale.set(1 + sq * 0.6, 1 - sq, 1 + sq * 0.6);
     }
     // tremidinha de quem levou golpe sem cair (brutamontes)
     this.enemyViews.forEach((v) => {

@@ -10,6 +10,9 @@ export class CameraRig {
   dist = 16; goalDist = 16;
   trauma = 0;
   shakeScale = 1;
+  /** rapidez com que a câmera chega no alvo (8 = ágil; menor = movimento de cinema). Volta sozinha para 8. */
+  ease = 8;
+  easeRest = 8;
   /** tempo restante do empurrão de câmera (aproxima e volta no disparo) */
   private punchT = 0;
   userMoved = false;
@@ -97,7 +100,8 @@ export class CameraRig {
       if (this.keys.has('q')) this.goalAz += dt * 1.6;
       if (this.keys.has('e')) this.goalAz -= dt * 1.6;
     }
-    const k = 1 - Math.exp(-dt * 8);
+    this.ease += (this.easeRest - this.ease) * (1 - Math.exp(-dt * 0.9));
+    const k = 1 - Math.exp(-dt * this.ease);
     this.target.lerp(this.goalTarget, k);
     this.az += (this.goalAz - this.az) * k;
     this.pol += (this.goalPol - this.pol) * k;

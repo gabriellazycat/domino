@@ -1,0 +1,11 @@
+import RAPIER from '@dimforge/rapier3d-compat';
+import { Sim } from '../../src/game/sim';
+import { direct } from './director';
+import { runnerSpec, RUNNER_CMDS } from './runner';
+await RAPIER.init();
+const spec = runnerSpec();
+console.log(spec.enemies.map((e) => e.x.toFixed(2) + ',' + e.z.toFixed(2)));
+const { layout, fails } = direct(spec, RUNNER_CMDS);
+console.log(layout.pieces.length, fails);
+const sim = new Sim(spec, layout.pieces, 0); sim.runHeadless();
+console.log('win', sim.win, sim.alive);

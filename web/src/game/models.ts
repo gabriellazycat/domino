@@ -8,6 +8,7 @@ import { ENEMY_HEIGHT } from './sim';
 import { SealId, SEAL_ORDER } from '../core/cards';
 import { sealAtlas } from './sigils';
 import { EnemyFaceRig } from './enemyFaces';
+import { EnemyLook } from './toon';
 
 // Modelos procedurais: dominós (caixa arredondada + decalque de pips), soldadinhos de brinquedo,
 // muros, gatilho. Geometrias e materiais são cacheados e compartilhados.
@@ -256,27 +257,49 @@ function part(geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: numb
 
 let haloTex: THREE.Texture | undefined;
 
-/** Pivô no centro do corpo (igual ao corpo físico); modelo desce h/2. Frente = +Z. */
+/** Cor do contorno (luz de borda) de cada tipo: frio para a tropa, quente/agressivo para os grandes. */
+const RIM: Record<EnemyKind, string> = {
+  soldier: '#7f8cff', patroller: '#c9a25a', torcher: '#ff7a2a', brute: '#ff6a4a', general: '#ff3a3a', ogre: '#9cff5a', archer: '#7fffb0',
+};
+
+/**
+ * Pivô no centro do corpo (igual ao corpo físico). Dentro dele, o grupo `anim` (base do boneco, para o
+ * balanço de brinquedo e os pulinhos) e o modelo. Frente = +Z.
+ */
 export function makeEnemy(kind: EnemyKind): THREE.Group {
   const pal = PALETTE[kind];
   const H = ENEMY_HEIGHT[kind];
   const pivot = new THREE.Group();
+  const anim = new THREE.Group();
+  anim.name = 'anim';
+  anim.position.y = -H / 2;
+  pivot.add(anim);
   const g = new THREE.Group();
-  g.position.y = -H / 2;
-  pivot.add(g);
+  anim.add(g);
+  const look = new EnemyLook(RIM[kind], kind === 'general' || kind === 'ogre' ? 0.55 : 0.42);
+  pivot.userData.look = look;
+  const M = (c: string, r = 0.6, m = 0) => look.mat(c, r, m);
   const s = kind === 'brute' ? 1.32 : kind === 'general' ? 1.5 : kind === 'ogre' ? 1.6 : 1;
   const wide = kind === 'brute' ? 1.25 : kind === 'ogre' ? 1.45 : 1;
-  const coat = std(pal.coat, 0.7), pants = std(pal.pants, 0.75), skin = std(pal.skin, 0.8);
-  const hat = std(pal.hat, kind === 'general' ? 0.45 : 0.7, kind === 'general' ? 0.7 : 0);
-  const trim = std(pal.trim, 0.55, 0.5);
-  // base
-  part(new THREE.CylinderGeometry(0.2 * s * wide, 0.22 * s * wide, 0.05, 20), std('#17130f', 0.8), 0, 0.025, 0, g);
-  // pernas
-  part(new THREE.CylinderGeometry(0.11 * s * wide, 0.12 * s * wide, 0.28 * s, 14), pants, 0, 0.05 + 0.14 * s, 0, g);
+  const coat = M(pal.coat, 0.62), pants = M(pal.pants, 0.7), skin = M(pal.skin, 0.75);
+  const hat = M(pal.hat, kind === 'general' ? 0.4 : 0.6, kind === 'general' ? 0.7 : 0);
+  const trim = M(pal.trim, 0.45, 0.6);
+  const strap = M('#d9cfb4', 0.7);
+  const gold = M('#b8913e', 0.35, 0.85);
+  // base de brinquedo (pedestal com filete)
+  part(new THREE.CylinderGeometry(0.2 * s * wide, 0.23 * s * wide, 0.06, 24), M('#17130f', 0.7), 0, 0.03, 0, g);
+  part(new THREE.TorusGeometry(0.215 * s * wide, 0.012, 6, 28), gold, 0, 0.06, 0, g).rotation.x = Math.PI / 2;
+  // pernas (duas, com botas)
+  for (const sx of [-1, 1]) {
+    part(new THREE.CylinderGeometry(0.052 * s * wide, 0.058 * s * wide, 0.28 * s, 10), pants, sx * 0.06 * s * wide, 0.06 + 0.14 * s, 0, g);
+    part(new THREE.CylinderGeometry(0.062 * s * wide, 0.066 * s * wide, 0.08 * s, 10), M('#0c0a0a', 0.45), sx * 0.06 * s * wide, 0.06 + 0.04 * s, 0.006, g);
+  }
   // corpo
-  const bodyY = 0.05 + 0.28 * s + 0.16 * s;
-  part(new THREE.CylinderGeometry(0.13 * s * wide, 0.155 * s * wide, 0.34 * s, 16), coat, 0, bodyY, 0, g);
-  part(new THREE.CylinderGeometry(0.158 * s * wide, 0.158 * s * wide, 0.04 * s, 16), trim, 0, bodyY - 0.1 * s, 0, g);
+  const bodyY = 0.06 + 0.28 * s + 0.16 * s;
+  part(new THREE.CylinderGeometry(0.13 * s * wide, 0.155 * s * wide, 0.34 * s, 18), coat, 0, bodyY, 0, g);
+  part(new THREE.CylinderGeometry(0.158 * s * wide, 0.158 * s * wide, 0.04 * s, 18), trim, 0, bodyY - 0.1 * s, 0, g);
+  // fivela do cinto
+  part(new THREE.BoxGeometry(0.05 * s, 0.035 * s, 0.02 * s), gold, 0, bodyY - 0.1 * s, 0.158 * s * wide, g);
   // barra rasgada do casaco (tiras penduradas)
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * Math.PI * 2 + 0.3;
@@ -285,34 +308,66 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
     strip.rotation.y = a;
     strip.rotation.x = 0.15;
   }
-  // botões
-  for (let i = 0; i < 2; i++) part(new THREE.SphereGeometry(0.018 * s, 6, 4), trim, 0, bodyY + 0.02 * s + i * 0.08 * s, 0.142 * s * wide, g);
+  // tropa: faixas cruzadas no peito (o "X" branco do soldadinho de chumbo)
+  if (kind === 'soldier' || kind === 'patroller' || kind === 'archer') {
+    for (const sx of [-1, 1]) {
+      const b = part(new THREE.BoxGeometry(0.035 * s, 0.32 * s, 0.012), strap, 0, bodyY + 0.02 * s, 0.142 * s * wide, g);
+      b.rotation.z = sx * 0.62;
+    }
+    part(new THREE.CylinderGeometry(0.022, 0.022, 0.012, 10), gold, 0, bodyY + 0.02 * s, 0.15 * s * wide, g).rotation.x = Math.PI / 2;
+  } else {
+    // botões
+    for (let i = 0; i < 2; i++) part(new THREE.SphereGeometry(0.018 * s, 6, 4), trim, 0, bodyY + 0.02 * s + i * 0.08 * s, 0.142 * s * wide, g);
+  }
   // braços
   for (const sx of [-1, 1]) {
     const arm = part(new THREE.CapsuleGeometry(0.045 * s, 0.2 * s, 4, 8), coat, sx * 0.17 * s * wide, bodyY, 0, g);
     arm.rotation.z = sx * 0.12;
+    part(new THREE.CylinderGeometry(0.05 * s, 0.05 * s, 0.03 * s, 10), trim, sx * 0.182 * s * wide, bodyY - 0.11 * s, 0, g);
     part(new THREE.SphereGeometry(0.048 * s, 8, 6), skin, sx * 0.185 * s * wide, bodyY - 0.15 * s, 0.01, g);
+    // dragonas douradas nos ombros
+    if (kind !== 'ogre' && kind !== 'torcher') {
+      const ep = part(new THREE.SphereGeometry(0.06 * s, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), kind === 'brute' ? hat : gold, sx * 0.165 * s * wide, bodyY + 0.13 * s, 0, g);
+      ep.scale.set(1.15, 0.7, 1);
+    }
   }
   // cabeça
   const headY = bodyY + 0.17 * s + 0.1 * s;
-  part(new THREE.SphereGeometry(0.105 * s, 18, 14), skin, 0, headY, 0, g);
+  part(new THREE.SphereGeometry(0.105 * s, 20, 16), skin, 0, headY, 0, g);
   // rosto expressivo (olhos ocos + boca costurada) numa calota na frente da cabeça; o Board controla as reações
   const face = new EnemyFaceRig(kind, 0.105 * s, pal.glint);
   face.mesh.position.set(0, headY, 0);
   g.add(face.mesh);
   pivot.userData.face = face;
-  // chapéus
+  // mosquete com baioneta (tropa): segurado em pé ao lado do braço direito
+  const musket = (x: number) => {
+    const gun = new THREE.Group();
+    gun.position.set(x, bodyY - 0.2 * s, 0.07);
+    gun.rotation.z = -0.06;
+    g.add(gun);
+    part(new THREE.BoxGeometry(0.04, 0.2, 0.05), M('#3a2416', 0.7), 0, 0.1, 0, gun);
+    part(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 8), M('#4a4e58', 0.3, 0.85), 0, 0.42, 0.005, gun);
+    part(new THREE.ConeGeometry(0.012, 0.13, 6), M('#c8ccd4', 0.25, 0.9), 0, 0.73, 0.005, gun);
+  };
+  // chapéus e acessórios
   if (kind === 'soldier') {
-    part(new THREE.CylinderGeometry(0.085, 0.095, 0.17, 16), hat, 0, headY + 0.13, 0, g);
-    part(new THREE.CylinderGeometry(0.03, 0.03, 0.035, 10), trim, 0, headY + 0.13, 0.088, g).rotation.x = Math.PI / 2;
-    part(new THREE.SphereGeometry(0.035, 8, 6), std('#5a5348', 0.8), 0, headY + 0.235, 0, g);
+    part(new THREE.CylinderGeometry(0.085, 0.095, 0.17, 18), hat, 0, headY + 0.13, 0, g);
+    part(new THREE.CylinderGeometry(0.098, 0.098, 0.02, 18), gold, 0, headY + 0.05, 0, g);
+    part(new THREE.CylinderGeometry(0.03, 0.03, 0.035, 10), gold, 0, headY + 0.13, 0.088, g).rotation.x = Math.PI / 2;
+    // penacho: pena branca com ponta vermelha
+    const plume = part(new THREE.SphereGeometry(0.03, 10, 8), M('#e8e0cc', 0.8), 0, headY + 0.25, 0.01, g);
+    plume.scale.set(1, 1.9, 1);
+    part(new THREE.SphereGeometry(0.022, 8, 6), M('#b3261c', 0.7), 0, headY + 0.3, 0.012, g).scale.set(1, 1.4, 1);
+    musket(0.2);
   } else if (kind === 'patroller') {
     part(new THREE.CylinderGeometry(0.15, 0.15, 0.02, 18), hat, 0, headY + 0.07, 0, g);
     part(new THREE.CylinderGeometry(0.07, 0.085, 0.09, 14), hat, 0, headY + 0.12, 0, g);
+    part(new THREE.CylinderGeometry(0.087, 0.087, 0.018, 14), gold, 0, headY + 0.09, 0, g);
     // lanterna
-    const pole = part(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 6), std('#2a1d12', 0.8), 0.2, bodyY + 0.05, 0.08, g);
+    const pole = part(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 6), M('#2a1d12', 0.8), 0.2, bodyY + 0.05, 0.08, g);
     pole.rotation.x = 0.2;
     part(new THREE.SphereGeometry(0.045, 10, 8), glow('#ffb347', 6), 0.2, bodyY + 0.3, 0.12, g);
+    part(new THREE.CylinderGeometry(0.055, 0.04, 0.02, 10), gold, 0.2, bodyY + 0.35, 0.13, g);
   } else if (kind === 'torcher') {
     // capuz pontudo de piromaníaco + lenço queimado no pescoço
     part(new THREE.SphereGeometry(0.118, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), hat, 0, headY + 0.005, -0.008, g);
@@ -321,7 +376,7 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
     part(new THREE.TorusGeometry(0.1, 0.028, 6, 16), trim, 0, headY - 0.1, 0, g).rotation.x = Math.PI / 2;
     // marcas de fuligem no casaco
     for (const [x, y] of [[0.06, 0.04], [-0.07, -0.06]]) {
-      const soot = part(new THREE.CircleGeometry(0.035, 8), std('#0e0a08', 1), x, bodyY + y, 0.152, g);
+      const soot = part(new THREE.CircleGeometry(0.035, 8), M('#0e0a08', 1), x, bodyY + y, 0.152, g);
       soot.castShadow = false;
     }
     // tocha erguida na mão direita: cabo de madeira, trapo enrolado e a chama (bloom)
@@ -330,13 +385,12 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
     torch.position.set(0.2, bodyY - 0.13, 0.07);
     torch.rotation.set(0.35, 0, -0.18);
     g.add(torch);
-    part(new THREE.CylinderGeometry(0.016, 0.02, 0.36, 8), std('#3a2414', 0.85), 0, 0.15, 0, torch);
-    part(new THREE.CylinderGeometry(0.032, 0.026, 0.07, 10), std('#4a3a2a', 0.95), 0, 0.33, 0, torch);
+    part(new THREE.CylinderGeometry(0.016, 0.02, 0.36, 8), M('#3a2414', 0.85), 0, 0.15, 0, torch);
+    part(new THREE.CylinderGeometry(0.032, 0.026, 0.07, 10), M('#4a3a2a', 0.95), 0, 0.33, 0, torch);
     const flame = new THREE.Group();
     flame.name = 'flame';
     flame.position.y = 0.4;
     torch.add(flame);
-    // chama em gota: bolhas esticadas (vermelho por fora, amarelo por dentro) + duas línguas tortas
     const blob = (r: number, sy: number, y: number, color: string, k: number, x = 0) => {
       const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), glow(color, k));
       m.scale.y = sy;
@@ -349,7 +403,6 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
     blob(0.018, 1.4, 0.02, '#fff0b0', 7);
     blob(0.022, 2.2, 0.1, '#ff6a1a', 4, 0.022).rotation.z = -0.4;
     blob(0.018, 2.0, 0.09, '#ff6a1a', 4, -0.024).rotation.z = 0.5;
-    // halo da chama (sprite aditivo; sem PointLight para não recompilar shaders a cada fase)
     haloTex ??= softDot();
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: new THREE.Color('#ff7a2a').multiplyScalar(1.6), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     halo.name = 'halo';
@@ -361,29 +414,28 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
     for (const sx of [-1, 1]) {
       const ear = part(new THREE.SphereGeometry(0.045 * s, 8, 6), skin, sx * 0.11 * s, headY + 0.01 * s, -0.01, g);
       ear.scale.set(0.6, 1.3, 1);
-      const tusk = part(new THREE.ConeGeometry(0.014 * s, 0.06 * s, 6), std('#e8dcc0', 0.5), sx * 0.04 * s, headY - 0.06 * s, 0.09 * s, g);
+      const tusk = part(new THREE.ConeGeometry(0.014 * s, 0.06 * s, 6), M('#e8dcc0', 0.5), sx * 0.04 * s, headY - 0.06 * s, 0.09 * s, g);
       tusk.rotation.x = Math.PI;
     }
-    part(new THREE.SphereGeometry(0.09 * s, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), std('#3a2a1a', 0.9), 0, bodyY - 0.02 * s, 0.05 * s, g).rotation.x = -Math.PI / 2;
+    part(new THREE.SphereGeometry(0.09 * s, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), M('#3a2a1a', 0.9), 0, bodyY - 0.02 * s, 0.05 * s, g).rotation.x = -Math.PI / 2;
     const club = new THREE.Group();
     club.position.set(0.21 * s * wide, bodyY - 0.15 * s, 0.06);
     club.rotation.set(0.6, 0, -0.35);
     g.add(club);
-    part(new THREE.CylinderGeometry(0.03 * s, 0.05 * s, 0.42 * s, 8), std('#4a3220', 0.9), 0, 0.2 * s, 0, club);
+    part(new THREE.CylinderGeometry(0.03 * s, 0.05 * s, 0.42 * s, 8), M('#4a3220', 0.9), 0, 0.2 * s, 0, club);
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2;
-      part(new THREE.ConeGeometry(0.014 * s, 0.04 * s, 5), std('#9a9a9a', 0.4, 0.6), Math.sin(a) * 0.052 * s, 0.36 * s, Math.cos(a) * 0.052 * s, club).rotation.set(Math.cos(a) * 1.5, 0, -Math.sin(a) * 1.5);
+      part(new THREE.ConeGeometry(0.014 * s, 0.04 * s, 5), M('#9a9a9a', 0.4, 0.6), Math.sin(a) * 0.052 * s, 0.36 * s, Math.cos(a) * 0.052 * s, club).rotation.set(Math.cos(a) * 1.5, 0, -Math.sin(a) * 1.5);
     }
   } else if (kind === 'archer') {
     // capuz verde, arco na mão esquerda e aljava cheia nas costas
     part(new THREE.SphereGeometry(0.118, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), hat, 0, headY + 0.004, -0.01, g);
     const tip = part(new THREE.ConeGeometry(0.06, 0.16, 10), hat, 0, headY + 0.1, -0.07, g);
     tip.rotation.x = -0.9;
-    const bow = part(new THREE.TorusGeometry(0.2, 0.012, 6, 20, Math.PI * 0.9), std('#5a3a1c', 0.7), -0.2, bodyY + 0.02, 0.1, g);
+    const bow = part(new THREE.TorusGeometry(0.2, 0.012, 6, 20, Math.PI * 0.9), M('#5a3a1c', 0.7), -0.2, bodyY + 0.02, 0.1, g);
     bow.rotation.set(0, Math.PI / 2, Math.PI / 2 + Math.PI * 0.45);
-    const string = part(new THREE.CylinderGeometry(0.003, 0.003, 0.39, 4), std('#d8d0b8', 0.6), -0.2, bodyY + 0.02, 0.1 + 0.02, g);
-    string.rotation.x = 0;
-    const quiver = part(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 10), std('#3a2414', 0.85), 0.06, bodyY + 0.05, -0.15, g);
+    part(new THREE.CylinderGeometry(0.003, 0.003, 0.39, 4), M('#d8d0b8', 0.6), -0.2, bodyY + 0.02, 0.1 + 0.02, g);
+    const quiver = part(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 10), M('#3a2414', 0.85), 0.06, bodyY + 0.05, -0.15, g);
     quiver.rotation.x = -0.35;
     for (let i = 0; i < 3; i++) {
       part(new THREE.ConeGeometry(0.018, 0.05, 5), glow('#ff7a2a', 3), 0.06 + (i - 1) * 0.022, bodyY + 0.22, -0.2, g);
@@ -391,29 +443,48 @@ export function makeEnemy(kind: EnemyKind): THREE.Group {
   } else if (kind === 'brute') {
     part(new THREE.SphereGeometry(0.12 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), hat, 0, headY + 0.02, 0, g);
     for (const sx of [-1, 1]) {
-      const horn = part(new THREE.ConeGeometry(0.03 * s, 0.14 * s, 8), std('#b8ab8c', 0.7), sx * 0.12 * s, headY + 0.08 * s, 0, g);
+      const horn = part(new THREE.ConeGeometry(0.03 * s, 0.14 * s, 8), M('#b8ab8c', 0.6), sx * 0.12 * s, headY + 0.08 * s, 0, g);
       horn.rotation.z = -sx * 0.9;
     }
-    // ombreiras
-    for (const sx of [-1, 1]) part(new THREE.SphereGeometry(0.08 * s, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), hat, sx * 0.17 * s * wide, bodyY + 0.13 * s, 0, g);
+    // escudo redondo no braço esquerdo: madeira, aro de ferro e cravo no meio
+    const shield = new THREE.Group();
+    shield.position.set(-0.2 * s * wide, bodyY - 0.03 * s, 0.07 * s);
+    shield.rotation.set(0, -0.5, 0);
+    g.add(shield);
+    part(new THREE.CylinderGeometry(0.15 * s, 0.15 * s, 0.03 * s, 22), M('#4a2e1c', 0.75), 0, 0, 0, shield).rotation.x = Math.PI / 2;
+    part(new THREE.TorusGeometry(0.15 * s, 0.014 * s, 6, 26), M('#6a6e78', 0.35, 0.85), 0, 0, 0.002, shield);
+    part(new THREE.SphereGeometry(0.035 * s, 10, 8), M('#8a8e98', 0.3, 0.9), 0, 0, 0.02 * s, shield);
+    for (const a of [0, Math.PI / 2]) {
+      const band = part(new THREE.BoxGeometry(0.3 * s, 0.022 * s, 0.01), M('#6a6e78', 0.35, 0.85), 0, 0, 0.017 * s, shield);
+      band.rotation.z = a + 0.4;
+    }
   } else {
-    // general: coroa + capa
+    // general: coroa + capa + sabre erguido
     part(new THREE.CylinderGeometry(0.1 * s, 0.09 * s, 0.07 * s, 16, 1, true), hat, 0, headY + 0.12 * s, 0, g);
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
       part(new THREE.ConeGeometry(0.022 * s, 0.07 * s, 6), hat, Math.sin(a) * 0.095 * s, headY + 0.18 * s, Math.cos(a) * 0.095 * s, g);
     }
     part(new THREE.SphereGeometry(0.025 * s, 8, 6), glow('#ff2a2a', 4), 0, headY + 0.13 * s, 0.1 * s, g);
-    const cape = part(new THREE.CylinderGeometry(0.16 * s, 0.24 * s, 0.5 * s, 18, 1, true, Math.PI * 0.6, Math.PI * 0.8), std('#1c0a24', 0.85), 0, bodyY - 0.05 * s, 0, g);
+    const cape = part(new THREE.CylinderGeometry(0.16 * s, 0.24 * s, 0.5 * s, 18, 1, true, Math.PI * 0.6, Math.PI * 0.8), M('#1c0a24', 0.85), 0, bodyY - 0.05 * s, 0, g);
     cape.rotation.y = Math.PI;
     (cape.material as THREE.Material).side = THREE.DoubleSide;
+    // medalha que brilha no peito
+    part(new THREE.CylinderGeometry(0.022 * s, 0.022 * s, 0.01, 12), glow('#ffcf6a', 2.2), -0.06 * s, bodyY + 0.07 * s, 0.14 * s, g).rotation.x = Math.PI / 2;
+    const sabre = new THREE.Group();
+    sabre.position.set(0.2 * s, bodyY - 0.14 * s, 0.08 * s);
+    sabre.rotation.set(0.25, 0, -0.32);
+    g.add(sabre);
+    part(new THREE.CylinderGeometry(0.012 * s, 0.014 * s, 0.07 * s, 8), M('#3a2416', 0.7), 0, 0, 0, sabre);
+    part(new THREE.BoxGeometry(0.08 * s, 0.012 * s, 0.02 * s), gold, 0, 0.04 * s, 0, sabre);
+    const blade = part(new THREE.BoxGeometry(0.022 * s, 0.34 * s, 0.006 * s), M('#d8dce6', 0.18, 0.95), 0.004 * s, 0.215 * s, 0, sabre);
+    blade.rotation.z = -0.04;
   }
-  // ajusta a altura visual à física
+  // ajusta a altura visual à física (o modelo fica com a base na origem do grupo `anim`)
   const box = new THREE.Box3().setFromObject(g);
-  const vh = box.max.y - box.min.y;
-  const k = H / vh;
+  const k = H / (box.max.y - box.min.y);
   g.scale.setScalar(k);
-  g.position.y = -H / 2;
+  g.position.y = -box.min.y * k;
   return pivot;
 }
 

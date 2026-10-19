@@ -5,7 +5,7 @@ import type { PhaseSpec } from '../src/core/mapgen';
 import { Layout, Placed } from '../src/core/layout';
 import { emptyDeck, PieceId, CURSED } from '../src/core/pieces';
 import { canSeal } from '../src/core/cards';
-import { rollEvent, curseOffers, EventKind } from '../src/core/events';
+import { rollEvent, curseOffers, curseChance, EventKind } from '../src/core/events';
 import { Rng } from '../src/core/rng';
 import { launchOf, CROOK_DIST } from '../src/core/motion';
 
@@ -114,6 +114,19 @@ describe('peças malditas', () => {
 });
 
 describe('Presente do Dono', () => {
+  it('a chance dele sobe quando não sai (mesmo com eventos bons) e só ele mesmo zera', () => {
+    expect(curseChance(0)).toBeCloseTo(0.12);
+    expect(curseChance(20)).toBe(1);
+    const st = { since: 0, last: null as EventKind | null, curseSince: 0 };
+    const rng = new Rng(11);
+    let prev = 0;
+    for (let d = 1; d < 300; d++) {
+      const k = rollEvent(st, d, rng, true);
+      if (k === 'curse') { expect(st.curseSince).toBe(0); prev = 0; continue; }
+      if (d >= 2) { expect(st.curseSince).toBe(prev + 1); prev = st.curseSince!; }
+    }
+  });
+
   it('só aparece a partir da 3ª fase e oferece 2 malditas diferentes', () => {
     const seen = new Map<number, Set<EventKind>>();
     const rng = new Rng(7);

@@ -37,7 +37,7 @@ export function newRun(seed: number): RunState {
   return {
     version: 2, seed: seed >>> 0, depth: 0,
     life: RULES.startingLife, maxLife: RULES.startingLife,
-    gold: 0, cards, nextUid: cards.length + 1, buffs: {}, events: { since: 0, last: null },
+    gold: 0, cards, nextUid: cards.length + 1, buffs: {}, events: { since: 0, last: null, curseSince: 0 },
     extraAttemptsNext: 0,
     rngState: new Rng(seed ^ 0xa5a5a5a5).state,
     stats: { knocked: 0, bestCombo: 0, phasesWon: 0, stars: 0, explosions: 0 },
@@ -96,7 +96,7 @@ function migrate(r: any): RunState | null {
   if (r.deck.big) { r.deck.tower = (r.deck.tower ?? 0) + r.deck.big; delete r.deck.big; }
   const cards = cardsFromDeck(r.deck as Deck, 1);
   const { deck: _old, ...rest } = r;
-  return { ...rest, version: 2, cards, nextUid: cards.length + 1, buffs: {}, events: { since: 0, last: null } } as RunState;
+  return { ...rest, version: 2, cards, nextUid: cards.length + 1, buffs: {}, events: { since: 0, last: null, curseSince: 0 } } as RunState;
 }
 
 export function loadRun(): RunState | null {

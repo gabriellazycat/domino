@@ -4,6 +4,8 @@ export type PieceId = 'common' | 'heavy' | 'tower' | 'blast' | 'runner' | 'jumpe
   // malditas (evento "Presente do Dono"): entram à força no deck e travam a Nova mão
   | 'metal' | 'crooked' | 'minion' | 'wander' | 'jealous';
 
+import { localize } from '../i18n';
+
 export interface PieceDef {
   id: PieceId;
   name: string;
@@ -103,6 +105,8 @@ export const PIECES: Record<PieceId, PieceDef> = {
     color: CURSE_BODY, pip: '#7fb8ff', cost: 0,
   },
 };
+
+for (const p of Object.values(PIECES)) localize(p, ['name', 'plural', 'desc']);
 
 export const PIECE_ORDER: PieceId[] = ['common', 'heavy', 'tower', 'blast', 'runner', 'jumper', 'fork', 'trifork', 'metal', 'crooked', 'minion', 'wander', 'jealous'];
 export const CURSED: PieceId[] = PIECE_ORDER.filter((k) => PIECES[k].cursed);

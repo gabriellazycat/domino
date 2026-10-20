@@ -497,8 +497,8 @@ export class Board {
   private applyHeat(v: PieceView, k: number) {
     const m = (v.mesh.material as THREE.Material[])[0] as THREE.MeshPhysicalMaterial;
     if (v.mesh.userData.origMat) return; // carbonizando: o carvão manda
-    m.emissive.copy(v.baseEm).lerp(HEAT, Math.min(1, k * 0.7));
-    m.emissiveIntensity = v.baseEmK + k * 0.2;
+    m.emissive.copy(v.baseEm).lerp(HEAT, Math.min(1, k * 0.45));
+    m.emissiveIntensity = v.baseEmK + k * 0.08;
   }
 
   /** Levou golpe sem cair (Brutamontes/General): amassa e faz cara de dor. */
@@ -581,7 +581,7 @@ export class Board {
       v.face.base = ex;
       v.face.update(dt);
       if (v.heatT > -9) {
-        const hk = 1 - (this.t - v.heatT) / 0.5;
+        const hk = 1 - (this.t - v.heatT) / 0.4;
         this.applyHeat(v, Math.max(0, hk) ** 1.6);
         if (hk <= 0) v.heatT = -9;
       }

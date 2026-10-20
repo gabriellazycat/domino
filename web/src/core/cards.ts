@@ -16,6 +16,8 @@ export interface SealDef {
   price: number;
 }
 
+import { localize } from '../i18n';
+
 export const SEALS: Record<SealId, SealDef> = {
   guard: { id: 'guard', name: 'Guardada', desc: 'Não vai para o descarte na Nova mão: fica na mão até você usar.', ink: '#2f6fa8', price: 20 },
   double: { id: 'double', name: 'Dupla', desc: 'Vale por 2: ao colocar, saem duas peças na trilha.', ink: '#b8322a', price: 28 },
@@ -24,6 +26,7 @@ export const SEALS: Record<SealId, SealDef> = {
   gold: { id: 'gold', name: 'Dourada', desc: '+3 de ouro em cada fase vencida em que ela foi colocada.', ink: '#b0861e', price: 16 },
   spring: { id: 'spring', name: 'Mola', desc: 'Ao ser derrubada, a peça SALTA por cima de muros antes de cair. A próxima nasce do outro lado.', ink: '#1f8a7a', price: 30 },
 };
+for (const s of Object.values(SEALS)) localize(s, ['name', 'desc']);
 export const SEAL_ORDER: SealId[] = ['guard', 'double', 'lucky', 'first', 'gold', 'spring'];
 export const MAX_SEALS = 2;
 

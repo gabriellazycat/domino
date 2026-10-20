@@ -9,6 +9,7 @@ import { icon } from './icons';
 import { HandView } from './handview';
 import { HandRender } from '../game/handrender';
 import { RULES } from '../core/rules';
+import { t, getLang, setLang, onLangChange } from '../i18n';
 
 // Interface em DOM. Sem lógica de jogo: recebe dados e devolve escolhas por callback.
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -103,7 +104,13 @@ export class UI {
   private lifeEl = h('div', 'stat box life');
   private goldEl = h('div', 'stat box gold');
   private attEl = h('div', 'stat box att');
-  private skipEl = h('div', 'skip-hint off', 'clique para pular');
+  private skipEl = h('div', 'skip-hint off');
+  private lastPieces: [number, number] = [0, 0];
+  private lastAtt: [number, number] = [0, 0];
+  private pauseBtn!: HTMLElement;
+  private skipBtn!: HTMLElement;
+  private objLbl = h('span');
+  private optionsArgs: Parameters<UI['showOptions']> | null = null;
   private actions = h('div', 'actions');
   private fireBtn!: HTMLButtonElement;
   private coachEl = h('div', 'coach off');
@@ -139,13 +146,15 @@ export class UI {
   constructor(cb: HudCallbacks) {
     this.root.append(this.dangerEl, this.hurtEl, this.vigEl, this.speedEl, this.hud, this.comboEl, this.speechEl, this.pieceSpeechEl);
     const tl = h('div', 'top-left');
-    this.obj.append(h('div', 'row', '<span>Inimigos</span>'), this.enemyIcons, this.piecesPar);
+    const objRow = h('div', 'row');
+    objRow.append(this.objLbl);
+    this.obj.append(objRow, this.enemyIcons, this.piecesPar);
     tl.append(this.phaseBadge, this.obj);
     const tr = h('div', 'top-right');
     const pauseBtn = this.btn(icon('pause'), 'btn dark icon-btn', () => cb.pause());
-    pauseBtn.title = 'Pausa (Esc)';
+    this.pauseBtn = pauseBtn;
     tr.append(this.lifeEl, this.goldEl, this.attEl, pauseBtn, this.buffsEl);
-    this.fireBtn = this.btn('DISPARAR!', 'btn red fire', () => cb.fire()) as HTMLButtonElement;
+    this.fireBtn = this.btn(t('DISPARAR!'), 'btn red fire', () => cb.fire()) as HTMLButtonElement;
     this.fireBtn.addEventListener('mouseenter', () => cb.fireHover?.(true));
     this.fireBtn.addEventListener('mouseleave', () => cb.fireHover?.(false));
     this.actions.append(this.fireBtn);
@@ -166,10 +175,26 @@ export class UI {
     // os dominós da mão em 3D (mesmos modelos e rostos do tabuleiro), por cima da interface
     new HandRender(this.hand.root, this.root);
     this.speedBtn = this.btn(`${icon('fast')} 1×`, 'btn dark small', () => cb.speed()) as HTMLButtonElement;
-    this.simbar.append(this.speedBtn, this.btn(`${icon('skip')} Pular`, 'btn dark small', () => cb.skipSim()));
+    this.skipBtn = this.btn('', 'btn dark small', () => cb.skipSim());
+    this.simbar.append(this.speedBtn, this.skipBtn);
     this.hud.append(tl, tr, this.hand.root, this.actions, this.coachEl, this.toastEl, this.tipEl, this.evBar);
     this.root.append(this.simbar, this.skipEl);
-    this.comboEl.innerHTML = `<span class="n">0</span><span class="l wob">${wob('COMBO')}</span>`;
+    this.comboEl.innerHTML = `<span class="n">0</span><span class="l wob"></span>`;
+    this.relabel();
+    onLangChange(() => this.relabel());
+  }
+
+  /** Reaplica os textos fixos da interface (troca de idioma). */
+  relabel() {
+    this.objLbl.textContent = t('Inimigos');
+    this.skipEl.textContent = t('clique para pular');
+    this.pauseBtn.title = t('Pausa (Esc)');
+    this.fireBtn.textContent = t('DISPARAR!');
+    this.skipBtn.innerHTML = `${icon('skip')} ${t('Pular')}`;
+    this.comboEl.querySelector('.l')!.innerHTML = wob(t('COMBO'));
+    this.setPieces(...this.lastPieces);
+    this.attEl.title = t('{n} tentativa(s) restante(s)', { n: this.lastAtt[0] });
+    this.hand.relabel();
   }
 
   setSkipHint(on: boolean) { this.skipEl.classList.toggle('off', !on); }
@@ -201,7 +226,7 @@ export class UI {
     this.phaseBadge.className = 'phase-badge box hit event';
     this.phaseBadge.innerHTML = `<div class="t wob">${wob(title)}</div><div class="s">${sub}</div>`;
     const b = h('div', 'banner event');
-    b.innerHTML = `<div class="bn-rule"></div><div class="bn-tag">EVENTO</div><div class="bn-title">${title}</div><div class="bn-sub">${sub}</div><div class="bn-rule"></div>`;
+    b.innerHTML = `<div class="bn-rule"></div><div class="bn-tag">${t('EVENTO')}</div><div class="bn-title">${title}</div><div class="bn-sub">${sub}</div><div class="bn-rule"></div>`;
     this.root.append(b);
     setTimeout(() => b.remove(), 2600);
   }
@@ -243,7 +268,7 @@ export class UI {
   /** Faixa de entrada da fase no meio da tela ("FASE 3 — Campo ..."); some sozinha em ~2,4 s. */
   phaseBanner(spec: PhaseSpec) {
     const b = h('div', `banner${spec.boss ? ' boss' : ''}`);
-    b.innerHTML = `<div class="bn-rule"></div>${spec.boss ? `<div class="bn-tag">${icon('sword')} CHEFE ${icon('sword')}</div>` : ''}<div class="bn-title">${spec.title}</div><div class="bn-sub">${spec.subtitle}</div><div class="bn-rule"></div>`;
+    b.innerHTML = `<div class="bn-rule"></div>${spec.boss ? `<div class="bn-tag">${icon('sword')} ${t('CHEFE')} ${icon('sword')}</div>` : ''}<div class="bn-title">${spec.title}</div><div class="bn-sub">${spec.subtitle}</div><div class="bn-rule"></div>`;
     this.root.append(b);
     setTimeout(() => b.remove(), 2600);
   }
@@ -257,7 +282,8 @@ export class UI {
   resetEnemyIcons() { for (const c of Array.from(this.enemyIcons.children)) c.classList.remove('down'); }
   setPieces(used: number, par: number) {
     this.piecesPar.className = `pieces-par${used > par ? ' over' : ''}`;
-    this.piecesPar.innerHTML = `Peças <b>${used}</b> / par ${par}`;
+    this.lastPieces = [used, par];
+    this.piecesPar.innerHTML = t('Peças <b>{used}</b> / par {par}', { used, par });
   }
   setStats(life: number, maxLife: number, gold: number, attLeft: number, attMax: number) {
     const bump = (el: HTMLElement, v: string) => { if (el.dataset.v !== v) { el.dataset.v = v; el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } };
@@ -270,8 +296,9 @@ export class UI {
     this.lastLife = life;
     this.goldEl.innerHTML = `${icon('coin')}${gold}`;
     bump(this.goldEl, String(gold));
-    this.attEl.innerHTML = `<div class="att-pips" title="Tentativas">${Array.from({ length: attMax }, (_, i) => `<i class="${i < attMax - attLeft ? 'used' : ''}"></i>`).join('')}</div>`;
-    this.attEl.title = `${attLeft} tentativa(s) restante(s)`;
+    this.attEl.innerHTML = `<div class="att-pips" title="${t('Tentativas')}">${Array.from({ length: attMax }, (_, i) => `<i class="${i < attMax - attLeft ? 'used' : ''}"></i>`).join('')}</div>`;
+    this.lastAtt = [attLeft, attMax];
+    this.attEl.title = t('{n} tentativa(s) restante(s)', { n: attLeft });
   }
   /** Perdeu vida: bordas da tela piscam em vermelho, o contador treme e solta o "−N". */
   hurt(n: number) {
@@ -402,13 +429,13 @@ export class UI {
     const m = h('div', 'menu');
     const logo = h('div', 'logo');
     'DOMINOTION'.split('').forEach((ch, i) => { const sp = h('span', '', ch); sp.style.animationDelay = `${i * 0.12}s`; logo.append(sp); });
-    m.append(logo, h('div', 'tagline', 'Monte a corrente. Aperte o gatilho. Derrube o exército.'));
-    if (hasSave) m.append(this.btn(`${icon('play')} Continuar run`, 'btn big', on.cont));
-    m.append(this.btn(hasSave ? 'Nova run' : `${icon('play')} Jogar`, hasSave ? 'btn teal' : 'btn big', on.play));
-    m.append(this.btn('Como jogar', 'btn dark', on.howto), this.btn('Opções', 'btn dark', on.options));
+    m.append(logo, h('div', 'tagline', t('Monte a corrente. Aperte o gatilho. Derrube o exército.')));
+    if (hasSave) m.append(this.btn(`${icon('play')} ${t('Continuar run')}`, 'btn big', on.cont));
+    m.append(this.btn(hasSave ? t('Nova run') : `${icon('play')} ${t('Jogar')}`, hasSave ? 'btn teal' : 'btn big', on.play));
+    m.append(this.btn(t('Como jogar'), 'btn dark', on.howto), this.btn(t('Opções'), 'btn dark', on.options));
     // versão desktop (Electron/Steam): precisa de um jeito de fechar o jogo
-    if (navigator.userAgent.includes('Electron')) m.append(this.btn('Sair do jogo', 'btn red', () => window.close()));
-    s.append(m, h('div', 'menu-foot', 'DOMINOTION — ideia original do Gamonga · remake web (Three.js + Rapier) · todo visual e som gerados por código'));
+    if (navigator.userAgent.includes('Electron')) m.append(this.btn(t('Sair do jogo'), 'btn red', () => window.close()));
+    s.append(m, h('div', 'menu-foot', t('DOMINOTION — ideia original do Gamonga · remake web (Three.js + Rapier) · todo visual e som gerados por código')));
   }
 
   showHowTo(back: () => void) {
@@ -416,18 +443,21 @@ export class UI {
     const p = h('div', 'panel');
     // a onda de dominós caindo mostra o que o jogo faz antes de ler a lista
     const demo = Array.from({ length: 9 }, (_, i) => `<i style="--i:${i}"></i>`).join('');
-    p.innerHTML = `<h1 class="wob">${wob('Como jogar')}</h1><div class="how-demo" aria-hidden="true">${demo}</div><p class="how-cap">trilha → disparar → derrube</p><ol class="howto">
-      <li><b>Clique</b> no <b>marcador VERDE</b> e mova o mouse: aparece uma <b>trilha fantasma</b>. <b>Clique no chão</b> para colocar as peças de uma vez. Depois, continue de qualquer <b>ponta brilhante</b>.</li>
-      <li>Embaixo fica a sua <b>mão</b>: ${RULES.handSize} peças tiradas da <b>caixa</b>, sem olhar. Clique numa peça (ou teclas <b>1–7</b>) para escolher o tipo. Só dá para colocar o que está na mão.</li>
-      <li>Usou tudo? Você pega mais da caixa sozinho. Quer trocar? <b>Nova mão</b> (<b>N</b>) joga o resto no <b>pote de descarte</b> e pega mais. Ao pegar, as peças já colocadas <b>ficam fixas</b> na mesa (desfazer só vale para a mão atual). Quando a caixa esvazia, é hora de disparar.</li>
-      <li>Aperte <b>DISPARAR</b> (Espaço): a 1ª peça cai e a corrente faz o resto. Derrube <b>todos</b> os inimigos!</li>
-      <li><b>3 tentativas</b> por fase. Errou? A fase recomeça do zero com todas as peças <b>misturadas de novo</b> na caixa. Sobrou inimigo de pé no fim? Cada um tira <b>1 ${icon('heart')}</b>.</li>
-      <li><b>Brutamontes</b> têm 2 de vida, o <b>General</b> 4. Cada dominó ou inimigo que bate neles tira <b>1</b>; a <b>Pesada</b> e a <b>Explosiva</b> tiram <b>4</b> (derrubam na hora) e a <b>Torre</b> tira 3.</li>
-      <li><b>Patrulheiros</b> empurram peças em pé no caminho deles; o <b>Tocheiro</b> queima e faz sumir as que ainda estão de pé (uma peça caindo derruba ele). <b>Muros</b> podem ser retos, em L ou curvos: contorne!</li>
-      <li>Vencer dá <b>ouro</b> e peças novas. Entre as fases, às vezes a mesa recebe um <b>evento</b>: a <b>Loja</b>, a <b>Prensa de Selos</b> (carimba um poder numa peça: Guardada, Dupla, Sortuda, Primeira, Dourada — até 2 por peça) ou o <b>Altar Místico</b> (bênçãos que valem a run inteira). Você escolhe comprar ou ir embora. ${icon('star')} extra por usar ≤ par de peças e por vencer de primeira.</li>
-      <li>Câmera: <b>botão direito</b> gira, <b>roda</b> dá zoom, <b>WASD</b> move, <b>Q/E</b> giram. Botão direito numa ponta remove a peça.</li></ol>`;
+    const li = (pt: string) => `<li>${t(pt, { hand: RULES.handSize, heart: icon('heart'), star: icon('star') })}</li>`;
+    const lis = [
+      '<b>Clique</b> no <b>marcador VERDE</b> e mova o mouse: aparece uma <b>trilha fantasma</b>. <b>Clique no chão</b> para colocar as peças de uma vez. Depois, continue de qualquer <b>ponta brilhante</b>.',
+      'Embaixo fica a sua <b>mão</b>: {hand} peças tiradas da <b>caixa</b>, sem olhar. Clique numa peça (ou teclas <b>1–7</b>) para escolher o tipo. Só dá para colocar o que está na mão.',
+      'Usou tudo? Você pega mais da caixa sozinho. Quer trocar? <b>Nova mão</b> (<b>N</b>) joga o resto no <b>pote de descarte</b> e pega mais. Ao pegar, as peças já colocadas <b>ficam fixas</b> na mesa (desfazer só vale para a mão atual). Quando a caixa esvazia, é hora de disparar.',
+      'Aperte <b>DISPARAR</b> (Espaço): a 1ª peça cai e a corrente faz o resto. Derrube <b>todos</b> os inimigos!',
+      '<b>3 tentativas</b> por fase. Errou? A fase recomeça do zero com todas as peças <b>misturadas de novo</b> na caixa. Sobrou inimigo de pé no fim? Cada um tira <b>1 {heart}</b>.',
+      '<b>Brutamontes</b> têm 2 de vida, o <b>General</b> 4. Cada dominó ou inimigo que bate neles tira <b>1</b>; a <b>Pesada</b> e a <b>Explosiva</b> tiram <b>4</b> (derrubam na hora) e a <b>Torre</b> tira 3.',
+      '<b>Patrulheiros</b> empurram peças em pé no caminho deles; o <b>Tocheiro</b> queima e faz sumir as que ainda estão de pé (uma peça caindo derruba ele). <b>Muros</b> podem ser retos, em L ou curvos: contorne!',
+      'Vencer dá <b>ouro</b> e peças novas. Entre as fases, às vezes a mesa recebe um <b>evento</b>: a <b>Loja</b>, a <b>Prensa de Selos</b> (carimba um poder numa peça: Guardada, Dupla, Sortuda, Primeira, Dourada — até 2 por peça) ou o <b>Altar Místico</b> (bênçãos que valem a run inteira). Você escolhe comprar ou ir embora. {star} extra por usar ≤ par de peças e por vencer de primeira.',
+      'Câmera: <b>botão direito</b> gira, <b>roda</b> dá zoom, <b>WASD</b> move, <b>Q/E</b> giram. Botão direito numa ponta remove a peça.',
+    ].map(li).join('');
+    p.innerHTML = `<h1 class="wob">${wob(t('Como jogar'))}</h1><div class="how-demo" aria-hidden="true">${demo}</div><p class="how-cap">${t('trilha → disparar → derrube')}</p><ol class="howto">${lis}</ol>`;
     const b = h('div', 'btns');
-    b.append(this.btn('Entendi!', 'btn', back));
+    b.append(this.btn(t('Entendi!'), 'btn', back));
     p.append(b);
     s.append(p);
   }
@@ -435,20 +465,32 @@ export class UI {
   showOptions(st: { master: number; music: number; sfx: number; shake: number; post: boolean; tilt: boolean; crt: boolean; ao: boolean; ink: boolean; dof: boolean }, change: (k: string, v: number | boolean) => void, back: () => void) {
     const s = this.screen();
     const p = h('div', 'panel');
-    p.append(title('Opções'));
+    p.append(title(t('Opções')));
+    this.optionsArgs = [st, change, back];
     const g = h('div', 'opts');
+    const mutate = (k: string, v: number | boolean) => { (st as any)[k] = v; change(k, v); };
+    g.append(h('div', '', t('Idioma')));
+    const sel = document.createElement('select');
+    sel.className = 'lang-sel';
+    for (const [code, name] of [['pt', 'Português'], ['en', 'English']] as const) {
+      const o = document.createElement('option');
+      o.value = code; o.textContent = name; o.selected = getLang() === code;
+      sel.append(o);
+    }
+    sel.addEventListener('change', () => { audio.ui('click'); setLang(sel.value as 'pt' | 'en'); this.showOptions(...this.optionsArgs!); });
+    g.append(sel);
     const slider = (label: string, k: keyof typeof st) => {
-      g.append(h('div', '', label));
+      g.append(h('div', '', t(label)));
       const i = document.createElement('input');
       i.type = 'range'; i.min = '0'; i.max = '1'; i.step = '0.05'; i.value = String(st[k]);
-      i.addEventListener('input', () => change(k, Number(i.value)));
+      i.addEventListener('input', () => mutate(k, Number(i.value)));
       g.append(i);
     };
     const check = (label: string, k: keyof typeof st) => {
-      g.append(h('div', '', label));
+      g.append(h('div', '', t(label)));
       const i = document.createElement('input');
       i.type = 'checkbox'; i.checked = Boolean(st[k]);
-      i.addEventListener('change', () => change(k, i.checked));
+      i.addEventListener('change', () => mutate(k, i.checked));
       g.append(i);
     };
     slider('Volume geral', 'master');
@@ -463,7 +505,7 @@ export class UI {
     check('Efeito maquete (tilt-shift)', 'tilt');
     p.append(g);
     const b = h('div', 'btns');
-    b.append(this.btn('Voltar', 'btn', back));
+    b.append(this.btn(t('Voltar'), 'btn', back));
     p.append(b);
     s.append(p);
   }
@@ -471,10 +513,10 @@ export class UI {
   showPause(on: { resume(): void; options(): void; howto(): void; quit(): void }) {
     const s = this.screen();
     const p = h('div', 'panel');
-    p.append(title('Pausa'));
+    p.append(title(t('Pausa')));
     const b = h('div', 'btns');
     b.style.flexDirection = 'column';
-    b.append(this.btn('Continuar', 'btn', on.resume), this.btn('Como jogar', 'btn dark', on.howto), this.btn('Opções', 'btn dark', on.options), this.btn('Sair para o menu', 'btn red', on.quit));
+    b.append(this.btn(t('Continuar'), 'btn', on.resume), this.btn(t('Como jogar'), 'btn dark', on.howto), this.btn(t('Opções'), 'btn dark', on.options), this.btn(t('Sair para o menu'), 'btn red', on.quit));
     p.append(b);
     s.append(p);
   }
@@ -482,15 +524,15 @@ export class UI {
   showDeck(cards: readonly Card[], back: () => void, piles?: { draw: readonly Card[]; hand: readonly Card[]; table: readonly Card[]; discard: readonly Card[] }) {
     const s = this.screen();
     const p = h('div', 'panel');
-    p.append(title('Suas peças'), h('p', '', `${cards.length} peças na sua caixa. Em cada fase elas são misturadas e você pega ${RULES.handSize} por vez, sem olhar.`));
+    p.append(title(t('Suas peças')), h('p', '', t('{n} peças na sua caixa. Em cada fase elas são misturadas e você pega {hand} por vez, sem olhar.', { n: cards.length, hand: RULES.handSize })));
     const grid = (list: readonly Card[], cls = '') => {
       const g = h('div', `deck-grid ${cls}`);
       const groups = new Map<Kind, number>();
       for (const c of list) groups.set(kindOf(c), (groups.get(kindOf(c)) ?? 0) + 1);
       for (const k of [...groups.keys()].sort((x, y) => kindRank(x) - kindRank(y))) {
-        const t = kindType(k);
+        const ty = kindType(k);
         const seals = k.split('+').slice(1) as Card['seals'];
-        const card = h('div', 'card', `${pieceSvg(t)}<span class="nm">${PIECES[t].name}</span><span class="cnt">${groups.get(k)}</span>${seals.length ? `<span class="seals">${seals.map((x) => sealImg(x)).join('')}</span>` : ''}`);
+        const card = h('div', 'card', `${pieceSvg(ty)}<span class="nm">${PIECES[ty].name}</span><span class="cnt">${groups.get(k)}</span>${seals.length ? `<span class="seals">${seals.map((x) => sealImg(x)).join('')}</span>` : ''}`);
         g.append(card);
       }
       return g;
@@ -499,10 +541,10 @@ export class UI {
       // onde está cada peça agora, nesta tentativa
       const row = h('div', 'deck-piles');
       for (const [name, list, hint] of [
-        ['Na caixa', piles.draw, 'você ainda vai pegar (sem saber a ordem)'],
-        ['Na mão', piles.hand, 'prontas para colocar'],
-        ['Na mesa', piles.table, 'já colocadas'],
-        ['Descartadas', piles.discard, 'fora desta tentativa'],
+        [t('Na caixa'), piles.draw, t('você ainda vai pegar (sem saber a ordem)')],
+        [t('Na mão'), piles.hand, t('prontas para colocar')],
+        [t('Na mesa'), piles.table, t('já colocadas')],
+        [t('Descartadas'), piles.discard, t('fora desta tentativa')],
       ] as const) {
         const col = h('div', 'deck-pile');
         col.append(h('div', 'hd', `${name} <b>${list.length}</b>`), h('div', 'sub', hint));
@@ -512,7 +554,7 @@ export class UI {
       p.append(row);
     } else p.append(grid(cards));
     const b = h('div', 'btns');
-    b.append(this.btn('Voltar', 'btn', back));
+    b.append(this.btn(t('Voltar'), 'btn', back));
     p.append(b);
     s.append(p);
   }
@@ -522,7 +564,7 @@ export class UI {
     const art = o.items.map((it) => pieceSvg(it.piece)).join('');
     const star = o.items.find((it) => it.piece !== 'common') ?? o.items[0];
     const desc = PIECES[star.piece].desc;
-    c.innerHTML = `<div class="rar">${o.rarity}</div><div class="art">${art}</div><div class="lbl">${o.label}</div><div class="desc">${desc}</div>${price !== null ? `<div class="price">${icon('coin')} ${price}</div>` : ''}`;
+    c.innerHTML = `<div class="rar">${t(o.rarity)}</div><div class="art">${art}</div><div class="lbl">${o.label}</div><div class="desc">${desc}</div>${price !== null ? `<div class="price">${icon('coin')} ${price}</div>` : ''}`;
     c.addEventListener('mouseenter', () => audio.ui('hover'));
     tiltable(c, 18);
     return c;
@@ -547,9 +589,9 @@ export class UI {
     });
     p.append(row);
     const b = h('div', 'btns');
-    const rr = this.btn(`↻ Trocar opções (${icon('coin')} ${rerollCost})`, 'btn dark small', on.reroll) as HTMLButtonElement;
+    const rr = this.btn(t('↻ Trocar opções ({coin} {n})', { coin: icon('coin'), n: rerollCost }), 'btn dark small', on.reroll) as HTMLButtonElement;
     rr.disabled = gold < rerollCost;
-    b.append(rr, this.btn('Pular', 'btn dark small', on.skip));
+    b.append(rr, this.btn(t('Pular'), 'btn dark small', on.skip));
     p.append(b, h('div', 'gold-line', `${icon('coin')} ${gold}`));
     s.append(p);
   }

@@ -1,4 +1,5 @@
 import type { PieceId } from '../core/pieces';
+import { t } from '../i18n';
 
 // Falas das peças malditas (balãozinho raro na mesa e no Presente do Dono).
 export const CURSE_LINES: Partial<Record<PieceId, { idle: string[]; placed: string[]; fall: string[] }>> = {
@@ -31,5 +32,5 @@ export const CURSE_LINES: Partial<Record<PieceId, { idle: string[]; placed: stri
 
 export function curseLine(type: PieceId, kind: 'idle' | 'placed' | 'fall'): string | null {
   const l = CURSE_LINES[type]?.[kind];
-  return l && l.length ? l[Math.floor(Math.random() * l.length)] : null;
+  return l && l.length ? t(l[Math.floor(Math.random() * l.length)]) : null;
 }

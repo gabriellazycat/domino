@@ -1,4 +1,5 @@
 import { Rng, hash2 } from './rng';
+import { t } from '../i18n';
 import { isBossPhase } from './rules';
 import { Deck, PIECES, PIECE_ORDER } from './pieces';
 
@@ -49,6 +50,7 @@ export const ENEMY_HP: Record<EnemyKind, number> = { soldier: 1, patroller: 1, t
 export const ARCHER_RANGE = 1.9;
 
 const AREAS = ['Campo de Treino', 'Vila do Moinho', 'Ponte Velha', 'Pátio do Quartel', 'Mercado', 'Muralhas', 'Bosque Sombrio', 'Forja', 'Torre Norte', 'Cidadela'];
+const area = (i: number) => t(AREAS[i]);
 
 /** Distância de um ponto ao retângulo do muro (0 dentro), levando em conta o giro. */
 export function rectDist(px: number, pz: number, w: Rect): number {
@@ -228,7 +230,7 @@ function patrolShape(rng: Rng, shape: PatrolShape, c: Vec2, trigger: Vec2, membe
 function fallback(runSeed: number, depth: number): PhaseSpec {
   const enemies: EnemySpec[] = [-0.5, 0, 0.5].map((dz) => ({ kind: 'soldier', x: -0.5, z: dz, yaw: -Math.PI / 2, squad: 0 }));
   return {
-    depth, seed: runSeed, title: `Fase ${depth + 1}`, subtitle: AREAS[depth % AREAS.length],
+    depth, seed: runSeed, title: t('Fase {n}', { n: depth + 1 }), subtitle: area(depth),
     trigger: { x: -5, z: 0, yaw: Math.PI / 2 }, enemies, walls: [], par: 12, boss: false,
   };
 }
@@ -510,26 +512,26 @@ function tryGenerate(rng: Rng, runSeed: number, depth: number, reach: number, bo
 
   // par por DISTÂNCIA (alcance médio de um deck misto), não por contagem de Comuns
   const par = Math.max(6, Math.ceil(routeLength(trigger, centers, nWalls) / PAR_REACH) + (enemies.some((e) => e.kind !== 'soldier') ? 2 : 0));
-  const area = AREAS[Math.floor(depth / 3) % AREAS.length];
+  const areaName = area(Math.floor(depth / 3));
   let hint: string | undefined;
-  if (depth === 0) hint = 'Clique no marcador VERDE e mova o mouse: a trilha aparece. Clique no chão para colocar.';
-  else if (depth === 1) hint = 'Muro no caminho! Faça a curva desenhando em volta dele.';
-  else if (depth === 2) hint = 'Dois pelotões: use a BIFURCAÇÃO para dividir a corrente.';
-  else if (enemies.some((e) => e.kind === 'brute') && depth <= 4) hint = 'Brutamontes aguentam 2 golpes. Pesada ou Torre derrubam de uma vez!';
-  else if (enemies.some((e) => e.patrol) && depth <= 4) hint = 'Patrulheiro! Ele empurra peças em pé no caminho dele. Dispare na hora certa.';
-  else if (enemies.some((e) => e.kind === 'torcher') && depth <= 7 && !boss) hint = 'Tocheiro! A tocha dele QUEIMA peças em pé no caminho. Mas uma peça caindo nele derruba.';
-  else if (boss) hint ='O GENERAL aguenta 4 golpes. Explosivas e Pesadas ajudam muito!';
+  if (depth === 0) hint = t('Clique no marcador VERDE e mova o mouse: a trilha aparece. Clique no chão para colocar.');
+  else if (depth === 1) hint = t('Muro no caminho! Faça a curva desenhando em volta dele.');
+  else if (depth === 2) hint = t('Dois pelotões: use a BIFURCAÇÃO para dividir a corrente.');
+  else if (enemies.some((e) => e.kind === 'brute') && depth <= 4) hint = t('Brutamontes aguentam 2 golpes. Pesada ou Torre derrubam de uma vez!');
+  else if (enemies.some((e) => e.patrol) && depth <= 4) hint = t('Patrulheiro! Ele empurra peças em pé no caminho dele. Dispare na hora certa.');
+  else if (enemies.some((e) => e.kind === 'torcher') && depth <= 7 && !boss) hint = t('Tocheiro! A tocha dele QUEIMA peças em pé no caminho. Mas uma peça caindo nele derruba.');
+  else if (boss) hint = t('O GENERAL aguenta 4 golpes. Explosivas e Pesadas ajudam muito!');
   if (!boss && depth <= 9) {
-    if (gates.length) hint = 'PORTEIRA! Derrube a ALAVANCA e a grade abre por 3 s. Use a Bifurcação: um ramo na alavanca, o outro passa pela grade.';
-    else if (enemies.some((e) => e.kind === 'archer')) hint = 'ARQUEIRO! A mira vermelha marca a peça que ele vai queimar — dela não dá para continuar. Dê uma isca (Bifurcação) ou mande o Foguete.';
-    else if (enemies.some((e) => e.kind === 'ogre')) hint = 'OGRO! Ele esmaga peças em pé no caminho e aguenta 3 golpes. Derrubado, cai como um dominó gigante.';
-    else if (walls.some((w) => w.group && w.style === 'crate' && walls.filter((o) => o.group === w.group).length > 8)) hint = 'Pelotão cercado! Só a SALTADORA passa por cima dos caixotes.';
+    if (gates.length) hint = t('PORTEIRA! Derrube a ALAVANCA e a grade abre por 3 s. Use a Bifurcação: um ramo na alavanca, o outro passa pela grade.');
+    else if (enemies.some((e) => e.kind === 'archer')) hint = t('ARQUEIRO! A mira vermelha marca a peça que ele vai queimar — dela não dá para continuar. Dê uma isca (Bifurcação) ou mande o Foguete.');
+    else if (enemies.some((e) => e.kind === 'ogre')) hint = t('OGRO! Ele esmaga peças em pé no caminho e aguenta 3 golpes. Derrubado, cai como um dominó gigante.');
+    else if (walls.some((w) => w.group && w.style === 'crate' && walls.filter((o) => o.group === w.group).length > 8)) hint = t('Pelotão cercado! Só a SALTADORA passa por cima dos caixotes.');
   }
 
   return {
     depth, seed: runSeed,
-    title: boss ? 'Fortaleza do General' : `Fase ${depth + 1}`,
-    subtitle: area,
+    title: boss ? t('Fortaleza do General') : t('Fase {n}', { n: depth + 1 }),
+    subtitle: areaName,
     trigger, enemies, walls, gates, par, boss, hint,
   };
 }

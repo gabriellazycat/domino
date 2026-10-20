@@ -29,6 +29,7 @@ import { autoPlan } from '../core/bot';
 import { solve } from './solver';
 import { Hand } from './hand';
 import { icon } from '../ui/icons';
+import { t } from '../i18n';
 
 type Mode = 'menu' | 'planning' | 'sim' | 'result' | 'screen' | 'transition' | 'event';
 
@@ -291,7 +292,7 @@ export class Game {
   select(kind: Kind) {
     if (this.mode === 'event') { this.event?.pickKind(kind); return; }
     if (this.mode !== 'planning') return;
-    if (!this.layout.has(kind)) { audio.ui('deny'); this.ui.toast(`Sem ${kindName(kind)} na mão`); return; }
+    if (!this.layout.has(kind)) { audio.ui('deny'); this.ui.toast(t('Sem {k} na mão', { k: kindName(kind) })); return; }
     this.selected = kind;
     audio.ui('click');
     this.ui.hand.flash(kind);
@@ -318,16 +319,16 @@ export class Game {
   newHand() {
     if (this.mode !== 'planning') return;
     this.cancelTrail();
-    if (this.layout.cursedInHand()) { audio.ui('deny'); this.ui.toast('A peça maldita precisa ir para a mesa antes da Nova mão!'); this.ui.hand.nudge(); return; }
+    if (this.layout.cursedInHand()) { audio.ui('deny'); this.ui.toast(t('A peça maldita precisa ir para a mesa antes da Nova mão!')); this.ui.hand.nudge(); return; }
     const keep = new Set(this.layout.entries.filter((e) => e.card.seals.includes('guard')).map((e) => e.card.uid));
     const recycling = this.layout.recycle && this.layout.entries.length > keep.size;
     const drawn = this.layout.newHand(this.handSize());
-    if (!drawn) { audio.ui('deny'); this.ui.toast('A caixa está vazia — use a mão e dispare!'); this.ui.hand.nudge(); return; }
+    if (!drawn) { audio.ui('deny'); this.ui.toast(t('A caixa está vazia — use a mão e dispare!')); this.ui.hand.nudge(); return; }
     const pile = this.layout.pile!;
-    const t = this.ui.hand.discard(pile.discard.length, keep, recycling);
-    this.ui.hand.deal(drawn, pile.size, t * 0.55 + 140);
-    if (recycling) this.ui.toast('Reciclagem: as sobras voltaram para a caixa', true);
-    else if (keep.size) this.ui.toast(keep.size === 1 ? 'A Guardada ficou na mão' : `${keep.size} Guardadas ficaram na mão`, true);
+    const dt = this.ui.hand.discard(pile.discard.length, keep, recycling);
+    this.ui.hand.deal(drawn, pile.size, dt * 0.55 + 140);
+    if (recycling) this.ui.toast(t('Reciclagem: as sobras voltaram para a caixa'), true);
+    else if (keep.size) this.ui.toast(keep.size === 1 ? t('A Guardada ficou na mão') : t('{n} Guardadas ficaram na mão', { n: keep.size }), true);
     this.selected = 'common';
     this.ensureSelection();
     this.refreshHud();
@@ -339,7 +340,7 @@ export class Game {
     if (this.layout.handCount() > 0 || !pile || pile.size === 0) return;
     const drawn = this.layout.newHand(this.handSize()) ?? [];
     this.ui.hand.deal(drawn, pile.size, 480);
-    this.ui.toast('Mão vazia — pegando mais peças da caixa', true);
+    this.ui.toast(t('Mão vazia — pegando mais peças da caixa'), true);
     this.ensureSelection();
     this.refreshHud();
   }
@@ -366,10 +367,10 @@ export class Game {
   private emptyText(): string {
     const k = this.layout.uses(this.selected);
     const pile = this.layout.pile?.size ?? 0;
-    if (k <= 0) return pile ? 'Mão vazia — Nova mão (N) compra mais' : 'Acabaram as peças — DISPARE!';
-    const t = kindType(this.selected);
-    const what = `${k} ${k === 1 ? PIECES[t].name : PIECES[t].plural}`;
-    return pile ? `Sua mão só tem ${what} — coloque e pegue mais` : `Só restam ${what} — a caixa acabou`;
+    if (k <= 0) return pile ? t('Mão vazia — Nova mão (N) compra mais') : t('Acabaram as peças — DISPARE!');
+    const ty = kindType(this.selected);
+    const what = `${k} ${k === 1 ? PIECES[ty].name : PIECES[ty].plural}`;
+    return pile ? t('Sua mão só tem {what} — coloque e pegue mais', { what }) : t('Só restam {what} — a caixa acabou', { what });
   }
 
   private ensureSelection() {
@@ -395,7 +396,7 @@ export class Game {
       this.cancelTrail();
       this.autoDraw();
       if (r.stroke?.done && splits(kindType(this.selected))) {
-        this.ui.toast(kindType(this.selected) === 'trifork' ? 'Trifurcou! Continue de cada ponta brilhante' : 'Bifurcou! Continue de cada ponta brilhante', true);
+        this.ui.toast(kindType(this.selected) === 'trifork' ? t('Trifurcou! Continue de cada ponta brilhante') : t('Bifurcou! Continue de cada ponta brilhante'), true);
         this.ensureSelection();
       }
       return;
@@ -466,7 +467,7 @@ export class Game {
     this.board.showGhost(ghost, splits(st) ? 'common' : st);
     const now = this.realT;
     if (f !== this.lastFail || now - this.lastFailT > 1.2) {
-      this.ui.toast(f === 'empty' ? this.emptyText() : FAIL_TEXT[f]);
+      this.ui.toast(f === 'empty' ? this.emptyText() : t(FAIL_TEXT[f]));
       if (f === 'empty') this.ui.hand.nudge();
       if (f === 'trigger' || f === 'nohead' || f === 'empty' || f === 'archer') audio.ui('deny');
       this.lastFail = f;
@@ -517,7 +518,7 @@ export class Game {
   /** Tentou tirar uma peça de uma mão anterior. */
   private lockedFeedback() {
     audio.ui('deny');
-    this.ui.toast('Peças de mãos anteriores ficam na mesa');
+    this.ui.toast(t('Peças de mãos anteriores ficam na mesa'));
   }
 
 
@@ -545,9 +546,9 @@ export class Game {
     if (!this.run || this.mode !== 'planning') return;
     if (this.run.depth === 0) {
       const n = this.layout.pieces.length;
-      if (n === 0) this.ui.coach(this.trailAnchor ? '① Clique no chão: as peças saem da sua mão e vão para a mesa.' : '① Embaixo estão as peças da sua mão. Clique no marcador VERDE e mova o mouse.');
-      else if (n < 9) this.ui.coach('② Mão vazia? Você pega mais da CAIXA. Continue de uma ponta brilhante.');
-      else this.ui.coach('③ Chegou perto? Aperte DISPARAR! (Espaço)');
+      if (n === 0) this.ui.coach(this.trailAnchor ? t('① Clique no chão: as peças saem da sua mão e vão para a mesa.') : t('① Embaixo estão as peças da sua mão. Clique no marcador VERDE e mova o mouse.'));
+      else if (n < 9) this.ui.coach(t('② Mão vazia? Você pega mais da CAIXA. Continue de uma ponta brilhante.'));
+      else this.ui.coach(t('③ Chegou perto? Aperte DISPARAR! (Espaço)'));
     } else if (this.coachStep === 0 && this.spec.hint) {
       this.ui.coach(this.spec.hint);
     } else this.ui.coach(null);
@@ -605,7 +606,7 @@ export class Game {
     if (this.spec.boss && animate) {
       audio.bossStinger();
       // o chefe fala depois que a faixa de entrada passa, para não brigar com o título
-      setTimeout(() => { if (this.mode === 'planning') this.say(['Você chegou até aqui. Que pena.'], true); }, 2400);
+      setTimeout(() => { if (this.mode === 'planning') this.say([t('Você chegou até aqui. Que pena.')], true); }, 2400);
     }
     this.frameBoard();
     if (animate) { this.board.spawnIn(); this.ui.phaseBanner(this.spec); }
@@ -638,7 +639,7 @@ export class Game {
 
   fire() {
     if (this.mode !== 'planning' || this.paused) return;
-    if (!this.layout.pieces.length) { this.ui.toast('Desenhe uma corrente primeiro!'); audio.ui('deny'); return; }
+    if (!this.layout.pieces.length) { this.ui.toast(t('Desenhe uma corrente primeiro!')); audio.ui('deny'); return; }
     if (this.trailAnchor) this.cancelTrail();
     this.attemptsLeft--;
     this.attemptsUsed++;
@@ -686,7 +687,7 @@ export class Game {
         const p = e.body.translation();
         if (this.mode === 'sim') {
           audio.clang();
-          this.fx.text(p.x, p.y + 0.9, p.z, 'TUM!', 'hit');
+          this.fx.text(p.x, p.y + 0.9, p.z, t('TUM!'), 'hit');
           this.fx.sparkBurst(p.x, p.y + 0.3, p.z, 12, '#cfd6ff', 3);
           this.fx.star(p.x, p.y + 0.3, p.z, 0.75, '#cfd6ff', 0.22);
           this.rig.addTrauma(0.05);
@@ -696,7 +697,7 @@ export class Game {
         if (this.mode !== 'sim' && !this.demo) return;
         audio.boom(x);
         this.fx.explosion(x, y, z, r);
-        this.fx.text(x, y + 1.2, z, 'KABUM!', 'boom', 1.1);
+        this.fx.text(x, y + 1.2, z, t('KABUM!'), 'boom', 1.1);
         this.rig.addTrauma(0.2);
         this.rig.punchIn();
         this.hitstop = Math.max(this.hitstop, 0.09);
@@ -706,12 +707,12 @@ export class Game {
         this.world.shockAt(x, y + 0.2, z);
         this.decals.scorch(x, z, r);
       },
-      bulldoze: (x, z) => { if (this.mode === 'sim') { this.fx.text(x, 1, z, 'EMPURRÃO!', 'small'); audio.ui('deny'); } },
+      bulldoze: (x, z) => { if (this.mode === 'sim') { this.fx.text(x, 1, z, t('EMPURRÃO!'), 'small'); audio.ui('deny'); } },
       burn: (i, x, z) => {
         if (this.mode !== 'sim' && !this.demo) return;
         const h = PIECES[sim.pieces[i].p.type].h;
         this.fx.ignite(x, z, h);
-        this.fx.text(x, h + 0.5, z, 'QUEIMOU!', 'small');
+        this.fx.text(x, h + 0.5, z, t('QUEIMOU!'), 'small');
         audio.ignite(x);
         this.decals.scorch(x, z, 0.35);
         this.rig.addTrauma(0.08);
@@ -721,7 +722,7 @@ export class Game {
         audio.whoosh();
         if (this.mode !== 'sim') return;
         const p = sim.pieces[i].p;
-        this.fx.text(p.x, 1.4, p.z, 'BOING!', 'small');
+        this.fx.text(p.x, 1.4, p.z, t('BOING!'), 'small');
         this.fx.puff(p.x, 0.1, p.z, 0.7, '#7d7262', 0.4);
       },
       land: (_i, x, z, kind) => {
@@ -738,7 +739,7 @@ export class Game {
           this.fx.sparkBurst(a.x + (x - a.x) * t, 0.6 + Math.sin(t * Math.PI) * 0.5, a.z + (z - a.z) * t, 2, '#ff8a2a', 0.6);
         }
         this.fx.ignite(x, z, PIECES[sim.pieces[i].p.type].h);
-        this.fx.text(x, 1.3, z, 'FLECHADA!', 'hit');
+        this.fx.text(x, 1.3, z, t('FLECHADA!'), 'hit');
         audio.ignite(x);
         this.decals.scorch(x, z, 0.4);
         this.rig.addTrauma(0.12);
@@ -746,7 +747,7 @@ export class Game {
       crush: (_i, x, z) => {
         if (this.mode !== 'sim' && !this.demo) return;
         this.fx.dust(x, z, 1.4);
-        this.fx.text(x, 1.1, z, 'ESMAGOU!', 'small');
+        this.fx.text(x, 1.1, z, t('ESMAGOU!'), 'small');
         audio.clang();
         this.rig.addTrauma(0.1);
       },
@@ -754,7 +755,7 @@ export class Game {
         if (this.mode !== 'sim' && !this.demo) return;
         for (let k = -2; k <= 2; k++) this.fx.dust(x + dx * k * 0.35, z + dz * k * 0.35, 1.8);
         this.fx.ring(x, z, 1.6, '#c8a060', 0.5);
-        this.fx.text(x, 1.4, z, 'BUUUM!', 'boom', 1.1);
+        this.fx.text(x, 1.4, z, t('BUUUM!'), 'boom', 1.1);
         audio.boom(x);
         this.rig.addTrauma(0.2);
         this.hitstop = Math.max(this.hitstop, 0.07);
@@ -763,9 +764,9 @@ export class Game {
       lever: (g) => {
         if (this.mode !== 'sim' && !this.demo) return;
         const gs = this.spec.gates![g];
-        this.fx.text(gs.lever.x, 0.9, gs.lever.z, 'CLIC!', 'small');
+        this.fx.text(gs.lever.x, 0.9, gs.lever.z, t('CLIC!'), 'small');
         this.fx.ring(gs.x, gs.z, 1.0, '#ffd36b', 0.5);
-        this.fx.text(gs.x, 1.2, gs.z, `ABRIU! ${gs.open}s`, 'gold', 0.9);
+        this.fx.text(gs.x, 1.2, gs.z, t('ABRIU! {n}s', { n: gs.open }), 'gold', 0.9);
         audio.ui('click');
       },
       impact: (speed, x, y, z, material) => this.onImpact(speed, x, y, z, material),
@@ -842,15 +843,15 @@ export class Game {
     if (this.mode !== 'sim') return;
     this.phaseKnocked++;
     this.ui.enemyDown(e.idx);
-    const word = cause === 'blast' ? 'VOOU!' : cause === 'splash' ? 'DOMINÓ!' : this.fx.knockWord();
+    const word = cause === 'blast' ? t('VOOU!') : cause === 'splash' ? t('DOMINÓ!') : this.fx.knockWord();
     this.fx.text(p.x, p.y + 0.9, p.z, word, big ? 'gold' : 'red', big ? 1.3 : 1);
     if (combo >= 2) {
       this.ui.combo(combo);
       if (combo >= 4) this.world.backdrop.startle(0.35);
-      if (combo % 5 === 0) this.fx.text(p.x, p.y + 1.6, p.z, `COMBO ×${combo}!`, 'gold', 1.2);
-      if (combo >= 6) this.say(['Ahh! Olha isso!', 'Mais uma! Mais uma!']);
+      if (combo % 5 === 0) this.fx.text(p.x, p.y + 1.6, p.z, t('COMBO ×{n}!', { n: combo }), 'gold', 1.2);
+      if (combo >= 6) this.say([t('Ahh! Olha isso!'), t('Mais uma! Mais uma!')]);
     }
-    if (e.spec.kind === 'general') this.say(['O General não cai assim!'], true);
+    if (e.spec.kind === 'general') this.say([t('O General não cai assim!')], true);
   }
 
   private toggleSpeed() {
@@ -899,7 +900,7 @@ export class Game {
 
   /** Mostra a tela de resultado com o botão de rever a queda. */
   private showResult(cfg: ResultCfg) {
-    const withReplay = { ...cfg, buttons: [...cfg.buttons, { label: '▶ Rever a queda', cls: 'btn dark small', fn: () => this.replay() }] };
+    const withReplay = { ...cfg, buttons: [...cfg.buttons, { label: t('▶ Rever a queda'), cls: 'btn dark small', fn: () => this.replay() }] };
     this.lastResult = withReplay;
     this.ui.showResult(withReplay);
   }
@@ -951,19 +952,19 @@ export class Game {
       this.world.backdrop.setCrack(this.crackLevel());
       run.stats.stars += stars;
       audio.win();
-      this.say(['Mais uma… e ainda estou de pé.', 'Sorte de principiante.'], true);
+      this.say([t('Mais uma… e ainda estou de pé.'), t('Sorte de principiante.')], true);
       this.showResult({
-        win: true, title: this.spec.boss ? 'GENERAL DERRUBADO!' : 'VITÓRIA!', stars,
+        win: true, title: this.spec.boss ? t('GENERAL DERRUBADO!') : t('VITÓRIA!'), stars,
         rows: [
-          ['Inimigos derrubados', `${sim.enemies.length}/${sim.enemies.length}`, 'good'],
-          ['Peças usadas', `${used} (par ${this.spec.par})`, efficient ? 'good' : ''],
-          ['Tentativa', `${this.attemptsUsed}ª`, firstTry ? 'good' : ''],
-          ['Maior combo', `×${sim.bestCombo}`],
-          ...(golden ? [['Selos dourados', `+${golden * 3} de ouro`, 'good'] as [string, string, string]] : []),
-          ...(greed ? [['Avareza', `+${greed} de ouro`, 'good'] as [string, string, string]] : []),
+          [t('Inimigos derrubados'), `${sim.enemies.length}/${sim.enemies.length}`, 'good'],
+          [t('Peças usadas'), t('{used} (par {par})', { used, par: this.spec.par }), efficient ? 'good' : ''],
+          [t('Tentativa'), t('{n}ª', { n: this.attemptsUsed }), firstTry ? 'good' : ''],
+          [t('Maior combo'), `×${sim.bestCombo}`],
+          ...(golden ? [[t('Selos dourados'), t('+{n} de ouro', { n: golden * 3 }), 'good'] as [string, string, string]] : []),
+          ...(greed ? [[t('Avareza'), t('+{n} de ouro', { n: greed }), 'good'] as [string, string, string]] : []),
         ],
         gold,
-        buttons: [{ label: 'Escolher recompensa →', cls: 'btn big', fn: () => this.openDraft(false) }],
+        buttons: [{ label: t('Escolher recompensa →'), cls: 'btn big', fn: () => this.openDraft(false) }],
       });
       this.refreshTopStats();
       return;
@@ -971,18 +972,18 @@ export class Game {
     const survivors = sim.alive;
     if (this.attemptsLeft > 0) {
       audio.lose();
-      this.say(['Quebrou. Como sempre.', 'A corrente sempre quebra no pior lugar.'], true);
+      this.say([t('Quebrou. Como sempre.'), t('A corrente sempre quebra no pior lugar.')], true);
       this.showResult({
-        win: false, title: 'Corrente quebrada!', stars: 0,
+        win: false, title: t('Corrente quebrada!'), stars: 0,
         rows: [
-          ['Ainda de pé', `${survivors}`, 'bad'],
-          ['Tentativas restantes', `${this.attemptsLeft}`],
-          ['Dica', survivors === sim.enemies.length ? 'a onda nem chegou lá' : 'quase! tente outra ordem'],
+          [t('Ainda de pé'), `${survivors}`, 'bad'],
+          [t('Tentativas restantes'), `${this.attemptsLeft}`],
+          [t('Dica'), survivors === sim.enemies.length ? t('a onda nem chegou lá') : t('quase! tente outra ordem')],
         ],
         gold: 0,
         buttons: [
-          { label: '↺ Recomeçar a fase (reembaralha)', cls: 'btn big', fn: () => this.retry() },
-          { label: `Desistir (−${survivors} ${icon('heart')})`, cls: 'btn dark small', fn: () => this.acceptDamage(survivors) },
+          { label: t('↺ Recomeçar a fase (reembaralha)'), cls: 'btn big', fn: () => this.retry() },
+          { label: t('Desistir (−{n} {heart})', { n: survivors, heart: icon('heart') }), cls: 'btn dark small', fn: () => this.acceptDamage(survivors) },
         ],
       });
     } else this.acceptDamage(survivors);
@@ -1002,10 +1003,10 @@ export class Game {
     run.gold += 6;
     this.mode = 'result';
     this.showResult({
-      win: false, title: 'Fase perdida', stars: 0,
-      rows: [['Sobreviventes', `${survivors}`, 'bad'], ['Dano', `−${dmg} ${icon('heart')}`, 'bad'], ['Vida', `${run.life}/${run.maxLife}`]],
+      win: false, title: t('Fase perdida'), stars: 0,
+      rows: [[t('Sobreviventes'), `${survivors}`, 'bad'], [t('Dano'), `−${dmg} ${icon('heart')}`, 'bad'], [t('Vida'), `${run.life}/${run.maxLife}`]],
       gold: 6,
-      buttons: [{ label: 'Recompensa de consolo →', cls: 'btn', fn: () => this.openDraft(true) }],
+      buttons: [{ label: t('Recompensa de consolo →'), cls: 'btn', fn: () => this.openDraft(true) }],
     });
   }
 
@@ -1028,9 +1029,9 @@ export class Game {
     this.mode = 'planning';
     this.ui.setSimMode(false);
     this.ui.resetEnemyIcons();
-    const t = this.ui.hand.gather(run.cards.length, from);
-    this.ui.hand.deal(drawn, this.layout.pile!.size, t);
-    this.ui.toast('Fase recomeçou — peças misturadas na caixa', true);
+    const gt = this.ui.hand.gather(run.cards.length, from);
+    this.ui.hand.deal(drawn, this.layout.pile!.size, gt);
+    this.ui.toast(t('Fase recomeçou — peças misturadas na caixa'), true);
     this.frameBoard();
     this.refreshHud();
   }
@@ -1043,8 +1044,11 @@ export class Game {
     let opts = draft3(rng, run.depth);
     saveRng(run, rng);
     // as três opções têm a mesma raridade: o título já anuncia
-    const tierTitle = () => (opts[0]?.rarity === 'épica' ? ' épica!' : opts[0]?.rarity === 'rara' ? ' rara!' : '');
-    const show = () => this.ui.showDraft((consolation ? 'Consolo' : 'Recompensa') + tierTitle(), 'Escolha 1 de 3 — vai para a sua caixa de peças', opts, run.gold, RULES.draftRerollCost, {
+    const tierTitle = () => {
+      const r = opts[0]?.rarity;
+      return t(consolation ? 'Consolo' : 'Recompensa') + (r === 'épica' ? t(' épica!') : r === 'rara' ? t(' rara!') : '');
+    };
+    const show = () => this.ui.showDraft(tierTitle(), t('Escolha 1 de 3 — vai para a sua caixa de peças'), opts, run.gold, RULES.draftRerollCost, {
       pick: (i) => { addItems(run, opts[i].items); this.afterDraft(); },
       reroll: () => {
         if (run.gold < RULES.draftRerollCost) return;
@@ -1150,19 +1154,19 @@ export class Game {
     const record = reached > best;
     if (record) try { localStorage.setItem('topple.best', String(reached)); } catch { /* ok */ }
     this.showResult({
-      win: false, title: 'FIM DA RUN', stars: 0,
+      win: false, title: t('FIM DA RUN'), stars: 0,
       rows: [
-        ['Fase alcançada', `${reached}${record ? ' — RECORDE!' : ''}`, record ? 'good' : ''],
-        ['Fases vencidas', `${run.stats.phasesWon}`],
-        ['Inimigos derrubados', `${run.stats.knocked}`],
-        ['Maior combo', `×${run.stats.bestCombo}`],
-        ['Explosões', `${run.stats.explosions}`],
-        ['Estrelas', `${run.stats.stars} ${icon('star')}`],
+        [t('Fase alcançada'), `${reached}${record ? t(' — RECORDE!') : ''}`, record ? 'good' : ''],
+        [t('Fases vencidas'), `${run.stats.phasesWon}`],
+        [t('Inimigos derrubados'), `${run.stats.knocked}`],
+        [t('Maior combo'), `×${run.stats.bestCombo}`],
+        [t('Explosões'), `${run.stats.explosions}`],
+        [t('Estrelas'), `${run.stats.stars} ${icon('star')}`],
       ],
       gold: 0,
       buttons: [
-        { label: 'Nova run', cls: 'btn big', fn: () => this.newRun() },
-        { label: 'Menu', cls: 'btn dark', fn: () => this.enterMenu() },
+        { label: t('Nova run'), cls: 'btn big', fn: () => this.newRun() },
+        { label: t('Menu'), cls: 'btn dark', fn: () => this.enterMenu() },
       ],
     });
   }

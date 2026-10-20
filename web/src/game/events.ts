@@ -3,6 +3,7 @@ import { RunState, addItems, addCard, saveRun, removeCard, runRng, saveRng } fro
 import { PIECES, PieceId, isCursed } from '../core/pieces';
 import { RULES, shopPrice } from '../core/rules';
 import { draft3, RewardOption } from '../core/rewards';
+import { t } from '../i18n';
 import { Card, Kind, SealId, SEALS, kindOf, kindsOf, canSeal, kindName } from '../core/cards';
 import { BuffId, BUFFS, buffLevel } from '../core/buffs';
 import { EventKind, sealOffers, buffOffers, curseOffers } from '../core/events';
@@ -119,8 +120,8 @@ export abstract class EventScene {
 
   protected buttons(): { label: string; cls: string; fn: () => void }[] {
     return [
-      { label: `${icon('deck')} Suas peças`, cls: 'btn dark', fn: () => this.ctx.deck() },
-      { label: 'Ir embora →', cls: 'btn', fn: () => this.leave() },
+      { label: `${icon('deck')} ${t('Suas peças')}`, cls: 'btn dark', fn: () => this.ctx.deck() },
+      { label: t('Ir embora →'), cls: 'btn', fn: () => this.leave() },
     ];
   }
 
@@ -183,7 +184,7 @@ export abstract class EventScene {
     if (!it || this.busy || this.choosing || it.sold) return;
     const why = it.why?.();
     if (why) { this.deny(it, why); return; }
-    if (this.ctx.run.gold < it.price()) { this.deny(it, 'Ouro insuficiente'); return; }
+    if (this.ctx.run.gold < it.price()) { this.deny(it, t('Ouro insuficiente')); return; }
     audio.ui('click');
     it.act();
   }
@@ -201,7 +202,7 @@ export abstract class EventScene {
   /** Cobra; devolve false se não tem ouro. */
   protected charge(price: number): boolean {
     const run = this.ctx.run;
-    if (run.gold < price) { this.deny(null, 'Ouro insuficiente'); return false; }
+    if (run.gold < price) { this.deny(null, t('Ouro insuficiente')); return false; }
     run.gold -= price;
     audio.coin(); audio.coin(1);
     this.ctx.refresh();
@@ -247,7 +248,7 @@ export abstract class EventScene {
     it.tag.classList.toggle('sold', !!it.sold);
     it.tag.classList.toggle('gone', !!it.sold && !!it.hideSold);
     it.tag.classList.toggle('cant', cant);
-    it.tag.innerHTML = `<span class="nm">${it.icon ?? ''}${it.name}</span><span class="pr">${it.sold ? 'vendido' : coin(price)}</span>`;
+    it.tag.innerHTML = `<span class="nm">${it.icon ?? ''}${it.name}</span><span class="pr">${it.sold ? t('vendido') : coin(price)}</span>`;
   }
 
   /** Ponto do mundo → pixels de tela. */
@@ -334,8 +335,8 @@ interface Offer { opt: RewardOption; price: number; stand: THREE.Group; pieces: 
 
 class ShopScene extends EventScene {
   readonly kind = 'shop' as const;
-  readonly title = 'Loja';
-  readonly subtitle = 'Peças, remédio e serviços do dono da mesa';
+  readonly title = t('Loja');
+  readonly subtitle = t('Peças, remédio e serviços do dono da mesa');
   private offers: Offer[] = [];
   private rerolls = 0;
   private candleFx: { flame: THREE.Group; light: THREE.PointLight } | null = null;
@@ -343,14 +344,14 @@ class ShopScene extends EventScene {
   private anvilTop = new THREE.Vector3();
   private anvil: THREE.Group | null = null;
 
-  protected intro() { return ['Veio fazer compras? Tudo aqui tem preço.', 'Meu estoque é pequeno. Minha paciência também.']; }
+  protected intro() { return [t('Veio fazer compras? Tudo aqui tem preço.'), t('Meu estoque é pequeno. Minha paciência também.')]; }
   protected bar() {
     return this.choosing
-      ? `<b>Bigorna</b> — escolha no leque a peça que vai ser <b>quebrada</b> (sai da sua caixa para sempre).`
-      : `<b>Loja do dono da mesa</b> — clique num item para comprar. Você tem ${coin(this.ctx.run.gold)}.`;
+      ? t('<b>Bigorna</b> — escolha no leque a peça que vai ser <b>quebrada</b> (sai da sua caixa para sempre).')
+      : t('<b>Loja do dono da mesa</b> — clique num item para comprar. Você tem {gold}.', { gold: coin(this.ctx.run.gold) });
   }
   protected buttons() {
-    if (this.choosing) return [{ label: 'Cancelar', cls: 'btn dark', fn: () => this.cancelChoose() }];
+    if (this.choosing) return [{ label: t('Cancelar'), cls: 'btn dark', fn: () => this.cancelChoose() }];
     return super.buttons();
   }
 
@@ -390,7 +391,7 @@ class ShopScene extends EventScene {
     const star = opt.items.find((it) => it.piece !== 'common') ?? opt.items[0];
     off.item = this.addItem({
       obj: stand, name: opt.label, tagY: 1.65,
-      desc: () => `${PIECES[star.piece].desc}<br><small>vai para a sua caixa de peças</small>`,
+      desc: () => `${PIECES[star.piece].desc}<br><small>${t('vai para a sua caixa de peças')}</small>`,
       price: () => off.price,
       act: () => this.buyOffer(off),
     });
@@ -404,10 +405,10 @@ class ShopScene extends EventScene {
     v.g.position.set(-4.0, 0, 2.15);
     this.group.add(v.g);
     const heal = this.addItem({
-      obj: v.g, name: 'Remédio', tagY: 0.95,
-      desc: () => `Cura ${RULES.shopHealLife} de vida (você tem ${run.life}/${run.maxLife}).`,
+      obj: v.g, name: t('Remédio'), tagY: 0.95,
+      desc: () => t('Cura {n} de vida (você tem {life}/{max}).', { n: RULES.shopHealLife, life: run.life, max: run.maxLife }),
       price: () => RULES.shopHealCost,
-      why: () => (run.life >= run.maxLife ? 'Sua vida já está cheia' : null),
+      why: () => (run.life >= run.maxLife ? t('Sua vida já está cheia') : null),
       act: async () => {
         if (!this.charge(RULES.shopHealCost)) return;
         this.busy = true;
@@ -435,10 +436,10 @@ class ShopScene extends EventScene {
     const candleLight = P.borrowLight(cd.g, '#ff8a3a', 0, 4, 1.8, new THREE.Vector3(0, 0.9, 0));
     this.candleFx = { flame: cd.flame, light: candleLight };
     const candleItem = this.addItem({
-      obj: cd.g, name: 'Vela extra', tagY: 1.05,
-      desc: () => `+1 tentativa na próxima fase.${run.extraAttemptsNext ? ` (já tem ${run.extraAttemptsNext})` : ''}`,
+      obj: cd.g, name: t('Vela extra'), tagY: 1.05,
+      desc: () => t('+1 tentativa na próxima fase.') + (run.extraAttemptsNext ? t(' (já tem {n})', { n: run.extraAttemptsNext }) : ''),
       price: () => RULES.shopAttemptCost,
-      why: () => (run.extraAttemptsNext >= RULES.shopMaxExtraAttempts ? 'Já tem velas demais para a próxima fase' : null),
+      why: () => (run.extraAttemptsNext >= RULES.shopMaxExtraAttempts ? t('Já tem velas demais para a próxima fase') : null),
       act: async () => {
         if (!this.charge(RULES.shopAttemptCost)) return;
         candleItem.sold = true; this.renderTag(candleItem);
@@ -448,7 +449,7 @@ class ShopScene extends EventScene {
         cd.flame.scale.setScalar(0.01);
         audio.whoosh();
         await this.tween(0.4, (k) => { cd.flame.scale.setScalar(Math.max(0.01, k)); this.candleFx!.light.intensity = k * 3; }, easeOutBack);
-        this.ctx.ui.toast('+1 tentativa na próxima fase', true);
+        this.ctx.ui.toast(t('+1 tentativa na próxima fase'), true);
         this.refreshBar();
       },
     });
@@ -461,11 +462,11 @@ class ShopScene extends EventScene {
     this.anvil = a.g;
     this.anvilTop.copy(a.top);
     this.addItem({
-      obj: a.g, name: 'Quebrar peça', tagY: 1.05,
-      desc: () => 'Escolha uma peça da sua caixa e ela é quebrada para sempre: caixa mais enxuta, mãos melhores.'
-        + (run.cards.some((c) => isCursed(c.type)) ? '<br><b>Quebra peças malditas também</b> (mesmo com a caixa pequena).' : ''),
+      obj: a.g, name: t('Quebrar peça'), tagY: 1.05,
+      desc: () => t('Escolha uma peça da sua caixa e ela é quebrada para sempre: caixa mais enxuta, mãos melhores.')
+        + (run.cards.some((c) => isCursed(c.type)) ? t('<br><b>Quebra peças malditas também</b> (mesmo com a caixa pequena).') : ''),
       price: () => 8,
-      why: () => (run.cards.length <= 10 && !run.cards.some((c) => isCursed(c.type)) ? 'Sua caixa já está pequena demais (mínimo 10 peças)' : null),
+      why: () => (run.cards.length <= 10 && !run.cards.some((c) => isCursed(c.type)) ? t('Sua caixa já está pequena demais (mínimo 10 peças)') : null),
       act: () => this.startChoose(),
     });
     // sininho (mercadoria nova)
@@ -473,8 +474,8 @@ class ShopScene extends EventScene {
     b.g.position.set(4.0, 0, 2.15);
     this.group.add(b.g);
     this.addItem({
-      obj: b.g, name: 'Tocar o sino', tagY: 0.65,
-      desc: () => 'Troca a mercadoria das prateleiras.',
+      obj: b.g, name: t('Tocar o sino'), tagY: 0.65,
+      desc: () => t('Troca a mercadoria das prateleiras.'),
       price: () => RULES.shopRerollBase + RULES.shopRerollStep * this.rerolls,
       act: async () => {
         if (!this.charge(RULES.shopRerollBase + RULES.shopRerollStep * this.rerolls)) return;
@@ -504,7 +505,7 @@ class ShopScene extends EventScene {
     if (!this.charge(off.price)) return;
     this.busy = true;
     if (off.item) { off.item.sold = true; this.renderTag(off.item); }
-    this.ctx.say(['Bom negócio… para mim.', 'Leve. Elas não vão durar mesmo.']);
+    this.ctx.say([t('Bom negócio… para mim.'), t('Leve. Elas não vão durar mesmo.')]);
     addItems(this.ctx.run, off.opt.items);
     saveRun(this.ctx.run);
     off.pieces.forEach((d, k) => {
@@ -513,7 +514,7 @@ class ShopScene extends EventScene {
     });
     audio.card();
     await this.wait(0.55 + off.pieces.length * 0.08);
-    this.ctx.ui.toast(`+${off.opt.label} na sua caixa`, true);
+    this.ctx.ui.toast(t('+{label} na sua caixa', { label: off.opt.label }), true);
     this.busy = false;
     this.refreshBar();
   }
@@ -595,8 +596,8 @@ class ShopScene extends EventScene {
     }, (k) => k);
     for (const s of shards) this.group.remove(s);
     await this.tween(0.3, (k) => { hammer.rotation.z = r0 - 1.55 + k * 1.55; });
-    this.ctx.ui.toast(`${kindName(kind)} quebrada — sua caixa tem ${run.cards.length} peças`, true);
-    this.ctx.say(isCursed(card.type) ? ['Quebrou meu presente? Que falta de educação.', 'Tudo bem. Eu tenho mais.'] : ['Uma a menos. Ninguém vai sentir falta.', 'Crec. Adoro esse barulho.']);
+    this.ctx.ui.toast(t('{k} quebrada — sua caixa tem {n} peças', { k: kindName(kind), n: run.cards.length }), true);
+    this.ctx.say(isCursed(card.type) ? [t('Quebrou meu presente? Que falta de educação.'), t('Tudo bem. Eu tenho mais.')] : [t('Uma a menos. Ninguém vai sentir falta.'), t('Crec. Adoro esse barulho.')]);
     this.busy = false;
     this.refreshBar();
   }
@@ -614,19 +615,19 @@ class ShopScene extends EventScene {
 // =====================================================================================
 class PressScene extends EventScene {
   readonly kind = 'press' as const;
-  readonly title = 'Prensa de Selos';
-  readonly subtitle = 'Carimbe um poder numa das suas peças';
+  readonly title = t('Prensa de Selos');
+  readonly subtitle = t('Carimbe um poder numa das suas peças');
   private press!: P.Press;
   private dies: { seal: SealId; die: THREE.Group; paper: THREE.Group; item: Item }[] = [];
   private loaded: { seal: SealId; die: THREE.Group; item: Item; home: THREE.Vector3; homeParent: THREE.Object3D } | null = null;
 
-  protected intro() { return ['A prensa marca para sempre. Escolha bem.', 'Carimbo não sai. Nem com reza.']; }
+  protected intro() { return [t('A prensa marca para sempre. Escolha bem.'), t('Carimbo não sai. Nem com reza.')]; }
   protected bar() {
-    if (this.choosing && this.loaded) return `<b>${SEALS[this.loaded.seal].name}</b> — escolha no leque a peça que vai receber o selo (cada peça aguenta até 2).`;
-    return `<b>Prensa de selos</b> — escolha um carimbo. Você tem ${coin(this.ctx.run.gold)}.`;
+    if (this.choosing && this.loaded) return t('<b>{name}</b> — escolha no leque a peça que vai receber o selo (cada peça aguenta até 2).', { name: SEALS[this.loaded.seal].name });
+    return t('<b>Prensa de selos</b> — escolha um carimbo. Você tem {gold}.', { gold: coin(this.ctx.run.gold) });
   }
   protected buttons() {
-    if (this.choosing) return [{ label: 'Cancelar', cls: 'btn dark', fn: () => this.cancelChoose() }];
+    if (this.choosing) return [{ label: t('Cancelar'), cls: 'btn dark', fn: () => this.cancelChoose() }];
     return super.buttons();
   }
 
@@ -657,9 +658,9 @@ class PressScene extends EventScene {
       // o item é o par carimbo + papel (o hover levanta só o carimbo)
       const item = this.addItem({
         obj: die, name: SEALS[seal].name, icon: sealImg(seal, 'seal-ico tag'), tagY: 0.95, hideSold: true,
-        desc: () => `${SEALS[seal].desc}<br><small>escolha a peça depois de comprar · cada peça aguenta até 2 selos</small>`,
+        desc: () => `${SEALS[seal].desc}<br><small>${t('escolha a peça depois de comprar · cada peça aguenta até 2 selos')}</small>`,
         price: () => SEALS[seal].price,
-        why: () => (this.ctx.run.cards.some((c2) => canSeal(c2, seal)) ? null : 'Nenhuma peça pode receber este selo'),
+        why: () => (this.ctx.run.cards.some((c2) => canSeal(c2, seal)) ? null : t('Nenhuma peça pode receber este selo')),
         act: () => this.loadDie(seal),
       });
       item.ring!.position.set(rack.position.x + (i - 1) * 1.3, 0.03, rack.position.z);
@@ -744,7 +745,7 @@ class PressScene extends EventScene {
     this.ctx.ui.hand.chooseEnd();
     this.choosing = false;
     this.refreshBar();
-    this.ctx.ui.eventBar(`<b>${SEALS[L.seal].name}</b> — prensando…`, []);
+    this.ctx.ui.eventBar(t('<b>{name}</b> — prensando…', { name: SEALS[L.seal].name }), []);
     await this.wait(0.4);
     this.ctx.ui.hand.hide(true);
     // a peça cai deitada na mesa da prensa (de barriga para cima, olhando o cabeçote)
@@ -782,7 +783,7 @@ class PressScene extends EventScene {
     this.ctx.fx.ring(bw.x, bw.z, 1.6, ink, 0.35);
     this.ctx.fx.ring(bw.x, bw.z, 0.9, '#fff3d0', 0.22);
     this.ctx.fx.dust(bw.x, bw.z, 0.9);
-    this.ctx.fx.text(bw.x, bw.y + 1.1, bw.z, 'TUM!', 'boom', 1.1);
+    this.ctx.fx.text(bw.x, bw.y + 1.1, bw.z, t('TUM!'), 'boom', 1.1);
     if (canSeal(card, L.seal)) card.seals.push(L.seal);
     // a peça achata com a pancada (na espessura) e a prensa inteira treme
     const base = pr.g.position.clone();
@@ -822,8 +823,8 @@ class PressScene extends EventScene {
     (d.userData.rig as FaceRig).base = 'happy';
     await this.wait(0.55);
     await this.flyToBox(d);
-    this.ctx.ui.toast(`${PIECES[card.type].name} ganhou o selo ${SEALS[L.seal].name}`, true);
-    this.ctx.say(['Pronto. Agora ela é especial. Como você.', 'Marcada para sempre.']);
+    this.ctx.ui.toast(t('{piece} ganhou o selo {seal}', { piece: PIECES[card.type].name, seal: SEALS[L.seal].name }), true);
+    this.ctx.say([t('Pronto. Agora ela é especial. Como você.'), t('Marcada para sempre.')]);
     this.busy = false;
     this.refreshBar();
   }
@@ -839,14 +840,14 @@ class PressScene extends EventScene {
 // =====================================================================================
 class MysticScene extends EventScene {
   readonly kind = 'mystic' as const;
-  readonly title = 'Altar Místico';
-  readonly subtitle = 'Bênçãos que duram a run inteira';
+  readonly title = t('Altar Místico');
+  readonly subtitle = t('Bênçãos que duram a run inteira');
   private altar!: P.Altar;
   private emblems: { id: BuffId; em: THREE.Group; ped: THREE.Group; item: Item; phase: number }[] = [];
   private flash = 0;
 
-  protected intro() { return ['O altar escuta. Pague, e ele responde.', 'Bênção tem preço. Maldição sai de graça.']; }
-  protected bar() { return `<b>Altar místico</b> — escolha uma bênção para a run inteira. Você tem ${coin(this.ctx.run.gold)}.`; }
+  protected intro() { return [t('O altar escuta. Pague, e ele responde.'), t('Bênção tem preço. Maldição sai de graça.')]; }
+  protected bar() { return t('<b>Altar místico</b> — escolha uma bênção para a run inteira. Você tem {gold}.', { gold: coin(this.ctx.run.gold) }); }
 
   protected build() {
     const g = this.group;
@@ -869,7 +870,7 @@ class MysticScene extends EventScene {
       const run = this.ctx.run;
       const item = this.addItem({
         obj: ped, name: BUFFS[id].name, icon: buffImg(id, 'buff-ico tag'), tagY: 2.15, hideSold: true,
-        desc: () => `${BUFFS[id].desc}${BUFFS[id].max > 1 ? `<br><small>você tem ${buffLevel(run.buffs, id)}/${BUFFS[id].max}</small>` : ''}`,
+        desc: () => `${BUFFS[id].desc}${BUFFS[id].max > 1 ? `<br><small>${t('você tem {n}/{max}', { n: buffLevel(run.buffs, id), max: BUFFS[id].max })}</small>` : ''}`,
         price: () => BUFFS[id].price,
         act: () => this.bless(id),
       });
@@ -914,9 +915,9 @@ class MysticScene extends EventScene {
     saveRun(run);
     this.ctx.refresh();
     this.removeItem(e.item);
-    this.ctx.ui.toast(`Bênção: ${BUFFS[id].name} — ${BUFFS[id].desc}`, true);
+    this.ctx.ui.toast(t('Bênção: {name} — {desc}', { name: BUFFS[id].name, desc: BUFFS[id].desc }), true);
     await this.wait(0.6);
-    this.ctx.say(['Ele aceitou. Por enquanto.', 'Agora você deve um favor ao altar.']);
+    this.ctx.say([t('Ele aceitou. Por enquanto.'), t('Agora você deve um favor ao altar.')]);
     this.busy = false;
     this.refreshBar();
   }
@@ -948,16 +949,16 @@ class MysticScene extends EventScene {
 // =====================================================================================
 class CurseScene extends EventScene {
   readonly kind = 'curse' as const;
-  readonly title = 'Presente do Dono';
-  readonly subtitle = 'Um presentinho que você não pode recusar';
+  readonly title = t('Presente do Dono');
+  readonly subtitle = t('Um presentinho que você não pode recusar');
   private gifts: { type: PieceId; ped: THREE.Group; d: THREE.Mesh; item: Item; chain: THREE.LineSegments; phase: number }[] = [];
   private flames: THREE.Group[] = [];
   private light: THREE.PointLight | null = null;
   private nextChat = 3;
 
-  protected intro() { return ['Trouxe um presentinho. Você não pode recusar.', 'Escolha. As duas querem muito ir com você.']; }
-  protected bar() { return `<b>Presente do Dono</b> — escolha <b>uma</b> peça maldita: ela vai para a sua caixa. Enquanto estiver na mão, a <b>Nova mão</b> fica travada até você colocá-la na mesa.`; }
-  protected buttons() { return [{ label: `${icon('deck')} Suas peças`, cls: 'btn dark', fn: () => this.ctx.deck() }]; }
+  protected intro() { return [t('Trouxe um presentinho. Você não pode recusar.'), t('Escolha. As duas querem muito ir com você.')]; }
+  protected bar() { return t('<b>Presente do Dono</b> — escolha <b>uma</b> peça maldita: ela vai para a sua caixa. Enquanto estiver na mão, a <b>Nova mão</b> fica travada até você colocá-la na mesa.'); }
+  protected buttons() { return [{ label: `${icon('deck')} ${t('Suas peças')}`, cls: 'btn dark', fn: () => this.ctx.deck() }]; }
 
   protected build() {
     const g = this.group;
@@ -995,7 +996,7 @@ class CurseScene extends EventScene {
       const item = this.addItem({
         obj: ped, name: PIECES[type].name, tagY: 2.3, hideSold: true,
         icon: '☠ ',
-        desc: () => `${PIECES[type].desc}<br><small>de graça — e não tem volta (só quebrando na bigorna da Loja)</small>`,
+        desc: () => `${PIECES[type].desc}<br><small>${t('de graça — e não tem volta (só quebrando na bigorna da Loja)')}</small>`,
         price: () => 0,
         act: () => this.take(type),
       });
@@ -1006,7 +1007,7 @@ class CurseScene extends EventScene {
   protected renderTag(it: Item) {
     super.renderTag(it);
     const pr = it.tag?.querySelector('.pr');
-    if (pr && !it.sold) pr.textContent = 'grátis';
+    if (pr && !it.sold) pr.textContent = t('grátis');
   }
 
   private async take(type: PieceId) {
@@ -1039,8 +1040,8 @@ class CurseScene extends EventScene {
     this.ctx.fx.sparkBurst(w.x, w.y, w.z, 24, '#9dff5a', 2);
     audio.card();
     await this.flyToBox(d);
-    this.ctx.ui.toast(`${PIECES[type].name} (maldita) entrou na sua caixa`);
-    this.ctx.say(['Cuide bem dela. Ela vai cuidar de você.', 'Hehehe. Boa escolha… para mim.'], true);
+    this.ctx.ui.toast(t('{piece} (maldita) entrou na sua caixa', { piece: PIECES[type].name }));
+    this.ctx.say([t('Cuide bem dela. Ela vai cuidar de você.'), t('Hehehe. Boa escolha… para mim.')], true);
     await this.wait(1.6);
     this.busy = false;
     this.leave();

@@ -1,3 +1,5 @@
+import { localize } from '../i18n';
+
 // Bênçãos do altar místico: permanentes, valem para a run inteira.
 export type BuffId = 'bighand' | 'breath' | 'vigor' | 'greed' | 'seer' | 'recycle';
 
@@ -20,6 +22,7 @@ export const BUFFS: Record<BuffId, BuffDef> = {
   seer: { id: 'seer', name: 'Vidente', desc: 'A caixa mostra qual é a próxima peça.', price: 28, max: 1, color: '#b98cff' },
   recycle: { id: 'recycle', name: 'Reciclagem', desc: 'A primeira Nova mão de cada tentativa devolve as sobras para a caixa, em vez de descartar.', price: 36, max: 1, color: '#7ee0a0' },
 };
+for (const b of Object.values(BUFFS)) localize(b, ['name', 'desc']);
 export const BUFF_ORDER: BuffId[] = ['bighand', 'breath', 'vigor', 'greed', 'seer', 'recycle'];
 
 export type Buffs = Partial<Record<BuffId, number>>;

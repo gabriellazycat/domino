@@ -7,8 +7,10 @@ import '@fontsource/nunito/900.css';
 import './style.css';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { Game } from './game/game';
+import { t, applyDocLang } from './i18n';
 
 async function boot() {
+  applyDocLang();
   await RAPIER.init();
   const canvas = document.getElementById('gl') as HTMLCanvasElement;
   const game = new Game(canvas);
@@ -21,5 +23,5 @@ async function boot() {
 boot().catch((e) => {
   console.error(e);
   const sub = document.querySelector('.boot-sub');
-  if (sub) sub.textContent = 'Erro ao iniciar: ' + (e?.message ?? e);
+  if (sub) sub.textContent = t('Erro ao iniciar: ') + (e?.message ?? e);
 });

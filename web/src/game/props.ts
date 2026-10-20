@@ -4,6 +4,7 @@ import { SealId, SEAL_ORDER } from '../core/cards';
 import { BuffId, BUFFS } from '../core/buffs';
 import { makeDomino, glow } from './models';
 import { sealAtlas } from './sigils';
+import { t } from '../i18n';
 import { woodTexture, stoneTexture, softDot } from './textures';
 
 // Objetos 3D dos eventos entre as fases (tudo procedural, no clima da mesa): a bancada da LOJA,
@@ -259,7 +260,7 @@ export function press(): Press {
   }
   // travessa de cima com plaqueta
   mesh(box(2.1, 0.42, 0.56, 0.08), M.ironDark(), g, 0, 2.98, 0);
-  const pl = plate('PRENSA', 0.9, 0.2);
+  const pl = plate(t('PRENSA'), 0.9, 0.2);
   pl.position.set(0, 2.98, 0.285);
   g.add(pl);
   // fuso com "rosca" e volante no topo

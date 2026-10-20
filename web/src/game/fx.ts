@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { softDot } from './textures';
+import { t } from '../i18n';
 
 // Efeitos: lascas/confete (instanced), faíscas que brilham (bloom), fumaça, ondas de choque,
 // textos de impacto em DOM (estilo gibi) e flash de tela.
@@ -289,7 +290,7 @@ export class Fx {
 
   private recentPops: { x: number; y: number; t: number; big: boolean }[] = [];
 
-  knockWord(): string { return WORDS_KNOCK[Math.floor(Math.random() * WORDS_KNOCK.length)]; }
+  knockWord(): string { return t(WORDS_KNOCK[Math.floor(Math.random() * WORDS_KNOCK.length)]); }
 
   update(dt: number) {
     this.chips.update(dt);

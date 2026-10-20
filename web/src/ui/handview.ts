@@ -4,6 +4,7 @@ import type { HandEntry } from '../core/layout';
 import { audio } from '../game/audio';
 import { sealImg } from '../game/sigils';
 import { icon } from './icons';
+import { t } from '../i18n';
 
 // A mão: os dominós ficam seguros em LEQUE (como cartas na mão), saindo da borda de baixo da tela;
 // a CAIXA de peças (o baralho) fica à esquerda e o DESCARTE (um retângulo pontilhado) à direita.
@@ -72,6 +73,15 @@ export class HandView {
   private bowlEl = div('store bowl hit');
   private nextEl = div('next-chip');
   private handLbl = div('hand-lbl');
+  private relabels: (() => void)[] = [];
+  /** Reaplica os textos fixos (troca de idioma). */
+  private setLabels() {
+    this.boxEl.querySelector('.lbl')!.textContent = t('Caixa');
+    this.bowlEl.querySelector('.lbl')!.textContent = t('Descarte');
+    for (const f of this.relabels) f();
+    delete this.nextEl.dataset.k;
+  }
+  relabel() { this.setLabels(); this.decorate(); this.renderStores(); }
   private newBtn: HTMLButtonElement;
   private editRow = div('pile-actions');
   private pieces: Piece[] = [];
@@ -108,13 +118,13 @@ export class HandView {
   private lookRaf = 0;
 
   constructor(private cb: HandViewCallbacks) {
-    this.boxEl.innerHTML = `<div class="n">0</div><div class="lbl">Caixa</div>`;
-    this.bowlEl.innerHTML = `<div class="n">0</div><div class="lbl">Descarte</div>`;
+    this.boxEl.innerHTML = `<div class="n">0</div><div class="lbl"></div>`;
+    this.bowlEl.innerHTML = `<div class="n">0</div><div class="lbl"></div>`;
     this.root.append(this.boxEl, this.bowlEl, this.nextEl);
     this.boxEl.addEventListener('pointerdown', (e) => { e.stopPropagation(); audio.unlock(); audio.ui('click'); cb.deck(); });
     this.boxEl.addEventListener('mouseenter', () => { audio.ui('hover'); cb.tip(this.boxTip()); });
     this.boxEl.addEventListener('mouseleave', () => cb.tip(null));
-    this.bowlEl.addEventListener('mouseenter', () => cb.tip(`<b>Descarte · ${this.discardReal}</b>Peças que você deixou de lado nesta tentativa. Só voltam para a caixa se a fase recomeçar.`));
+    this.bowlEl.addEventListener('mouseenter', () => cb.tip(t('<b>Descarte · {n}</b>Peças que você deixou de lado nesta tentativa. Só voltam para a caixa se a fase recomeçar.', { n: this.discardReal })));
     this.bowlEl.addEventListener('mouseleave', () => cb.tip(null));
 
     const b = document.createElement('button');
@@ -123,19 +133,19 @@ export class HandView {
     b.addEventListener('mouseenter', () => { audio.ui('hover'); this.doomed = this.drawReal > 0 && !this.newBtn.classList.contains('cursed'); this.decorate(); });
     b.addEventListener('mouseleave', () => { this.doomed = false; this.decorate(); });
     this.newBtn = b;
-    const small = (html: string, title: string, fn: () => void) => {
+    const small = (html: () => string, title: () => string, fn: () => void) => {
       const e = document.createElement('button');
       e.className = 'btn dark small';
-      e.innerHTML = html;
-      e.title = title;
+      this.relabels.push(() => { e.innerHTML = html(); e.title = title(); });
       e.addEventListener('click', (ev) => { ev.stopPropagation(); audio.unlock(); fn(); });
       e.addEventListener('mouseenter', () => audio.ui('hover'));
       return e;
     };
     this.editRow.append(
-      small(`${icon('undo')} Desfazer`, 'Desfaz o último traço (Ctrl+Z)', () => cb.undo()),
-      small(`${icon('clear')} Limpar`, 'Devolve à mão as peças colocadas com esta mão (R)', () => cb.clear()),
+      small(() => `${icon('undo')} ${t('Desfazer')}`, () => t('Desfaz o último traço (Ctrl+Z)'), () => cb.undo()),
+      small(() => `${icon('clear')} ${t('Limpar')}`, () => t('Devolve à mão as peças colocadas com esta mão (R)'), () => cb.clear()),
     );
+    this.setLabels();
     this.root.append(b, this.editRow, this.handLbl);
 
     window.addEventListener('resize', () => { this.measure(); this.layout(); });
@@ -517,7 +527,7 @@ export class HandView {
   private tipFor(p: Piece): string {
     const d = PIECES[p.card.type];
     const seals = p.card.seals.map((s) => `<div class="tip-seal">${sealImg(s)}<span><b>${SEALS[s].name}</b> ${SEALS[s].desc}</span></div>`).join('');
-    const left = p.card.seals.includes('double') && this.labels.size === 0 ? `<small>${p.left} de 2 restante${p.left === 1 ? '' : 's'}</small>` : '';
+    const left = p.card.seals.includes('double') && this.labels.size === 0 ? `<small>${t(p.left === 1 ? '{n} de 2 restante' : '{n} de 2 restantes', { n: p.left })}</small>` : '';
     return `<b>${d.name}</b>${d.desc}${seals}${left}`;
   }
 
@@ -648,13 +658,13 @@ export class HandView {
     this.newBtn.disabled = this.drawReal === 0;
     this.newBtn.classList.toggle('cursed', cursed && this.drawReal > 0);
     this.newBtn.innerHTML = this.drawReal === 0
-      ? `Caixa vazia`
-      : cursed ? `<span class="l1">🔒 Nova mão</span><small>jogue a maldita</small>`
-      : `<span class="l1">⟳ Nova mão<span class="kbd">N</span></span><small>${inHand - kept ? `descarta ${inHand - kept} · ` : ''}pega ${buy}</small>`;
+      ? t('Caixa vazia')
+      : cursed ? `<span class="l1">🔒 ${t('Nova mão')}</span><small>${t('jogue a maldita')}</small>`
+      : `<span class="l1">⟳ ${t('Nova mão')}<span class="kbd">N</span></span><small>${inHand - kept ? `${t('descarta {n}', { n: inHand - kept })} · ` : ''}${t('pega {n}', { n: buy })}</small>`;
     this.handLbl.classList.toggle('done', inHand === 0 && this.drawReal === 0);
     // com o leque a mão já se conta sozinha; o letreiro só aparece quando ela esvazia
     this.handLbl.classList.toggle('on', inHand === 0 && !this.root.classList.contains('choose'));
-    this.handLbl.innerHTML = this.drawReal ? 'Mão vazia' : 'Acabaram as peças — <b>dispare!</b>';
+    this.handLbl.innerHTML = this.drawReal ? t('Mão vazia') : t('Acabaram as peças — <b>dispare!</b>');
     // bênção Vidente: a próxima peça da caixa
     const nx = this.next;
     this.nextEl.classList.toggle('on', !!nx);
@@ -662,13 +672,13 @@ export class HandView {
       const key = `${nx.uid}`;
       if (this.nextEl.dataset.k !== key) {
         this.nextEl.dataset.k = key;
-        this.nextEl.innerHTML = `<span>próxima</span><b>${PIECES[nx.type].name}</b>${nx.seals.map((s) => sealImg(s, 'seal-ico sm')).join('')}`;
+        this.nextEl.innerHTML = `<span>${t('próxima')}</span><b>${PIECES[nx.type].name}</b>${nx.seals.map((s) => sealImg(s, 'seal-ico sm')).join('')}`;
       }
     }
   }
 
   private boxTip(): string {
     const parts = PIECE_ORDER.filter((k) => this.drawComp[k] > 0).map((k) => `${this.drawComp[k]} ${this.drawComp[k] === 1 ? PIECES[k].name : PIECES[k].plural}`);
-    return `<b>Caixa · ${this.drawReal} ${this.drawReal === 1 ? 'peça' : 'peças'}</b>${parts.length ? `${parts.join(', ')}. Você pega sem olhar.` : 'Vazia: use o que está na mão e dispare.'}<br><small>clique para ver todas as suas peças</small>`;
+    return `<b>${t('Caixa · {n} {w}', { n: this.drawReal, w: this.drawReal === 1 ? t('peça') : t('peças') })}</b>${parts.length ? t('{list}. Você pega sem olhar.', { list: parts.join(', ') }) : t('Vazia: use o que está na mão e dispare.')}<br><small>${t('clique para ver todas as suas peças')}</small>`;
   }
 }

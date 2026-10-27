@@ -435,7 +435,7 @@ export class UI {
     m.append(this.btn(t('Como jogar'), 'btn dark', on.howto), this.btn(t('Opções'), 'btn dark', on.options));
     // versão desktop (Electron/Steam): precisa de um jeito de fechar o jogo
     if (navigator.userAgent.includes('Electron')) m.append(this.btn(t('Sair do jogo'), 'btn red', () => window.close()));
-    s.append(m, h('div', 'menu-foot', t('DOMINOTION — ideia original do Gamonga · remake web (Three.js + Rapier) · todo visual e som gerados por código')));
+    s.append(m, h('div', 'menu-foot', t('Dominotion - original idea by gamonga')));
   }
 
   showHowTo(back: () => void) {

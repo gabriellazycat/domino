@@ -1,0 +1,1384 @@
+{
+  "ok": false,
+  "strict": false,
+  "browserSkipped": false,
+  "lint": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 36,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "composition_file_too_large",
+        "severity": "warning",
+        "message": "This HTML composition file has 485 lines. Smaller sub-compositions are easier to read, iterate on, and diff.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Split coherent scenes or layers into separate .html files under compositions/, then mount them from the parent with data-composition-src so each file stays small enough to inspect, revise, and validate independently."
+      },
+      {
+        "code": "timeline_track_too_dense",
+        "severity": "warning",
+        "message": "Track 1 has 4 timed elements in this HTML file. Smaller sub-compositions keep timelines easier to read, iterate on, and diff.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move coherent scene groups into separate .html files under compositions/ and mount them from the parent with data-composition-src so the timeline stays easier to inspect, revise, and validate."
+      },
+      {
+        "code": "timeline_track_too_dense",
+        "severity": "warning",
+        "message": "Track 4 has 12 timed elements in this HTML file. Smaller sub-compositions keep timelines easier to read, iterate on, and diff.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move coherent scene groups into separate .html files under compositions/ and mount them from the parent with data-composition-src so the timeline stays easier to inspect, revise, and validate."
+      },
+      {
+        "code": "timeline_track_too_dense",
+        "severity": "warning",
+        "message": "Track 6 has 5 timed elements in this HTML file. Smaller sub-compositions keep timelines easier to read, iterate on, and diff.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move coherent scene groups into separate .html files under compositions/ and mount them from the parent with data-composition-src so the timeline stays easier to inspect, revise, and validate."
+      },
+      {
+        "code": "timeline_track_too_dense",
+        "severity": "warning",
+        "message": "Track 5 has 6 timed elements in this HTML file. Smaller sub-compositions keep timelines easier to read, iterate on, and diff.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move coherent scene groups into separate .html files under compositions/ and mount them from the parent with data-composition-src so the timeline stays easier to inspect, revise, and validate."
+      },
+      {
+        "code": "negative_z_index",
+        "severity": "warning",
+        "message": "`z-index: -1` paints the element behind its nearest stacking context's own content. With no stacking-context ancestor that context is the composition root itself, so an opaque background there hides it entirely: in the DOM, laid out, and absent from the picture. A transparent root leaves it visible. Siblings at `z-index: 0` or above are unaffected.",
+        "selector": ".pcard::before",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Give the element's parent a stacking context - `isolation: isolate` is the cheapest, and `transform`, `filter`, `opacity` below 1, `contain: paint` and `will-change` all work too. The negative-z child then paints above that parent's background and renders normally. Or express paint order through DOM order - an earlier sibling paints behind a later one - and raise the elements that should sit in front rather than lowering this one."
+      },
+      {
+        "code": "negative_z_index",
+        "severity": "warning",
+        "message": "`z-index: -1` paints the element behind its nearest stacking context's own content. With no stacking-context ancestor that context is the composition root itself, so an opaque background there hides it entirely: in the DOM, laid out, and absent from the picture. A transparent root leaves it visible. Siblings at `z-index: 0` or above are unaffected.",
+        "selector": ".ecard::before",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Give the element's parent a stacking context - `isolation: isolate` is the cheapest, and `transform`, `filter`, `opacity` below 1, `contain: paint` and `will-change` all work too. The negative-z child then paints above that parent's background and renders normally. Or express paint order through DOM order - an earlier sibling paints behind a later one - and raise the elements that should sit in front rather than lowering this one."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"f-trifork\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#f-trifork",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"f-trifork\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"f-hopper\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#f-hopper",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"f-hopper\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"f-rocket\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#f-rocket",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"f-rocket\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"f-blast\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#f-blast",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"f-blast\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"cap-hook\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#cap-hook",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"cap-hook\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"kaboom\"> is a timeline element that contains nested <div id=\"kab\">. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#kaboom",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"kaboom\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"ow-sweep\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#ow-sweep",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"ow-sweep\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"title\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#title",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"title\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"cap-plan\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#cap-plan",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"cap-plan\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"cap-push\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#cap-push",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"cap-push\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"cap-topple\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#cap-topple",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"cap-topple\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"hd-trick\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#hd-trick",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"hd-trick\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"card-trifork\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#card-trifork",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"card-trifork\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"card-hopper\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#card-hopper",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"card-hopper\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"card-rocket\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#card-rocket",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"card-rocket\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"card-blast\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#card-blast",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"card-blast\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"hd-fight\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#hd-fight",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"hd-fight\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"card-ogre\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#card-ogre",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"card-ogre\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"card-general\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#card-general",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"card-general\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"ev-shop\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#ev-shop",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"ev-shop\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"ow-shop\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#ow-shop",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"ow-shop\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"ev-press\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#ev-press",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"ev-press\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"ow-press\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#ow-press",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"ow-press\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"ev-altar\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#ev-altar",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"ev-altar\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"ow-altar\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#ow-altar",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"ow-altar\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"ev-gift\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#ev-gift",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"ev-gift\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"ow-gift\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#ow-gift",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"ow-gift\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"tag\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#tag",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"tag\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"endcard\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#endcard",
+        "dataAttributes": {},
+        "sourceFile": "C:\\Users\\gabri\\Desktop\\domino\\marketing 4\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"endcard\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      }
+    ],
+    "filesScanned": 1
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "layout": {
+    "ok": false,
+    "errorCount": 10,
+    "warningCount": 0,
+    "infoCount": 5,
+    "findings": [
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 58.556,
+        "selector": "#t3-0 > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 228.5,
+          "top": 388.53,
+          "right": 374.72,
+          "bottom": 569.04,
+          "width": 146.22,
+          "height": 180.51
+        },
+        "containerSelector": "#t3-0 > div:nth-of-type(2) > div:nth-of-type(2) > b:nth-of-type(1)",
+        "text": "D",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 228.5,
+          "y": 388.53,
+          "width": 146.22,
+          "height": 180.51
+        },
+        "firstSeen": 55.073,
+        "lastSeen": 62,
+        "occurrences": 22,
+        "heldMs": 6927,
+        "times": [
+          55.073,
+          55.419,
+          55.765,
+          56.112,
+          56.458,
+          56.804,
+          57.151,
+          57.497,
+          57.844,
+          58.19,
+          58.536,
+          58.556,
+          58.883,
+          59.229,
+          59.575,
+          59.922,
+          60.268,
+          60.615,
+          60.961,
+          61.307,
+          61.654,
+          62
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 58.556,
+        "selector": "#t3-1 > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 375.86,
+          "top": 388.53,
+          "right": 519.32,
+          "bottom": 569.04,
+          "width": 143.46,
+          "height": 180.51
+        },
+        "containerSelector": "#t3-1 > div:nth-of-type(2) > div:nth-of-type(2) > b:nth-of-type(1)",
+        "text": "O",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 375.86,
+          "y": 388.53,
+          "width": 143.46,
+          "height": 180.51
+        },
+        "firstSeen": 55.073,
+        "lastSeen": 62,
+        "occurrences": 21,
+        "heldMs": 6927,
+        "times": [
+          55.073,
+          55.419,
+          55.765,
+          56.458,
+          56.804,
+          57.151,
+          57.497,
+          57.844,
+          58.19,
+          58.536,
+          58.556,
+          58.883,
+          59.229,
+          59.575,
+          59.922,
+          60.268,
+          60.615,
+          60.961,
+          61.307,
+          61.654,
+          62
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 58.556,
+        "selector": "#t3-2 > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 522.2,
+          "top": 388.53,
+          "right": 675.44,
+          "bottom": 569.04,
+          "width": 153.24,
+          "height": 180.51
+        },
+        "containerSelector": "#t3-2 > div:nth-of-type(2) > div:nth-of-type(2) > b:nth-of-type(1)",
+        "text": "M",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 522.2,
+          "y": 388.53,
+          "width": 153.24,
+          "height": 180.51
+        },
+        "firstSeen": 55.073,
+        "lastSeen": 62,
+        "occurrences": 22,
+        "heldMs": 6927,
+        "times": [
+          55.073,
+          55.419,
+          55.765,
+          56.112,
+          56.458,
+          56.804,
+          57.151,
+          57.497,
+          57.844,
+          58.19,
+          58.536,
+          58.556,
+          58.883,
+          59.229,
+          59.575,
+          59.922,
+          60.268,
+          60.615,
+          60.961,
+          61.307,
+          61.654,
+          62
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 58.556,
+        "selector": "#t3-3 > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 704.05,
+          "top": 388.53,
+          "right": 776.48,
+          "bottom": 569.04,
+          "width": 72.43,
+          "height": 180.51
+        },
+        "containerSelector": "#t3-3 > div:nth-of-type(2) > div:nth-of-type(2) > b:nth-of-type(1)",
+        "text": "I",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 704.05,
+          "y": 388.53,
+          "width": 72.43,
+          "height": 180.51
+        },
+        "firstSeen": 55.073,
+        "lastSeen": 62,
+        "occurrences": 22,
+        "heldMs": 6927,
+        "times": [
+          55.073,
+          55.419,
+          55.765,
+          56.112,
+          56.458,
+          56.804,
+          57.151,
+          57.497,
+          57.844,
+          58.19,
+          58.536,
+          58.556,
+          58.883,
+          59.229,
+          59.575,
+          59.922,
+          60.268,
+          60.615,
+          60.961,
+          61.307,
+          61.654,
+          62
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 58.556,
+        "selector": "#t3-4 > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 821.01,
+          "top": 388.53,
+          "right": 950.17,
+          "bottom": 569.04,
+          "width": 129.16,
+          "height": 180.51
+        },
+        "containerSelector": "#t3-4 > div:nth-of-type(2) > div:nth-of-type(2) > b:nth-of-type(1)",
+        "text": "N",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 821.01,
+          "y": 388.53,
+          "width": 129.16,
+          "height": 180.51
+        },
+        "firstSeen": 55.073,
+        "lastSeen": 62,
+        "occurrences": 22,
+        "heldMs": 6927,
+        "times": [
+          55.073,
+          55.419,
+          55.765,
+          56.112,
+          56.458,
+          56.804,
+          57.151,
+          57.497,
+          57.844,
+          58.19,
+          58.536,
+          58.556,
+          58.883,
+          59.229,
+          59.575,
+          59.922,
+          60.268,
+          60.615,
+          60.961,
+          61.307,
+          61.654,
+          62
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 58.556,
+        "selector": "#t3-5 > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 972.3,
+          "top": 388.53,
+          "right": 1096.39,
+          "bottom": 569.04,
+          "width": 124.09,
+          "height": 180.51
+        },
+        "containerSelector": "#t3-5 > div:nth-of-type(2) > div:nth-of-type(2) > b:nth-of-type(1)",
+        "text": "O",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 972.3,
+          "y": 388.53,
+          "width": 124.09,
+          "height": 180.51
+        },
+        "firstSeen": 55.073,
+        "lastSeen": 62,
+        "occurrences": 22,
+        "heldMs": 6927,
+        "times": [
+          55.073,
+          55.419,
+          55.765,
+          56.112,
+          56.458,
+          56.804,
+          57.151,
+          57.497,
+          57.844,
+          58.19,
+          58.536,
+          58.556,
+          58.883,
+          59.229,
+          59.575,
+          59.922,
+          60.268,
+          60.615,
+          60.961,
+          61.307,
+          61.654,
+          62
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 58.556,
+        "selector": "#t3-6 > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 1122.07,
+          "top": 388.53,
+          "right": 1238.35,
+          "bottom": 569.04,
+          "width": 116.28,
+          "height": 180.51
+        },
+        "containerSelector": "#t3-6 > div:nth-of-type(2) > div:nth-of-type(2) > b:nth-of-type(1)",
+        "text": "T",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 1122.07,
+          "y": 388.53,
+          "width": 116.28,
+          "height": 180.51
+        },
+        "firstSeen": 55.073,
+        "lastSeen": 62,
+        "occurrences": 22,
+        "heldMs": 6927,
+        "times": [
+          55.073,
+          55.419,
+          55.765,
+          56.112,
+          56.458,
+          56.804,
+          57.151,
+          57.497,
+          57.844,
+          58.19,
+          58.536,
+          58.556,
+          58.883,
+          59.229,
+          59.575,
+          59.922,
+          60.268,
+          60.615,
+          60.961,
+          61.307,
+          61.654,
+          62
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 58.556,
+        "selector": "#t3-7 > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 1286.29,
+          "top": 388.53,
+          "right": 1365.18,
+          "bottom": 569.04,
+          "width": 78.89,
+          "height": 180.51
+        },
+        "containerSelector": "#t3-7 > div:nth-of-type(2) > div:nth-of-type(2) > b:nth-of-type(1)",
+        "text": "I",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 1286.29,
+          "y": 388.53,
+          "width": 78.89,
+          "height": 180.51
+        },
+        "firstSeen": 55.073,
+        "lastSeen": 62,
+        "occurrences": 22,
+        "heldMs": 6927,
+        "times": [
+          55.073,
+          55.419,
+          55.765,
+          56.112,
+          56.458,
+          56.804,
+          57.151,
+          57.497,
+          57.844,
+          58.19,
+          58.536,
+          58.556,
+          58.883,
+          59.229,
+          59.575,
+          59.922,
+          60.268,
+          60.615,
+          60.961,
+          61.307,
+          61.654,
+          62
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 58.556,
+        "selector": "#t3-8 > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 1400.68,
+          "top": 388.53,
+          "right": 1544.14,
+          "bottom": 569.04,
+          "width": 143.46,
+          "height": 180.51
+        },
+        "containerSelector": "#t3-8 > div:nth-of-type(2) > div:nth-of-type(2) > b:nth-of-type(1)",
+        "text": "O",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 1400.68,
+          "y": 388.53,
+          "width": 143.46,
+          "height": 180.51
+        },
+        "firstSeen": 55.073,
+        "lastSeen": 62,
+        "occurrences": 22,
+        "heldMs": 6927,
+        "times": [
+          55.073,
+          55.419,
+          55.765,
+          56.112,
+          56.458,
+          56.804,
+          57.151,
+          57.497,
+          57.844,
+          58.19,
+          58.536,
+          58.556,
+          58.883,
+          59.229,
+          59.575,
+          59.922,
+          60.268,
+          60.615,
+          60.961,
+          61.307,
+          61.654,
+          62
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "error",
+        "time": 58.556,
+        "selector": "#t3-9 > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 1540.98,
+          "top": 388.53,
+          "right": 1695.97,
+          "bottom": 569.04,
+          "width": 154.99,
+          "height": 180.51
+        },
+        "containerSelector": "#t3-9 > div:nth-of-type(2) > div:nth-of-type(2) > b:nth-of-type(1)",
+        "text": "N",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 1540.98,
+          "y": 388.53,
+          "width": 154.99,
+          "height": 180.51
+        },
+        "firstSeen": 55.073,
+        "lastSeen": 62,
+        "occurrences": 22,
+        "heldMs": 6927,
+        "times": [
+          55.073,
+          55.419,
+          55.765,
+          56.112,
+          56.458,
+          56.804,
+          57.151,
+          57.497,
+          57.844,
+          58.19,
+          58.536,
+          58.556,
+          58.883,
+          59.229,
+          59.575,
+          59.922,
+          60.268,
+          60.615,
+          60.961,
+          61.307,
+          61.654,
+          62
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "info",
+        "time": 6.235,
+        "selector": "div.logo.txt > b:nth-of-type(2)",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 265.83,
+          "top": 336.39,
+          "right": 480.28,
+          "bottom": 609.37,
+          "width": 214.45,
+          "height": 272.98
+        },
+        "containerSelector": "div.logo.txt > b:nth-of-type(3)",
+        "text": "O",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 265.83,
+          "y": 336.39,
+          "width": 214.45,
+          "height": 272.98
+        },
+        "firstSeen": 6.235,
+        "lastSeen": 6.235,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          6.235
+        ]
+      },
+      {
+        "code": "content_overlap",
+        "severity": "info",
+        "time": 6.235,
+        "selector": "div.logo.txt > b:nth-of-type(3)",
+        "message": "Two text blocks overlap and may render unreadable.",
+        "rect": {
+          "left": 423.15,
+          "top": 344.85,
+          "right": 692.23,
+          "bottom": 603.83,
+          "width": 269.08,
+          "height": 258.98
+        },
+        "containerSelector": "div.logo.txt > b:nth-of-type(4)",
+        "text": "M",
+        "fixHint": "Give each block its own zone, or put data-layout-allow-overlap on the text or on a container inside the scene. A marker on the scene root does not apply.",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 423.15,
+          "y": 344.85,
+          "width": 269.08,
+          "height": 258.98
+        },
+        "firstSeen": 6.235,
+        "lastSeen": 6.235,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          6.235
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 24.111,
+        "selector": "#f-hopper > svg:nth-of-type(1) > circle:nth-of-type(1)",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": 1378,
+          "top": -22,
+          "right": 1772,
+          "bottom": 372,
+          "width": 394,
+          "height": 394
+        },
+        "containerSelector": "#f-hopper > svg:nth-of-type(1)",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1920,
+          "bottom": 1080,
+          "width": 1920,
+          "height": 1080
+        },
+        "overflow": {
+          "top": 22
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 1378,
+          "y": -22,
+          "width": 394,
+          "height": 394
+        },
+        "firstSeen": 24.111,
+        "lastSeen": 24.111,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          24.111
+        ]
+      },
+      {
+        "code": "text_box_overflow",
+        "severity": "info",
+        "time": 58.556,
+        "selector": "#t3-2 > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Text extends outside its nearest visual/container box.",
+        "rect": {
+          "left": 522.2,
+          "top": 388.53,
+          "right": 675.44,
+          "bottom": 569.04,
+          "width": 153.24,
+          "height": 180.51
+        },
+        "containerSelector": "#t3-2 > div:nth-of-type(1)",
+        "text": "M",
+        "fixHint": "Text is 153px x 181px inside 155px x 237px and overflows by up to 4px; widen the container to at least ~159px, or allow wrapping with max-width/fitTextFontSize.",
+        "containerRect": {
+          "left": 516,
+          "top": 353.4,
+          "right": 671.27,
+          "bottom": 590,
+          "width": 155.27,
+          "height": 236.6
+        },
+        "overflow": {
+          "right": 4.17
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 522.2,
+          "y": 388.53,
+          "width": 153.24,
+          "height": 180.51
+        },
+        "firstSeen": 58.556,
+        "lastSeen": 58.556,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          58.556
+        ]
+      },
+      {
+        "code": "text_occluded",
+        "severity": "info",
+        "time": 58.556,
+        "selector": "#t3-2 > div:nth-of-type(1) > span:nth-of-type(1)",
+        "message": "Text is hidden beneath an opaque element.",
+        "rect": {
+          "left": 522.2,
+          "top": 388.53,
+          "right": 675.44,
+          "bottom": 569.04,
+          "width": 153.24,
+          "height": 180.51
+        },
+        "containerSelector": "#t3-3 > div:nth-of-type(1)",
+        "text": "M",
+        "fixHint": "Give the text its own zone, raise its stacking order above the covering element, or mark intentional layering with data-layout-allow-occlusion.",
+        "coveredFraction": 0.04,
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 522.2,
+          "y": 388.53,
+          "width": 153.24,
+          "height": 180.51
+        },
+        "firstSeen": 58.556,
+        "lastSeen": 58.556,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          58.556
+        ]
+      }
+    ],
+    "duration": 62,
+    "samples": [
+      3.444,
+      10.333,
+      17.222,
+      24.111,
+      31,
+      37.889,
+      44.778,
+      51.667,
+      58.556
+    ],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 15,
+    "truncated": false
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "samples": [
+      3.444,
+      17.222,
+      31,
+      44.778,
+      58.556
+    ],
+    "checked": 74,
+    "passed": 74
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": false,
+    "files": [],
+    "times": [],
+    "findingFiles": []
+  }
+}

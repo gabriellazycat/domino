@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Bungee&family=Luckiest+Guy&display=block" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#000;overflow:hidden}svg{display:block}</style>
+</head>
+<body>
+<svg id="art" xmlns="http://www.w3.org/2000/svg"></svg>
+<script type="module">
+import { SCENES } from './scenes.js';
+const q = new URLSearchParams(location.search);
+const W = +q.get('w') || 1232, H = +q.get('h') || 706;
+const svg = document.getElementById('art');
+// vw/vh: tamanho virtual do desenho (viewBox); W/H: pixels de saída
+const VW = +q.get('vw') || W, VH = +q.get('vh') || H;
+svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${VW} ${VH}`);
+await Promise.all(['Lilita One', 'Bungee', 'Luckiest Guy'].map((f) => document.fonts.load(`100px "${f}"`)));
+await document.fonts.ready;
+SCENES[q.get('scene')](svg, VW, VH, q);
+if (q.get('mask') === 'ink') {
+  // máscara do traço: o que é tinta (INK) vira preto, todo o resto branco (usada por fx.js)
+  const isInk = (c) => c.replace(/\s/g, '') === 'rgb(28,15,30)';
+  const els = [...svg.querySelectorAll('path,rect,circle,ellipse,line,polygon,polyline,text,tspan')].filter((e) => !e.closest('defs'));
+  const st = els.map((e) => { const cs = getComputedStyle(e); return [e, cs.fill, cs.stroke]; });
+  for (const [e, f, s] of st) {
+    // camadas de tela cheia (fundo, vinheta, grão, retícula) e gradientes não tapam nada
+    const bb = e.tagName === 'rect' && e.getBBox(), full = bb && bb.width * bb.height > VW * VH * 0.5;
+    e.style.fill = isInk(f) ? '#000' : f === 'none' || f.startsWith('url') || full ? 'none' : '#fff';
+    e.style.stroke = isInk(s) ? '#000' : s === 'none' ? 'none' : '#fff';
+  }
+  svg.querySelectorAll('[filter],[opacity]').forEach((e) => { e.removeAttribute('filter'); });
+  svg.querySelectorAll('[opacity]').forEach((e) => { if (!e.querySelector('*') && !isInk(getComputedStyle(e).fill) && !isInk(getComputedStyle(e).stroke)) e.remove(); });
+  svg.style.background = '#fff';
+}
+window.__done = true;
+</script>
+</body>
+</html>

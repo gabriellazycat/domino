@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>DOMINOTION — trailer v4</title>
+    <!-- gerado por web/e2e/trailer/trailer4-html.mjs — edite lá e gere de novo -->
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: Fell; src: url(assets/fonts/im-fell-english-sc-latin-400-normal.woff2) format('woff2'); font-weight: 400; font-display: block; }
+      @font-face { font-family: Pix; src: url(assets/fonts/silkscreen-latin-400-normal.woff2) format('woff2'); font-weight: 400; font-display: block; }
+      @font-face { font-family: Pix; src: url(assets/fonts/silkscreen-latin-700-normal.woff2) format('woff2'); font-weight: 700; font-display: block; }
+      @font-face { font-family: Nunito; src: url(assets/fonts/nunito-latin-600-normal.woff2) format('woff2'); font-weight: 600; font-display: block; }
+      @font-face { font-family: Nunito; src: url(assets/fonts/nunito-latin-800-normal.woff2) format('woff2'); font-weight: 800; font-display: block; }
+      @font-face { font-family: Nunito; src: url(assets/fonts/nunito-latin-900-normal.woff2) format('woff2'); font-weight: 900; font-display: block; }
+      :root {
+        --bg: #070508; --cream: #e8dcc0; --speech: #f0e4c8; --gold: #d6b25a; --gold-2: #f0d48a; --red: #a3201c; --red-2: #d6402e;
+        --line: #6a5030; --ink: #140e0a; --muted: #b8a888;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: Nunito, sans-serif; color: var(--cream); }
+      #cam { position: absolute; inset: 0; }
+      .shot { position: absolute; inset: 0; }
+      .shot video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #w-ident { filter: blur(9px) brightness(.42) saturate(.8); }
+      #w-end { filter: blur(10px) brightness(.34) saturate(.7); }
+      .still { overflow: hidden; }
+      .still .inner { position: absolute; inset: 0; }
+      .still img { width: 100%; height: 100%; display: block; }
+      .still .spot { position: absolute; inset: 0; }
+      .still .ring { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .still .ring circle { fill: none; stroke: var(--gold-2); stroke-width: 5; stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 10px rgba(240, 212, 138, .7)); }
+
+      .fill { position: absolute; inset: 0; pointer-events: none; }
+      #vig { background: radial-gradient(ellipse 75% 70% at 50% 48%, rgba(7, 5, 8, 0) 55%, rgba(7, 5, 8, .55) 100%); }
+      #warm { background: radial-gradient(ellipse 70% 45% at 50% 108%, rgba(201, 130, 42, .5), rgba(201, 130, 42, 0) 70%); opacity: 0; mix-blend-mode: screen; }
+      #flash { background: #fff4dc; opacity: 0; }
+      .lb { position: absolute; left: 0; right: 0; height: 138px; background: #000; }
+      #lb-top { top: 0; transform-origin: 50% 0%; }
+      #lb-bot { bottom: 0; transform-origin: 50% 100%; }
+
+      .txt { font-family: Fell, serif; color: var(--cream); letter-spacing: .04em; line-height: 1;
+        text-shadow: 0 .045em 0 #3a0808, 0 0 .3em rgba(0, 0, 0, .9), 0 .12em .35em rgba(0, 0, 0, .8); }
+      .w { display: inline-block; overflow: hidden; padding: .06em .02em .1em; margin: -.06em 0 -.1em; vertical-align: top; }
+      .w i { display: inline-block; font-style: normal; }
+      .scrim { position: absolute; pointer-events: none; }
+
+      /* gancho */
+      #cap-hook .line { position: absolute; left: 150px; top: 742px; font-size: 104px; }
+      #cap-hook .gold i { color: var(--gold-2); }
+      #kab { position: absolute; left: 0; right: 0; top: 330px; text-align: center; }
+      #kab span { display: inline-block; font-family: Pix; font-weight: 700; font-size: 250px; color: #ff9a3c; -webkit-text-stroke: 12px #1a0505; paint-order: stroke fill;
+        text-shadow: 0 18px 0 #1a0505, 0 0 60px rgba(255, 120, 40, .45); letter-spacing: .02em; }
+
+      /* balão do Dono (o .speech do jogo, em escala de vídeo) */
+      .owner .owner-tag { position: absolute; left: 1006px; top: 104px; font-family: Pix; font-size: 24px; letter-spacing: .22em; color: var(--gold-2);
+        text-shadow: 0 2px 0 #000, 0 0 12px rgba(0, 0, 0, .9); }
+      .owner .speech { position: absolute; left: 1000px; top: 146px; width: 760px; padding: 30px 40px 32px; font-family: Fell; font-size: 52px; line-height: 1.16;
+        color: var(--speech); background: rgba(12, 8, 6, .93); border: 4px solid var(--line); border-radius: 26px 26px 26px 5px;
+        box-shadow: 0 12px 0 rgba(0, 0, 0, .45), 0 28px 60px rgba(0, 0, 0, .6); }
+      .owner.lbsafe .owner-tag { top: 158px; }
+      .owner.lbsafe .speech { top: 198px; }
+      .speech b, .pname b, .ename b { font-weight: inherit; opacity: 0; }
+      .speech b.sp { opacity: 1; }
+
+      /* título */
+      #title .logo { position: absolute; left: 0; right: 0; top: 368px; text-align: center; font-size: 214px; perspective: 900px;
+        text-shadow: 0 7px 0 #4a0d0d, 0 0 50px rgba(160, 20, 20, .55), 0 14px 30px rgba(0, 0, 0, .7); }
+      #title .logo b { display: inline-block; font-weight: 400; transform-origin: 50% 90%; }
+      #title .sub { position: absolute; left: 0; right: 0; top: 628px; text-align: center; font-family: Fell; font-size: 48px; letter-spacing: .34em; color: var(--gold-2);
+        text-shadow: 0 3px 0 #2a0505, 0 0 18px rgba(0, 0, 0, .9); }
+      #title .sub-rule { position: absolute; top: 650px; width: 300px; height: 3px; background: linear-gradient(90deg, rgba(214, 178, 90, 0), var(--gold)); }
+      #title .sub-rule.l { left: 250px; }
+      #title .sub-rule.r { right: 250px; transform: scaleX(-1); }
+
+      /* passos 01-03 */
+      .step .scrim { left: 0; top: 560px; width: 1300px; height: 520px; background: radial-gradient(ellipse 60% 55% at 20% 75%, rgba(7, 5, 8, .62), rgba(7, 5, 8, 0) 75%); }
+      .step .num { position: absolute; left: 136px; top: 690px; font-family: Pix; font-size: 34px; color: var(--gold-2); letter-spacing: .12em; text-shadow: 0 3px 0 #000, 0 0 14px rgba(0, 0, 0, .9); }
+      .step .num span { color: var(--muted); }
+      .step .rule { position: absolute; left: 136px; top: 744px; width: 560px; height: 4px; background: linear-gradient(90deg, var(--gold), rgba(214, 178, 90, 0)); transform-origin: 0 50%; }
+      .step .head { position: absolute; left: 130px; top: 772px; font-size: 124px; white-space: nowrap; }
+
+      /* cabeçalhos de seção */
+      .header .hd { position: absolute; left: 130px; top: 96px; font-size: 92px; white-space: nowrap; transform-origin: 0 0; }
+
+      /* cartas das peças */
+      .pcard { position: absolute; left: 130px; top: 600px; isolation: isolate; display: flex; align-items: center; gap: 46px; }
+      .pcard::before { content: ''; position: absolute; left: -130px; top: -140px; width: 1150px; height: 560px; z-index: -1;
+        background: radial-gradient(ellipse 55% 50% at 30% 50%, rgba(7, 5, 8, .7), rgba(7, 5, 8, 0) 80%); }
+      .tile { width: 150px; height: 290px; border-radius: 18px; background: var(--c); border: 4px solid rgba(0, 0, 0, .55); display: flex; flex-direction: column; align-items: stretch;
+        box-shadow: 0 10px 0 rgba(0, 0, 0, .5), 0 24px 50px rgba(0, 0, 0, .65), inset 0 3px 0 rgba(255, 255, 255, .3), inset 0 -5px 0 rgba(0, 0, 0, .25); }
+      .tile .half { flex: 1; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; gap: 14px; padding: 18px; }
+      .tile .half s { width: 26px; height: 26px; border-radius: 50%; background: var(--p); }
+      .tile .bar { height: 6px; margin: 0 16px; border-radius: 3px; background: var(--p); opacity: .8; }
+      .ptext { display: flex; flex-direction: column; gap: 18px; }
+      .pname { font-family: Fell; font-size: 132px; line-height: .9; letter-spacing: .04em; color: var(--cream); text-shadow: 0 6px 0 #3a0808, 0 0 30px rgba(0, 0, 0, .9); white-space: nowrap; }
+      .pdesc { font-family: Nunito; font-weight: 800; font-size: 44px; color: var(--speech); text-shadow: 0 3px 0 #000, 0 0 16px rgba(0, 0, 0, .95); white-space: nowrap; }
+
+      /* inimigos */
+      .ecard { position: absolute; left: 130px; top: 610px; isolation: isolate; }
+      .ecard::before { content: ''; position: absolute; left: -130px; top: -160px; width: 1250px; height: 600px; z-index: -1;
+        background: radial-gradient(ellipse 55% 50% at 30% 55%, rgba(7, 5, 8, .72), rgba(7, 5, 8, 0) 80%); }
+      .badge { display: inline-block; font-family: Pix; font-weight: 700; font-size: 28px; letter-spacing: .2em; color: #ffe7d6; background: linear-gradient(180deg, #b3261c, #5a0c08);
+        padding: 8px 18px 6px; border-radius: 8px; border: 2px solid rgba(0, 0, 0, .55); box-shadow: 0 4px 0 rgba(0, 0, 0, .5); }
+      .ename { margin-top: 18px; font-family: Fell; font-size: 132px; line-height: .9; letter-spacing: .04em; color: var(--cream); text-shadow: 0 6px 0 #3a0808, 0 0 30px rgba(0, 0, 0, .9); white-space: nowrap; }
+      .hp { margin-top: 16px; display: flex; align-items: center; gap: 12px; }
+      .hp s { width: 30px; height: 30px; background: var(--red-2); transform: rotate(45deg); border: 3px solid #2a0505; box-shadow: 0 0 12px rgba(214, 64, 46, .6); }
+      .hp em { margin-left: 14px; font-family: Pix; font-style: normal; font-size: 30px; color: #ffb4a6; letter-spacing: .1em; text-shadow: 0 2px 0 #000; }
+      .edesc { margin-top: 18px; font-family: Nunito; font-weight: 800; font-size: 44px; color: var(--speech); text-shadow: 0 3px 0 #000, 0 0 16px rgba(0, 0, 0, .95); white-space: nowrap; }
+
+      /* eventos */
+      .evlabel .scrim { left: 0; top: 640px; width: 1100px; height: 440px; background: radial-gradient(ellipse 55% 55% at 20% 75%, rgba(7, 5, 8, .62), rgba(7, 5, 8, 0) 75%); }
+      .evlabel .kick { position: absolute; left: 136px; top: 736px; font-family: Pix; font-size: 28px; letter-spacing: .2em; color: var(--gold-2); text-shadow: 0 2px 0 #000, 0 0 12px rgba(0, 0, 0, .9); }
+      .evlabel .rule { position: absolute; left: 136px; top: 782px; width: 440px; height: 4px; background: linear-gradient(90deg, var(--gold), rgba(214, 178, 90, 0)); transform-origin: 0 50%; }
+      .evlabel .name { position: absolute; left: 130px; top: 806px; font-size: 112px; white-space: nowrap; }
+
+      /* frase final */
+      #tag .scrim { left: 0; right: 0; top: 380px; height: 520px; background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(7, 5, 8, .7), rgba(7, 5, 8, 0) 80%); }
+      #tag .l1, #tag .l2 { position: absolute; left: 0; right: 0; text-align: center; white-space: nowrap; }
+      #tag .l1 { top: 500px; font-size: 128px; }
+      #tag .l2 { top: 640px; font-size: 104px; }
+      #tag .l2 .gold i { color: var(--gold-2); }
+
+      /* tela final: fileira de dominós */
+      #endcard .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; perspective: 1700px; perspective-origin: 50% 20%; }
+      #endcard .table { position: absolute; left: 216px; top: 300px; width: 1488px; height: 250px; transform-style: preserve-3d; transform-origin: 50% 100%; }
+      .tile3 { position: absolute; top: 0; width: 138px; height: 250px; transform-style: preserve-3d; transform-origin: 50% 0%; }
+      .tile3 .face { position: absolute; inset: 0; border-radius: 16px; backface-visibility: hidden; border: 4px solid rgba(0, 0, 0, .5); }
+      .tile3 .up { background: #ebdfc6; display: grid; place-items: center; box-shadow: inset 0 3px 0 rgba(255, 255, 255, .55), inset 0 -6px 0 rgba(0, 0, 0, .18); }
+      .tile3 .up span { font-family: Fell; font-size: 138px; line-height: 1; color: #1d1a17; margin-top: 18px; }
+      .tile3 .back { background: #e6d9bd; transform: rotateX(180deg); box-shadow: inset 0 3px 0 rgba(255, 255, 255, .5), inset 0 -6px 0 rgba(0, 0, 0, .18); }
+      .tile3 .eyes { position: absolute; left: 0; right: 0; top: 64px; display: flex; justify-content: center; gap: 26px; }
+      .tile3 .eyes b { font-family: Nunito; font-weight: 900; font-size: 50px; line-height: 1; color: #1d1a17; }
+      .tile3 .eyes.scared { opacity: 0; }
+      .tile3 .mouth { position: absolute; left: 57px; top: 132px; width: 24px; height: 14px; border-radius: 0 0 14px 14px; background: #1d1a17; }
+      #endcard .eshadow { position: absolute; left: 200px; top: 520px; width: 1520px; height: 120px; background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(0, 0, 0, .55), rgba(0, 0, 0, 0) 70%); }
+      #endcard .rogue { position: absolute; left: 0; right: 0; top: 650px; text-align: center; font-family: Fell; font-size: 54px; letter-spacing: .34em; color: var(--gold-2);
+        text-shadow: 0 3px 0 #2a0505, 0 0 18px rgba(0, 0, 0, .9); }
+      #endcard .cta { position: absolute; left: 0; right: 0; top: 742px; display: flex; justify-content: center; }
+      #endcard .btn { position: relative; overflow: hidden; font-family: Fell; font-size: 56px; letter-spacing: .06em; padding: 22px 70px 18px; border-radius: 16px; color: #fff3e0;
+        background: linear-gradient(180deg, #b3261c, #5a0c08); border: 3px solid rgba(0, 0, 0, .6); text-shadow: 0 3px 0 rgba(0, 0, 0, .5);
+        box-shadow: 0 9px 0 rgba(0, 0, 0, .55), inset 0 3px 0 rgba(255, 255, 255, .22), inset 0 -5px 0 rgba(0, 0, 0, .25), 0 0 40px rgba(214, 64, 46, .35); }
+      #endcard .btn .sheen { position: absolute; top: -20px; bottom: -20px; left: 0; width: 120px; background: linear-gradient(100deg, rgba(255, 240, 210, 0), rgba(255, 240, 210, .45), rgba(255, 240, 210, 0)); }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-9o4p" id="root" data-composition-id="main" data-start="0" data-duration="62" data-width="1920" data-height="1080" data-fps="60">
+      <div data-hf-id="hf-ftaq" id="cam">
+    <div data-hf-id="hf-jbnw" class="shot" id="w-faces"><video data-hf-id="hf-74wz" id="v-faces" src="assets/shots/faces.mp4" data-start="0" data-duration="2.1" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-koe3" class="shot" id="w-kaboom"><video data-hf-id="hf-p7m0" id="v-kaboom" src="assets/shots/kaboom.mp4" data-start="2.1" data-duration="1.2" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-z3ly" class="shot" id="w-sweep"><video data-hf-id="hf-fg23" id="v-sweep" src="assets/shots/sweep.mp4" data-start="3.3" data-duration="2.7" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-lq9c" class="shot" id="w-ident"><video data-hf-id="hf-zcoc" id="v-ident" src="assets/shots/ident.mp4" data-start="6" data-duration="2" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-6wq7" class="shot" id="w-plan"><video data-hf-id="hf-c15j" id="v-plan" src="assets/shots/plan.mp4" data-start="8" data-duration="3" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-ki8i" class="shot" id="w-build"><video data-hf-id="hf-g3s4" id="v-build" src="assets/shots/build.mp4" data-start="11" data-duration="1.5" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-l1x6" class="shot" id="w-push"><video data-hf-id="hf-1alo" id="v-push" src="assets/shots/push.mp4" data-start="12.5" data-duration="1.5" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-ehpp" class="shot" id="w-wave"><video data-hf-id="hf-cqfm" id="v-wave" src="assets/shots/wave.mp4" data-start="14" data-duration="4.5" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-2jr3" class="shot" id="w-trick"><video data-hf-id="hf-gjhu" id="v-trick" src="assets/shots/trick.mp4" data-start="18.5" data-duration="1.5" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-z7e1" class="shot" id="w-trifork"><video data-hf-id="hf-l1no" id="v-trifork" src="assets/shots/trifork.mp4" data-start="20" data-duration="0.4" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-lm7e" class="clip still" id="f-trifork" data-start="20.4" data-duration="1.6" data-track-index="1">
+      <div data-hf-id="hf-88qg" class="inner" style="transform-origin:1250px 470px"><img data-hf-id="hf-fzwk" src="assets/stills/trifork.jpg" alt="" /></div>
+      <div data-hf-id="hf-156p" class="spot" style="background:radial-gradient(circle at 1250px 470px, rgba(7,5,8,0) 230px, rgba(7,5,8,.66) 490px)"></div>
+      <svg data-hf-id="hf-8i3w" class="ring" viewBox="0 0 1920 1080" data-layout-allow-overflow><circle data-hf-id="hf-wk7d" cx="1250" cy="470" r="212" pathLength="1" /></svg>
+    </div>
+    <div data-hf-id="hf-20gc" class="shot" id="w-hopper"><video data-hf-id="hf-irdt" id="v-hopper" src="assets/shots/hopper.mp4" data-start="22" data-duration="0.7" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-3ct0" class="clip still" id="f-hopper" data-start="22.7" data-duration="1.8" data-track-index="1">
+      <div data-hf-id="hf-sgu4" class="inner" style="transform-origin:1575px 175px"><img data-hf-id="hf-uzud" src="assets/stills/hopper.jpg" alt="" /></div>
+      <div data-hf-id="hf-0nfz" class="spot" style="background:radial-gradient(circle at 1575px 175px, rgba(7,5,8,0) 215px, rgba(7,5,8,.66) 475px)"></div>
+      <svg data-hf-id="hf-qres" class="ring" viewBox="0 0 1920 1080" data-layout-allow-overflow><circle data-hf-id="hf-q8vb" cx="1575" cy="175" r="197" pathLength="1" /></svg>
+    </div>
+    <div data-hf-id="hf-yyey" class="shot" id="w-rocket"><video data-hf-id="hf-sz3n" id="v-rocket" src="assets/shots/rocket.mp4" data-start="24.5" data-duration="0.8" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-usna" class="clip still" id="f-rocket" data-start="25.3" data-duration="1.7" data-track-index="1">
+      <div data-hf-id="hf-0j0u" class="inner" style="transform-origin:1640px 400px"><img data-hf-id="hf-fvdj" src="assets/stills/rocket.jpg" alt="" /></div>
+      <div data-hf-id="hf-7vhd" class="spot" style="background:radial-gradient(circle at 1640px 400px, rgba(7,5,8,0) 200px, rgba(7,5,8,.66) 460px)"></div>
+      <svg data-hf-id="hf-pkhp" class="ring" viewBox="0 0 1920 1080" data-layout-allow-overflow><circle data-hf-id="hf-jl79" cx="1640" cy="400" r="182" pathLength="1" /></svg>
+    </div>
+    <div data-hf-id="hf-84lg" class="shot" id="w-blast"><video data-hf-id="hf-p6gz" id="v-blast" src="assets/shots/blast.mp4" data-start="27" data-duration="0.4" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-dyj0" class="clip still" id="f-blast" data-start="27.4" data-duration="1.6" data-track-index="1">
+      <div data-hf-id="hf-rbnx" class="inner" style="transform-origin:1560px 235px"><img data-hf-id="hf-rbrt" src="assets/stills/blast.jpg" alt="" /></div>
+      <div data-hf-id="hf-eo47" class="spot" style="background:radial-gradient(circle at 1560px 235px, rgba(7,5,8,0) 245px, rgba(7,5,8,.66) 505px)"></div>
+      <svg data-hf-id="hf-pysq" class="ring" viewBox="0 0 1920 1080" data-layout-allow-overflow><circle data-hf-id="hf-e8d2" cx="1560" cy="235" r="227" pathLength="1" /></svg>
+    </div>
+    <div data-hf-id="hf-qcuf" class="shot" id="w-boom"><video data-hf-id="hf-rbjf" id="v-boom" src="assets/shots/boom.mp4" data-start="29" data-duration="1.5" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-9l1b" class="shot" id="w-ogre"><video data-hf-id="hf-typ7" id="v-ogre" src="assets/shots/ogre.mp4" data-start="30.5" data-duration="3" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-b1j6" class="shot" id="w-general"><video data-hf-id="hf-5l0w" id="v-general" src="assets/shots/general.mp4" data-start="33.5" data-duration="2.5" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-jjt2" class="shot" id="w-shop"><video data-hf-id="hf-c2c0" id="v-shop" src="assets/shots/shop.mp4" data-start="36" data-duration="3" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-mblz" class="shot" id="w-press"><video data-hf-id="hf-t4xr" id="v-press" src="assets/shots/press.mp4" data-start="39" data-duration="3" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-gpni" class="shot" id="w-altar"><video data-hf-id="hf-8h0d" id="v-altar" src="assets/shots/altar.mp4" data-start="42" data-duration="3" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-nu2k" class="shot" id="w-gift"><video data-hf-id="hf-9in6" id="v-gift" src="assets/shots/gift.mp4" data-start="45" data-duration="3" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-thda" class="shot" id="w-c1"><video data-hf-id="hf-b1za" id="v-c1" src="assets/shots/c1.mp4" data-start="48" data-duration="1.5" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-pj99" class="shot" id="w-c2"><video data-hf-id="hf-fcae" id="v-c2" src="assets/shots/c2.mp4" data-start="49.5" data-duration="1.5" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-orlg" class="shot" id="w-c3"><video data-hf-id="hf-0za0" id="v-c3" src="assets/shots/c3.mp4" data-start="51" data-duration="1.5" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-c92z" class="shot" id="w-c4"><video data-hf-id="hf-hvg1" id="v-c4" src="assets/shots/c4.mp4" data-start="52.5" data-duration="2.5" data-track-index="0" data-has-audio="true" playsinline></video></div>
+    <div data-hf-id="hf-dxgp" class="shot" id="w-end"><video data-hf-id="hf-ccj5" id="v-end" src="assets/shots/end.mp4" data-start="55" data-duration="7" data-track-index="0" data-has-audio="true" playsinline></video></div>
+      </div>
+      <div data-hf-id="hf-ij5a" id="warm" class="fill"></div>
+      <div data-hf-id="hf-x7rd" id="vig" class="fill"></div>
+
+      <!-- 1-2 gancho -->
+      <div data-hf-id="hf-0eb9" class="clip" id="cap-hook" data-start="0" data-duration="2.1" data-track-index="4">
+        <div data-hf-id="hf-30ke" class="line txt"><span data-hf-id="hf-fr20" class="w"><i data-hf-id="hf-z71e">THEY</i></span> <span data-hf-id="hf-xths" class="w"><i data-hf-id="hf-gzdz">KNOW</i></span> <span data-hf-id="hf-b5tr" class="gold"><span data-hf-id="hf-wmkp" class="w"><i data-hf-id="hf-fqeg">WHAT'S</i></span> <span data-hf-id="hf-x0vq" class="w"><i data-hf-id="hf-kaz7">COMING.</i></span></span></div>
+      </div>
+      <div data-hf-id="hf-q2ko" class="clip" id="kaboom" data-start="2.5" data-duration="0.8" data-track-index="4"><div data-hf-id="hf-ucud" id="kab"><span data-hf-id="hf-tqex">KABOOM!</span></div></div>
+      
+    <div data-hf-id="hf-1qkf" class="clip owner lbsafe" id="ow-sweep" data-start="3.55" data-duration="2.43" data-track-index="6">
+      <div data-hf-id="hf-w8m4" class="owner-tag">THE TABLE'S OWNER</div>
+      <div data-hf-id="hf-k3ka" class="speech"><b data-hf-id="hf-2nzo">Y</b><b data-hf-id="hf-mjb2">o</b><b data-hf-id="hf-k5gw">u</b><b data-hf-id="hf-a5eg" class="sp"> </b><b data-hf-id="hf-nbx4">m</b><b data-hf-id="hf-ox58">a</b><b data-hf-id="hf-q42b">d</b><b data-hf-id="hf-qidc">e</b><b data-hf-id="hf-ub74" class="sp"> </b><b data-hf-id="hf-lqp0">i</b><b data-hf-id="hf-jr5v">t</b><b data-hf-id="hf-t4a1" class="sp"> </b><b data-hf-id="hf-gl37">t</b><b data-hf-id="hf-lcdz">h</b><b data-hf-id="hf-n38c">i</b><b data-hf-id="hf-hrmq">s</b><b data-hf-id="hf-til2" class="sp"> </b><b data-hf-id="hf-pbg9">f</b><b data-hf-id="hf-93ok">a</b><b data-hf-id="hf-hdbp">r</b><b data-hf-id="hf-wpe9">.</b><b data-hf-id="hf-sbnz" class="sp"> </b><b data-hf-id="hf-71cz">T</b><b data-hf-id="hf-6luq">o</b><b data-hf-id="hf-705r">o</b><b data-hf-id="hf-spz0" class="sp"> </b><b data-hf-id="hf-nq85">b</b><b data-hf-id="hf-7wrh">a</b><b data-hf-id="hf-pz03">d</b><b data-hf-id="hf-fwud">.</b></div>
+    </div>
+
+      <!-- 4 título -->
+      <div data-hf-id="hf-zugy" class="clip" id="title" data-start="6" data-duration="2" data-track-index="4">
+        <div data-hf-id="hf-p7wd" class="logo txt" data-layout-allow-overlap><b data-hf-id="hf-de9f">D</b><b data-hf-id="hf-9ti6">O</b><b data-hf-id="hf-am48">M</b><b data-hf-id="hf-90w4">I</b><b data-hf-id="hf-9f75">N</b><b data-hf-id="hf-zs02">O</b><b data-hf-id="hf-w6ub">T</b><b data-hf-id="hf-v4l8">I</b><b data-hf-id="hf-06b3">O</b><b data-hf-id="hf-7vhh">N</b></div>
+        <div data-hf-id="hf-su5p" class="sub-rule l"></div><div data-hf-id="hf-tabu" class="sub">A DOMINO ROGUELIKE</div><div data-hf-id="hf-o4dv" class="sub-rule r"></div>
+      </div>
+
+      <!-- 5-8 como se joga -->
+      
+    <div data-hf-id="hf-rein" class="clip step" id="cap-plan" data-start="8.15" data-duration="2.83" data-track-index="4">
+      <div data-hf-id="hf-rokj" class="num">01<span data-hf-id="hf-mfiz"> / 03</span></div>
+      <div data-hf-id="hf-a46i" class="rule"></div>
+      <div data-hf-id="hf-m4se" class="head txt"><span data-hf-id="hf-vtyn" class="w"><i data-hf-id="hf-g49b">PLAN</i></span> <span data-hf-id="hf-w89o" class="w"><i data-hf-id="hf-n4en">THE</i></span> <span data-hf-id="hf-v1cl" class="w"><i data-hf-id="hf-4tjl">CHAIN.</i></span></div>
+    </div>
+      
+    <div data-hf-id="hf-b0qk" class="clip step" id="cap-push" data-start="12.52" data-duration="1.46" data-track-index="4">
+      <div data-hf-id="hf-ra9i" class="num">02<span data-hf-id="hf-vjvf"> / 03</span></div>
+      <div data-hf-id="hf-ya9a" class="rule"></div>
+      <div data-hf-id="hf-ynxe" class="head txt"><span data-hf-id="hf-vfnm" class="w"><i data-hf-id="hf-ygmg">PUSH</i></span> <span data-hf-id="hf-u8qj" class="w"><i data-hf-id="hf-qy2o">ONE</i></span> <span data-hf-id="hf-un1k" class="w"><i data-hf-id="hf-04r4">PIECE.</i></span></div>
+    </div>
+      
+    <div data-hf-id="hf-o69m" class="clip step" id="cap-topple" data-start="14" data-duration="4.4" data-track-index="4">
+      <div data-hf-id="hf-qvyh" class="num">03<span data-hf-id="hf-v5ke"> / 03</span></div>
+      <div data-hf-id="hf-yokb" class="rule"></div>
+      <div data-hf-id="hf-z28f" class="head txt"><span data-hf-id="hf-ikf4" class="w"><i data-hf-id="hf-qfua">TOPPLE</i></span> <span data-hf-id="hf-i643" class="w"><i data-hf-id="hf-4krd">EVERYTHING.</i></span></div>
+    </div>
+
+      <!-- 9-13 peças -->
+      
+    <div data-hf-id="hf-wyk1" class="clip header" id="hd-trick" data-start="18.58" data-duration="11.9" data-track-index="3">
+      <div data-hf-id="hf-pupw" class="hd txt"><span data-hf-id="hf-hrt2" class="w"><i data-hf-id="hf-4iz3">EVERY</i></span> <span data-hf-id="hf-hdi1" class="w"><i data-hf-id="hf-ee8u">PIECE</i></span> <span data-hf-id="hf-gz70" class="w"><i data-hf-id="hf-qrx8">HAS</i></span> <span data-hf-id="hf-gkvz" class="w"><i data-hf-id="hf-wjt3">A</i></span> <span data-hf-id="hf-g6ky" class="w"><i data-hf-id="hf-pcdb">TRICK.</i></span></div>
+    </div>
+      
+    <div data-hf-id="hf-pxqj" class="clip pcard-clip" id="card-trifork" data-start="20.4" data-duration="1.6" data-track-index="5">
+      <div data-hf-id="hf-vrmq" class="pcard">
+        <div data-hf-id="hf-nvje" class="tile" style="--c:#d6457a;--p:#2a0a16"><div data-hf-id="hf-pkd7" class="half"><s data-hf-id="hf-dljm"></s><s data-hf-id="hf-tzme"></s><s data-hf-id="hf-udxf"></s></div><div data-hf-id="hf-ufsv" class="bar"></div><div data-hf-id="hf-c8m3" class="half"><s data-hf-id="hf-us8g"></s><s data-hf-id="hf-s039"></s><s data-hf-id="hf-seea"></s></div></div>
+        <div data-hf-id="hf-cpcd" class="ptext"><div data-hf-id="hf-91ex" class="pname"><b data-hf-id="hf-vsja">T</b><b data-hf-id="hf-4nit">R</b><b data-hf-id="hf-txo5">I</b><b data-hf-id="hf-xwbc">-</b><b data-hf-id="hf-clnd">F</b><b data-hf-id="hf-0km4">O</b><b data-hf-id="hf-sc3t">R</b><b data-hf-id="hf-88a2">K</b></div><div data-hf-id="hf-1c26" class="pdesc">The chain splits in three!</div></div>
+      </div>
+    </div>
+    <div data-hf-id="hf-islt" class="clip pcard-clip" id="card-hopper" data-start="22.7" data-duration="1.8" data-track-index="5">
+      <div data-hf-id="hf-jds6" class="pcard">
+        <div data-hf-id="hf-kv1v" class="tile" style="--c:#4fae5c;--p:#0f2412"><div data-hf-id="hf-bub2" class="half"><s data-hf-id="hf-sspb"></s></div><div data-hf-id="hf-c51b" class="bar"></div><div data-hf-id="hf-bg01" class="half"><s data-hf-id="hf-t70c"></s><s data-hf-id="hf-qev5"></s></div></div>
+        <div data-hf-id="hf-hjsx" class="ptext"><div data-hf-id="hf-nsrh" class="pname"><b data-hf-id="hf-8ml3">H</b><b data-hf-id="hf-0yx5">O</b><b data-hf-id="hf-5g4v">P</b><b data-hf-id="hf-p3in">P</b><b data-hf-id="hf-dskg">E</b><b data-hf-id="hf-tj0w">R</b></div><div data-hf-id="hf-h6dl" class="pdesc">Leaps over walls.</div></div>
+      </div>
+    </div>
+    <div data-hf-id="hf-myon" class="clip pcard-clip" id="card-rocket" data-start="25.3" data-duration="1.7" data-track-index="5">
+      <div data-hf-id="hf-js37" class="pcard">
+        <div data-hf-id="hf-wgb5" class="tile" style="--c:#f2c14e;--p:#3a2a12"><div data-hf-id="hf-b1p0" class="half"><s data-hf-id="hf-qt66"></s><s data-hf-id="hf-2xci"></s></div><div data-hf-id="hf-bqqa" class="bar"></div><div data-hf-id="hf-andz" class="half"><s data-hf-id="hf-2j1h"></s></div></div>
+        <div data-hf-id="hf-iqq0" class="ptext"><div data-hf-id="hf-ozok" class="pname"><b data-hf-id="hf-t4pv">R</b><b data-hf-id="hf-1d86">O</b><b data-hf-id="hf-beqa">C</b><b data-hf-id="hf-1vhq">K</b><b data-hf-id="hf-6lzs">E</b><b data-hf-id="hf-ve89">T</b></div><div data-hf-id="hf-vg5c" class="pdesc">Runs over anyone in line.</div></div>
+      </div>
+    </div>
+    <div data-hf-id="hf-gapp" class="clip pcard-clip" id="card-blast" data-start="27.4" data-duration="2.05" data-track-index="5">
+      <div data-hf-id="hf-k6e8" class="pcard">
+        <div data-hf-id="hf-wbhx" class="tile" style="--c:#e5493a;--p:#ffe9b0"><div data-hf-id="hf-a92y" class="half"><s data-hf-id="hf-3pyk"></s><s data-hf-id="hf-3bnj"></s><s data-hf-id="hf-4ikm"></s></div><div data-hf-id="hf-bcf9" class="bar"></div><div data-hf-id="hf-9urx" class="half"><s data-hf-id="hf-449l"></s><s data-hf-id="hf-5b6o"></s></div></div>
+        <div data-hf-id="hf-icez" class="ptext"><div data-hf-id="hf-oldj" class="pname"><b data-hf-id="hf-b0f9">B</b><b data-hf-id="hf-a7t7">L</b><b data-hf-id="hf-c7cc">A</b><b data-hf-id="hf-51tu">S</b><b data-hf-id="hf-uzx8">T</b></div><div data-hf-id="hf-01gb" class="pdesc">Knocks down everything around!</div></div>
+      </div>
+    </div>
+
+      <!-- 14-15 inimigos -->
+      
+    <div data-hf-id="hf-ck5k" class="clip header" id="hd-fight" data-start="30.55" data-duration="5.43" data-track-index="3">
+      <div data-hf-id="hf-j7r0" class="hd txt"><span data-hf-id="hf-fs9x" class="w"><i data-hf-id="hf-1j5y">THEY</i></span> <span data-hf-id="hf-fdyw" class="w"><i data-hf-id="hf-n61m">FIGHT</i></span> <span data-hf-id="hf-eznv" class="w"><i data-hf-id="hf-k397">BACK.</i></span></div>
+    </div>
+      
+    <div data-hf-id="hf-5w03" class="clip ecard-clip" id="card-ogre" data-start="31" data-duration="2.48" data-track-index="5">
+      <div data-hf-id="hf-5cb7" class="ecard">
+        <div data-hf-id="hf-f4m7" class="badge">ENEMY</div>
+        <div data-hf-id="hf-qwmc" class="ename"><b data-hf-id="hf-1rj7">O</b><b data-hf-id="hf-czye">G</b><b data-hf-id="hf-r56q">R</b><b data-hf-id="hf-5f2p">E</b></div>
+        <div data-hf-id="hf-y6pk" class="hp"><s data-hf-id="hf-4wvn"></s><s data-hf-id="hf-zqwa"></s><s data-hf-id="hf-zcl9"></s><em data-hf-id="hf-xfwe">3 hits</em></div>
+        <div data-hf-id="hf-dkdc" class="edesc">Topples like a giant domino.</div>
+      </div>
+    </div>
+      
+    <div data-hf-id="hf-uhr1" class="clip ecard-clip" id="card-general" data-start="33.7" data-duration="2.28" data-track-index="5">
+      <div data-hf-id="hf-rw8j" class="ecard">
+        <div data-hf-id="hf-nivk" class="badge">BOSS</div>
+        <div data-hf-id="hf-uq8s" class="ename"><b data-hf-id="hf-ulm7">T</b><b data-hf-id="hf-s6s7">H</b><b data-hf-id="hf-5tdq">E</b><b data-hf-id="hf-rj1x" class="sp"> </b><b data-hf-id="hf-uz9m">G</b><b data-hf-id="hf-4mgn">E</b><b data-hf-id="hf-92ek">N</b><b data-hf-id="hf-50ro">E</b><b data-hf-id="hf-qqvp">R</b><b data-hf-id="hf-kngk">A</b><b data-hf-id="hf-e5bf">L</b></div>
+        <div data-hf-id="hf-7sr4" class="hp"><s data-hf-id="hf-25op"></s><s data-hf-id="hf-2jzq"></s><s data-hf-id="hf-2yar"></s><s data-hf-id="hf-3cls"></s><em data-hf-id="hf-k27x">4 hits</em></div>
+        <div data-hf-id="hf-ze3h" class="edesc">A boss every 5 stages.</div>
+      </div>
+    </div>
+
+      <!-- 16-19 o Dono -->
+      
+      <div data-hf-id="hf-ctcl" class="clip evlabel" id="ev-shop" data-start="36.1" data-duration="2.88" data-track-index="4">
+        <div data-hf-id="hf-261e" class="scrim"></div><div data-hf-id="hf-rgz5" class="kick">BETWEEN STAGES</div><div data-hf-id="hf-z2vc" class="rule"></div><div data-hf-id="hf-f7k9" class="name txt"><span data-hf-id="hf-606z" class="w"><i data-hf-id="hf-rvww">SHOP</i></span></div>
+      </div>
+    <div data-hf-id="hf-nwaq" class="clip owner" id="ow-shop" data-start="36.3" data-duration="2.68" data-track-index="6">
+      <div data-hf-id="hf-gb6c" class="owner-tag">THE TABLE'S OWNER</div>
+      <div data-hf-id="hf-pccu" class="speech"><b data-hf-id="hf-lqja">C</b><b data-hf-id="hf-7egs">o</b><b data-hf-id="hf-zuy8">m</b><b data-hf-id="hf-c514">e</b><b data-hf-id="hf-rxcy" class="sp"> </b><b data-hf-id="hf-g6s6">t</b><b data-hf-id="hf-7srt">o</b><b data-hf-id="hf-qqfv" class="sp"> </b><b data-hf-id="hf-4b9i">s</b><b data-hf-id="hf-32lz">h</b><b data-hf-id="hf-872u">o</b><b data-hf-id="hf-i5xr">p</b><b data-hf-id="hf-qqsu">?</b><b data-hf-id="hf-r4qw" class="sp"> </b><b data-hf-id="hf-3tul">E</b><b data-hf-id="hf-iyjt">v</b><b data-hf-id="hf-ay41">e</b><b data-hf-id="hf-37xl">r</b><b data-hf-id="hf-fdsk">y</b><b data-hf-id="hf-fsh5">t</b><b data-hf-id="hf-2oay">h</b><b data-hf-id="hf-lwb9">i</b><b data-hf-id="hf-m501">n</b><b data-hf-id="hf-ppra">g</b><b data-hf-id="hf-21og" class="sp"> </b><b data-hf-id="hf-29zx">h</b><b data-hf-id="hf-bcf2">e</b><b data-hf-id="hf-4euo">r</b><b data-hf-id="hf-a5hz">e</b><b data-hf-id="hf-1ndf" class="sp"> </b><b data-hf-id="hf-5254">h</b><b data-hf-id="hf-8b2i">a</b><b data-hf-id="hf-4pkj">s</b><b data-hf-id="hf-192e" class="sp"> </b><b data-hf-id="hf-aaln">a</b><b data-hf-id="hf-0urd" class="sp"> </b><b data-hf-id="hf-umjz">p</b><b data-hf-id="hf-40jn">r</b><b data-hf-id="hf-mama">i</b><b data-hf-id="hf-o4j6">c</b><b data-hf-id="hf-ajt0">e</b><b data-hf-id="hf-h3rg">.</b></div>
+    </div>
+      <div data-hf-id="hf-okbj" class="clip evlabel" id="ev-press" data-start="39.1" data-duration="2.88" data-track-index="4">
+        <div data-hf-id="hf-9weu" class="scrim"></div><div data-hf-id="hf-c811" class="kick">BETWEEN STAGES</div><div data-hf-id="hf-waq5" class="rule"></div><div data-hf-id="hf-obul" class="name txt"><span data-hf-id="hf-6ei0" class="w"><i data-hf-id="hf-vkqt">SEAL</i></span> <span data-hf-id="hf-57kx" class="w"><i data-hf-id="hf-4ohv">PRESS</i></span></div>
+      </div>
+    <div data-hf-id="hf-t87q" class="clip owner" id="ow-press" data-start="39.3" data-duration="2.68" data-track-index="6">
+      
+      <div data-hf-id="hf-pqnv" class="speech"><b data-hf-id="hf-u7b6">T</b><b data-hf-id="hf-4nu3">h</b><b data-hf-id="hf-9cvx">e</b><b data-hf-id="hf-0ggc" class="sp"> </b><b data-hf-id="hf-u88y">p</b><b data-hf-id="hf-210i">r</b><b data-hf-id="hf-9r6y">e</b><b data-hf-id="hf-53vk">s</b><b data-hf-id="hf-2bqd">s</b><b data-hf-id="hf-025b" class="sp"> </b><b data-hf-id="hf-yo15">m</b><b data-hf-id="hf-aowo">a</b><b data-hf-id="hf-1mph">r</b><b data-hf-id="hf-ky2y">k</b><b data-hf-id="hf-2q1e">s</b><b data-hf-id="hf-znua" class="sp"> </b><b data-hf-id="hf-lukt">f</b><b data-hf-id="hf-8ldv">o</b><b data-hf-id="hf-2tmk">r</b><b data-hf-id="hf-ex6b">e</b><b data-hf-id="hf-cgnx">v</b><b data-hf-id="hf-fbhc">e</b><b data-hf-id="hf-2fbj">r</b><b data-hf-id="hf-gpgf">.</b><b data-hf-id="hf-z9j9" class="sp"> </b><b data-hf-id="hf-m4ub">C</b><b data-hf-id="hf-49j2">h</b><b data-hf-id="hf-8zow">o</b><b data-hf-id="hf-313h">o</b><b data-hf-id="hf-34cf">s</b><b data-hf-id="hf-cd3s">e</b><b data-hf-id="hf-yv88" class="sp"> </b><b data-hf-id="hf-jcuu">w</b><b data-hf-id="hf-bysr">e</b><b data-hf-id="hf-mxm3">l</b><b data-hf-id="hf-a5xn">l</b><b data-hf-id="hf-hwdi">.</b></div>
+    </div>
+      <div data-hf-id="hf-d0p0" class="clip evlabel" id="ev-altar" data-start="42.1" data-duration="2.88" data-track-index="4">
+        <div data-hf-id="hf-aapv" class="scrim"></div><div data-hf-id="hf-dey4" class="kick">BETWEEN STAGES</div><div data-hf-id="hf-wp16" class="rule"></div><div data-hf-id="hf-piro" class="name txt"><span data-hf-id="hf-5lvy" class="w"><i data-hf-id="hf-lznd">MYSTIC</i></span> <span data-hf-id="hf-4eyv" class="w"><i data-hf-id="hf-4vug">ALTAR</i></span></div>
+      </div>
+    <div data-hf-id="hf-tykh" class="clip owner" id="ow-altar" data-start="42.3" data-duration="2.68" data-track-index="6">
+      
+      <div data-hf-id="hf-q4yw" class="speech"><b data-hf-id="hf-tt05">T</b><b data-hf-id="hf-3v81">h</b><b data-hf-id="hf-bkhq">e</b><b data-hf-id="hf-ygx7" class="sp"> </b><b data-hf-id="hf-9hzl">a</b><b data-hf-id="hf-9rmm">l</b><b data-hf-id="hf-fe64">t</b><b data-hf-id="hf-9wam">a</b><b data-hf-id="hf-0fse">r</b><b data-hf-id="hf-phgb" class="sp"> </b><b data-hf-id="hf-9dbl">l</b><b data-hf-id="hf-oa5f">i</b><b data-hf-id="hf-3ing">s</b><b data-hf-id="hf-ezv3">t</b><b data-hf-id="hf-b66p">e</b><b data-hf-id="hf-s9qd">n</b><b data-hf-id="hf-0qi9">s</b><b data-hf-id="hf-hi2h">.</b><b data-hf-id="hf-pvrc" class="sp"> </b><b data-hf-id="hf-op7m">P</b><b data-hf-id="hf-bvtr">a</b><b data-hf-id="hf-4ii4">y</b><b data-hf-id="hf-xi0b">,</b><b data-hf-id="hf-oou9" class="sp"> </b><b data-hf-id="hf-ca4s">a</b><b data-hf-id="hf-tgng">n</b><b data-hf-id="hf-pkp2">d</b><b data-hf-id="hf-p35a" class="sp"> </b><b data-hf-id="hf-oogg">i</b><b data-hf-id="hf-elk2">t</b><b data-hf-id="hf-nw87" class="sp"> </b><b data-hf-id="hf-fge4">a</b><b data-hf-id="hf-t2cf">n</b><b data-hf-id="hf-14ta">s</b><b data-hf-id="hf-4d6i">w</b><b data-hf-id="hf-arvo">e</b><b data-hf-id="hf-01hd">r</b><b data-hf-id="hf-vf2a">s</b><b data-hf-id="hf-iozk">.</b></div>
+    </div>
+      <div data-hf-id="hf-cmqh" class="clip evlabel" id="ev-gift" data-start="45.1" data-duration="2.88" data-track-index="4">
+        <div data-hf-id="hf-ap0w" class="scrim"></div><div data-hf-id="hf-d0n3" class="kick">BETWEEN STAGES</div><div data-hf-id="hf-x3c7" class="rule"></div><div data-hf-id="hf-p4gn" class="name txt"><span data-hf-id="hf-4t9w" class="w"><i data-hf-id="hf-q36d">OWNER'S</i></span> <span data-hf-id="hf-3mct" class="w"><i data-hf-id="hf-to5m">GIFT</i></span></div>
+      </div>
+    <div data-hf-id="hf-dhqm" class="clip owner" id="ow-gift" data-start="45.3" data-duration="2.68" data-track-index="6">
+      
+      <div data-hf-id="hf-nctp" class="speech"><b data-hf-id="hf-tu0p">B</b><b data-hf-id="hf-eye3">r</b><b data-hf-id="hf-3fei">o</b><b data-hf-id="hf-fzwo">u</b><b data-hf-id="hf-mxwq">g</b><b data-hf-id="hf-6nd8">h</b><b data-hf-id="hf-e791">t</b><b data-hf-id="hf-oaj8" class="sp"> </b><b data-hf-id="hf-3bl1">y</b><b data-hf-id="hf-bo7q">o</b><b data-hf-id="hf-eszl">u</b><b data-hf-id="hf-n3m5" class="sp"> </b><b data-hf-id="hf-f233">a</b><b data-hf-id="hf-nhx6" class="sp"> </b><b data-hf-id="hf-8z0k">l</b><b data-hf-id="hf-nhjd">i</b><b data-hf-id="hf-dsy0">t</b><b data-hf-id="hf-demz">t</b><b data-hf-id="hf-8kpj">l</b><b data-hf-id="hf-adkn">e</b><b data-hf-id="hf-snwj" class="sp"> </b><b data-hf-id="hf-nc7r">g</b><b data-hf-id="hf-nvue">i</b><b data-hf-id="hf-n1hw">f</b><b data-hf-id="hf-fqfd">t</b><b data-hf-id="hf-iaoj">.</b><b data-hf-id="hf-t27k" class="sp"> </b><b data-hf-id="hf-uxho">Y</b><b data-hf-id="hf-b9wp">o</b><b data-hf-id="hf-f7am">u</b><b data-hf-id="hf-opsi" class="sp"> </b><b data-hf-id="hf-dp6e">c</b><b data-hf-id="hf-ens2">a</b><b data-hf-id="hf-u99i">n</b><b data-hf-id="hf-0a5i">'</b><b data-hf-id="hf-g4qe">t</b><b data-hf-id="hf-obhh" class="sp"> </b><b data-hf-id="hf-fcp4">r</b><b data-hf-id="hf-9z9m">e</b><b data-hf-id="hf-mn6v">f</b><b data-hf-id="hf-e0dj">u</b><b data-hf-id="hf-v0r9">s</b><b data-hf-id="hf-9kyl">e</b><b data-hf-id="hf-92q2">.</b></div>
+    </div>
+
+      <!-- 20-23 clímax -->
+      <div data-hf-id="hf-tzmi" class="clip" id="tag" data-start="52.55" data-duration="2.43" data-track-index="4">
+        <div data-hf-id="hf-7wvp" class="scrim"></div>
+        <div data-hf-id="hf-vflh" class="l1 txt"><span data-hf-id="hf-40nu" class="w"><i data-hf-id="hf-unp2">TOPPLE</i></span> <span data-hf-id="hf-96n7" class="w"><i data-hf-id="hf-755y">THEM</i></span></div>
+        <div data-hf-id="hf-nl4m" class="l2 txt"><span data-hf-id="hf-9ky8" class="w"><i data-hf-id="hf-iv5z">BEFORE</i></span> <span data-hf-id="hf-k3qq" class="w"><i data-hf-id="hf-1xgz">THEY</i></span> <span data-hf-id="hf-9jr3" class="gold"><span data-hf-id="hf-jpfp" class="w"><i data-hf-id="hf-v203">TOPPLE</i></span> <span data-hf-id="hf-kwcs" class="w"><i data-hf-id="hf-4x0j">YOU.</i></span></span></div>
+      </div>
+
+      <!-- 24 tela final -->
+      <div data-hf-id="hf-ophk" class="clip" id="endcard" data-start="55" data-duration="7" data-track-index="4">
+        <div data-hf-id="hf-t10l" class="eshadow"></div>
+        <div data-hf-id="hf-tan6" class="stage"><div data-hf-id="hf-sigx" class="table" id="etable">
+          <div data-hf-id="hf-gxsc" class="tile3" id="t3-0" style="left:0px" data-layout-allow-overlap data-layout-allow-occlusion>
+            <div data-hf-id="hf-cazu" class="face up"><span data-hf-id="hf-ksn3">D</span></div>
+            <div data-hf-id="hf-yq90" class="face back"><div data-hf-id="hf-j4zr" class="eyes calm"><b data-hf-id="hf-cgts">o</b><b data-hf-id="hf-c2ir">o</b></div><div data-hf-id="hf-3w6q" class="eyes scared"><b data-hf-id="hf-qcht">&gt;</b><b data-hf-id="hf-r53v">&lt;</b></div><div data-hf-id="hf-8lyp" class="mouth"></div></div>
+          </div>
+          <div data-hf-id="hf-65ud" class="tile3" id="t3-1" style="left:150px" data-layout-allow-overlap data-layout-allow-occlusion>
+            <div data-hf-id="hf-i5pq" class="face up"><span data-hf-id="hf-h7vu">O</span></div>
+            <div data-hf-id="hf-6pzw" class="face back"><div data-hf-id="hf-a49z" class="eyes calm"><b data-hf-id="hf-a2zm">o</b><b data-hf-id="hf-9ool">o</b></div><div data-hf-id="hf-oh9y" class="eyes scared"><b data-hf-id="hf-nlqt">&gt;</b><b data-hf-id="hf-b6cb">&lt;</b></div><div data-hf-id="hf-yj39" class="mouth"></div></div>
+          </div>
+          <div data-hf-id="hf-wa5t" class="tile3" id="t3-2" style="left:300px" data-layout-allow-overlap data-layout-allow-occlusion>
+            <div data-hf-id="hf-ik0r" class="face up"><span data-hf-id="hf-i0hw">M</span></div>
+            <div data-hf-id="hf-5j2t" class="face back"><div data-hf-id="hf-9pyy" class="eyes calm"><b data-hf-id="hf-avlo">o</b><b data-hf-id="hf-ahan">o</b></div><div data-hf-id="hf-ovkz" class="eyes scared"><b data-hf-id="hf-osnw">&gt;</b><b data-hf-id="hf-as1a">&lt;</b></div><div data-hf-id="hf-zq0c" class="mouth"></div></div>
+          </div>
+          <div data-hf-id="hf-on1u" class="tile3" id="t3-3" style="left:450px" data-layout-allow-overlap data-layout-allow-occlusion>
+            <div data-hf-id="hf-iybs" class="face up"><span data-hf-id="hf-jlq0">I</span></div>
+            <div data-hf-id="hf-5xdu" class="face back"><div data-hf-id="hf-9bnx" class="eyes calm"><b data-hf-id="hf-8hri">o</b><b data-hf-id="hf-83gh">o</b></div><div data-hf-id="hf-p9w0" class="eyes scared"><b data-hf-id="hf-oecv">&gt;</b><b data-hf-id="hf-adq9">&lt;</b></div><div data-hf-id="hf-zbpb" class="mouth"></div></div>
+          </div>
+          <div data-hf-id="hf-5ui6" class="tile3" id="t3-4" style="left:600px" data-layout-allow-overlap data-layout-allow-occlusion>
+            <div data-hf-id="hf-g66l" class="face up"><span data-hf-id="hf-gtkt">N</span></div>
+            <div data-hf-id="hf-7wwz" class="face back"><div data-hf-id="hf-c3t4" class="eyes calm"><b data-hf-id="hf-y6r1">o</b><b data-hf-id="hf-yl22">o</b></div><div data-hf-id="hf-mhqt" class="eyes scared"><b data-hf-id="hf-pl9y">&gt;</b><b data-hf-id="hf-9zf8">&lt;</b></div><div data-hf-id="hf-0ime" class="mouth"></div></div>
+          </div>
+          <div data-hf-id="hf-n3a3" class="tile3" id="t3-5" style="left:750px" data-layout-allow-overlap data-layout-allow-occlusion>
+            <div data-hf-id="hf-gkhm" class="face up"><span data-hf-id="hf-mgvi">O</span></div>
+            <div data-hf-id="hf-8b80" class="face back"><div data-hf-id="hf-bpi3" class="eyes calm"><b data-hf-id="hf-yzd3">o</b><b data-hf-id="hf-zdo4">o</b></div><div data-hf-id="hf-mw1u" class="eyes scared"><b data-hf-id="hf-p6yx">&gt;</b><b data-hf-id="hf-9l47">&lt;</b></div><div data-hf-id="hf-04bd" class="mouth"></div></div>
+          </div>
+          <div data-hf-id="hf-zbi7" class="tile3" id="t3-6" style="left:900px" data-layout-allow-overlap data-layout-allow-occlusion>
+            <div data-hf-id="hf-gysn" class="face up"><span data-hf-id="hf-efqn">T</span></div>
+            <div data-hf-id="hf-74ax" class="face back"><div data-hf-id="hf-bb72" class="eyes calm"><b data-hf-id="hf-zrz5">o</b><b data-hf-id="hf-06a6">o</b></div><div data-hf-id="hf-nacv" class="eyes scared"><b data-hf-id="hf-qdw0">&gt;</b><b data-hf-id="hf-96t6">&lt;</b></div><div data-hf-id="hf-1b8g" class="mouth"></div></div>
+          </div>
+          <div data-hf-id="hf-pqnz" class="tile3" id="t3-7" style="left:1050px" data-layout-allow-overlap data-layout-allow-occlusion>
+            <div data-hf-id="hf-hd3o" class="face up"><span data-hf-id="hf-ry4w">I</span></div>
+            <div data-hf-id="hf-7ily" class="face back"><div data-hf-id="hf-aww1" class="eyes calm"><b data-hf-id="hf-0kl7">o</b><b data-hf-id="hf-0yw8">o</b></div><div data-hf-id="hf-nonw" class="eyes scared"><b data-hf-id="hf-pzkz">&gt;</b><b data-hf-id="hf-8si5">&lt;</b></div><div data-hf-id="hf-0wxf" class="mouth"></div></div>
+          </div>
+          <div data-hf-id="hf-v6ct" class="tile3" id="t3-8" style="left:1200px" data-layout-allow-overlap data-layout-allow-occlusion>
+            <div data-hf-id="hf-kxux" class="face up"><span data-hf-id="hf-mv6j">O</span></div>
+            <div data-hf-id="hf-358n" class="face back"><div data-hf-id="hf-dp18" class="eyes calm"><b data-hf-id="hf-1d79">o</b><b data-hf-id="hf-1ria">o</b></div><div data-hf-id="hf-kwip" class="eyes scared"><b data-hf-id="hf-ktlm">&gt;</b><b data-hf-id="hf-er3k">&lt;</b></div><div data-hf-id="hf-vqy2" class="mouth"></div></div>
+          </div>
+          <div data-hf-id="hf-w6pe" class="tile3" id="t3-9" style="left:1350px" data-layout-allow-overlap data-layout-allow-occlusion>
+            <div data-hf-id="hf-lc5y" class="face up"><span data-hf-id="hf-hbkh">N</span></div>
+            <div data-hf-id="hf-3jjo" class="face back"><div data-hf-id="hf-daq7" class="eyes calm"><b data-hf-id="hf-caas">o</b><b data-hf-id="hf-bvzr">o</b></div><div data-hf-id="hf-latq" class="eyes scared"><b data-hf-id="hf-kfal">&gt;</b><b data-hf-id="hf-ecsj">&lt;</b></div><div data-hf-id="hf-vcn1" class="mouth"></div></div>
+          </div>
+        </div></div>
+        <div data-hf-id="hf-f93m" class="rogue">A DOMINO ROGUELIKE</div>
+        <div data-hf-id="hf-apeu" class="cta"><div data-hf-id="hf-4ar4" class="btn">WISHLIST NOW ON STEAM<div data-hf-id="hf-x5sz" class="sheen"></div></div></div>
+      </div>
+
+      <div data-hf-id="hf-syat" id="flash" class="fill"></div>
+      <div data-hf-id="hf-4aug" id="lb-top" class="lb"></div>
+      <div data-hf-id="hf-ugz2" id="lb-bot" class="lb"></div>
+
+      <audio data-hf-id="hf-ilop" id="music" src="assets/music/music-yt4.wav" data-start="0" data-duration="62" data-media-start="0.02" data-volume="0.9" data-track-index="10"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":1},{"t":2.45,"v":1},{"t":2.55,"v":0.5},{"t":3.6,"v":0.8},{"t":8,"v":0.95},{"t":28.95,"v":0.95},{"t":29.05,"v":0.7},{"t":30.2,"v":0.95},{"t":50.95,"v":0.95},{"t":51.05,"v":0.7},{"t":52.3,"v":0.95},{"t":55.3,"v":0.95},{"t":56.2,"v":0.4},{"t":60.8,"v":0.3},{"t":61.95,"v":0}]}]}'></audio>
+    <audio data-hf-id="hf-0cvv" id="sfx-0" src="assets/sfx/impactSoft_heavy_001.ogg" data-start="2.48" data-duration="0.57" data-volume="0.9" data-track-index="20"></audio>
+    <audio data-hf-id="hf-ou8y" id="sfx-1" src="assets/sfx/keypress-001.wav" data-start="3.7" data-duration="0.25" data-volume="0.22" data-track-index="21"></audio>
+    <audio data-hf-id="hf-dxwe" id="sfx-2" src="assets/sfx/keypress-004.wav" data-start="3.796" data-duration="0.25" data-volume="0.22" data-track-index="22"></audio>
+    <audio data-hf-id="hf-j4em" id="sfx-3" src="assets/sfx/keypress-010.wav" data-start="3.988" data-duration="0.25" data-volume="0.22" data-track-index="23"></audio>
+    <audio data-hf-id="hf-00en" id="sfx-4" src="assets/sfx/keypress-016.wav" data-start="4.18" data-duration="0.25" data-volume="0.22" data-track-index="24"></audio>
+    <audio data-hf-id="hf-6m4b" id="sfx-5" src="assets/sfx/keypress-001.wav" data-start="4.276" data-duration="0.25" data-volume="0.22" data-track-index="25"></audio>
+    <audio data-hf-id="hf-c8p7" id="sfx-6" src="assets/sfx/keypress-004.wav" data-start="4.372" data-duration="0.25" data-volume="0.22" data-track-index="26"></audio>
+    <audio data-hf-id="hf-f5o7" id="sfx-7" src="assets/sfx/impactBell_heavy_000.ogg" data-start="6" data-duration="1.48" data-volume="0.55" data-track-index="27"></audio>
+    <audio data-hf-id="hf-8bm9" id="sfx-8" src="assets/sfx/impactSoft_medium_001.ogg" data-start="8.2" data-duration="0.18" data-volume="0.55" data-track-index="20"></audio>
+    <audio data-hf-id="hf-e2cd" id="sfx-9" src="assets/sfx/impactSoft_medium_002.ogg" data-start="12.55" data-duration="0.135" data-volume="0.55" data-track-index="21"></audio>
+    <audio data-hf-id="hf-02iu" id="sfx-10" src="assets/sfx/impactSoft_medium_001.ogg" data-start="14" data-duration="0.18" data-volume="0.7" data-track-index="22"></audio>
+    <audio data-hf-id="hf-d43i" id="sfx-11" src="assets/sfx/impactSoft_medium_004.ogg" data-start="18.6" data-duration="0.147" data-volume="0.5" data-track-index="23"></audio>
+    <audio data-hf-id="hf-n7io" id="sfx-12" src="assets/sfx/impactSoft_heavy_003.ogg" data-start="20.39" data-duration="0.54" data-volume="0.6" data-track-index="24"></audio>
+    <audio data-hf-id="hf-x3ky" id="sfx-13" src="assets/sfx/card-slide-1.ogg" data-start="20.52" data-duration="0.6" data-volume="0.6" data-track-index="25"></audio>
+    <audio data-hf-id="hf-0u95" id="sfx-14" src="assets/sfx/impactSoft_heavy_003.ogg" data-start="22.69" data-duration="0.54" data-volume="0.6" data-track-index="26"></audio>
+    <audio data-hf-id="hf-7adb" id="sfx-15" src="assets/sfx/card-slide-1.ogg" data-start="22.82" data-duration="0.6" data-volume="0.6" data-track-index="27"></audio>
+    <audio data-hf-id="hf-oflc" id="sfx-16" src="assets/sfx/impactSoft_heavy_003.ogg" data-start="25.29" data-duration="0.54" data-volume="0.6" data-track-index="20"></audio>
+    <audio data-hf-id="hf-4002" id="sfx-17" src="assets/sfx/card-slide-1.ogg" data-start="25.42" data-duration="0.6" data-volume="0.6" data-track-index="21"></audio>
+    <audio data-hf-id="hf-cxvh" id="sfx-18" src="assets/sfx/impactSoft_heavy_003.ogg" data-start="27.39" data-duration="0.54" data-volume="0.6" data-track-index="22"></audio>
+    <audio data-hf-id="hf-1k8z" id="sfx-19" src="assets/sfx/card-slide-1.ogg" data-start="27.52" data-duration="0.6" data-volume="0.6" data-track-index="23"></audio>
+    <audio data-hf-id="hf-jx03" id="sfx-20" src="assets/sfx/impactSoft_medium_004.ogg" data-start="30.55" data-duration="0.147" data-volume="0.5" data-track-index="24"></audio>
+    <audio data-hf-id="hf-x8mk" id="sfx-21" src="assets/sfx/impactWood_heavy_001.ogg" data-start="31.05" data-duration="0.31" data-volume="0.6" data-track-index="25"></audio>
+    <audio data-hf-id="hf-uf1f" id="sfx-22" src="assets/sfx/impactWood_heavy_001.ogg" data-start="33.75" data-duration="0.31" data-volume="0.6" data-track-index="26"></audio>
+    <audio data-hf-id="hf-prpd" id="sfx-23" src="assets/sfx/bong_001.ogg" data-start="36.15" data-duration="0.12" data-volume="0.45" data-track-index="27"></audio>
+    <audio data-hf-id="hf-65za" id="sfx-24" src="assets/sfx/keypress-001.wav" data-start="36.45" data-duration="0.25" data-volume="0.22" data-track-index="20"></audio>
+    <audio data-hf-id="hf-spgl" id="sfx-25" src="assets/sfx/keypress-007.wav" data-start="36.642" data-duration="0.25" data-volume="0.22" data-track-index="21"></audio>
+    <audio data-hf-id="hf-b2q1" id="sfx-26" src="assets/sfx/keypress-010.wav" data-start="36.738" data-duration="0.25" data-volume="0.22" data-track-index="22"></audio>
+    <audio data-hf-id="hf-uhmd" id="sfx-27" src="assets/sfx/keypress-013.wav" data-start="36.834" data-duration="0.25" data-volume="0.22" data-track-index="23"></audio>
+    <audio data-hf-id="hf-8efh" id="sfx-28" src="assets/sfx/keypress-016.wav" data-start="36.93" data-duration="0.25" data-volume="0.22" data-track-index="24"></audio>
+    <audio data-hf-id="hf-kdsi" id="sfx-29" src="assets/sfx/keypress-004.wav" data-start="37.122" data-duration="0.25" data-volume="0.22" data-track-index="25"></audio>
+    <audio data-hf-id="hf-6ooy" id="sfx-30" src="assets/sfx/keypress-007.wav" data-start="37.218" data-duration="0.25" data-volume="0.22" data-track-index="26"></audio>
+    <audio data-hf-id="hf-mt9j" id="sfx-31" src="assets/sfx/keypress-010.wav" data-start="37.314" data-duration="0.25" data-volume="0.22" data-track-index="27"></audio>
+    <audio data-hf-id="hf-ameb" id="sfx-32" src="assets/sfx/keypress-013.wav" data-start="37.41" data-duration="0.25" data-volume="0.22" data-track-index="20"></audio>
+    <audio data-hf-id="hf-j74b" id="sfx-33" src="assets/sfx/bong_001.ogg" data-start="39.15" data-duration="0.12" data-volume="0.45" data-track-index="21"></audio>
+    <audio data-hf-id="hf-rzgs" id="sfx-34" src="assets/sfx/keypress-001.wav" data-start="39.45" data-duration="0.25" data-volume="0.22" data-track-index="22"></audio>
+    <audio data-hf-id="hf-xwd3" id="sfx-35" src="assets/sfx/keypress-004.wav" data-start="39.546" data-duration="0.25" data-volume="0.22" data-track-index="23"></audio>
+    <audio data-hf-id="hf-97u3" id="sfx-36" src="assets/sfx/keypress-007.wav" data-start="39.642" data-duration="0.25" data-volume="0.22" data-track-index="24"></audio>
+    <audio data-hf-id="hf-2xd7" id="sfx-37" src="assets/sfx/keypress-010.wav" data-start="39.738" data-duration="0.25" data-volume="0.22" data-track-index="25"></audio>
+    <audio data-hf-id="hf-054v" id="sfx-38" src="assets/sfx/keypress-013.wav" data-start="39.834" data-duration="0.25" data-volume="0.22" data-track-index="26"></audio>
+    <audio data-hf-id="hf-ghz1" id="sfx-39" src="assets/sfx/keypress-016.wav" data-start="39.93" data-duration="0.25" data-volume="0.22" data-track-index="27"></audio>
+    <audio data-hf-id="hf-fpkc" id="sfx-40" src="assets/sfx/keypress-004.wav" data-start="40.122" data-duration="0.25" data-volume="0.22" data-track-index="20"></audio>
+    <audio data-hf-id="hf-1z85" id="sfx-41" src="assets/sfx/keypress-007.wav" data-start="40.218" data-duration="0.25" data-volume="0.22" data-track-index="21"></audio>
+    <audio data-hf-id="hf-jerc" id="sfx-42" src="assets/sfx/keypress-010.wav" data-start="40.314" data-duration="0.25" data-volume="0.22" data-track-index="22"></audio>
+    <audio data-hf-id="hf-7uqy" id="sfx-43" src="assets/sfx/bong_001.ogg" data-start="42.15" data-duration="0.12" data-volume="0.45" data-track-index="23"></audio>
+    <audio data-hf-id="hf-cr0d" id="sfx-44" src="assets/sfx/keypress-001.wav" data-start="42.45" data-duration="0.25" data-volume="0.22" data-track-index="24"></audio>
+    <audio data-hf-id="hf-r9l6" id="sfx-45" src="assets/sfx/keypress-004.wav" data-start="42.546" data-duration="0.25" data-volume="0.22" data-track-index="25"></audio>
+    <audio data-hf-id="hf-1d02" id="sfx-46" src="assets/sfx/keypress-007.wav" data-start="42.642" data-duration="0.25" data-volume="0.22" data-track-index="26"></audio>
+    <audio data-hf-id="hf-8liy" id="sfx-47" src="assets/sfx/keypress-010.wav" data-start="42.738" data-duration="0.25" data-volume="0.22" data-track-index="27"></audio>
+    <audio data-hf-id="hf-dbq2" id="sfx-48" src="assets/sfx/keypress-013.wav" data-start="42.834" data-duration="0.25" data-volume="0.22" data-track-index="20"></audio>
+    <audio data-hf-id="hf-99f0" id="sfx-49" src="assets/sfx/keypress-016.wav" data-start="42.93" data-duration="0.25" data-volume="0.22" data-track-index="21"></audio>
+    <audio data-hf-id="hf-4g3q" id="sfx-50" src="assets/sfx/keypress-001.wav" data-start="43.026" data-duration="0.25" data-volume="0.22" data-track-index="22"></audio>
+    <audio data-hf-id="hf-a5ea" id="sfx-51" src="assets/sfx/keypress-004.wav" data-start="43.122" data-duration="0.25" data-volume="0.22" data-track-index="23"></audio>
+    <audio data-hf-id="hf-tpjj" id="sfx-52" src="assets/sfx/keypress-007.wav" data-start="43.218" data-duration="0.25" data-volume="0.22" data-track-index="24"></audio>
+    <audio data-hf-id="hf-j6fy" id="sfx-53" src="assets/sfx/keypress-010.wav" data-start="43.314" data-duration="0.25" data-volume="0.22" data-track-index="25"></audio>
+    <audio data-hf-id="hf-3suy" id="sfx-54" src="assets/sfx/bong_001.ogg" data-start="45.15" data-duration="0.12" data-volume="0.45" data-track-index="26"></audio>
+    <audio data-hf-id="hf-ggvh" id="sfx-55" src="assets/sfx/keypress-001.wav" data-start="45.45" data-duration="0.25" data-volume="0.22" data-track-index="27"></audio>
+    <audio data-hf-id="hf-nz78" id="sfx-56" src="assets/sfx/keypress-004.wav" data-start="45.546" data-duration="0.25" data-volume="0.22" data-track-index="20"></audio>
+    <audio data-hf-id="hf-1j7s" id="sfx-57" src="assets/sfx/keypress-007.wav" data-start="45.642" data-duration="0.25" data-volume="0.22" data-track-index="21"></audio>
+    <audio data-hf-id="hf-whhk" id="sfx-58" src="assets/sfx/keypress-010.wav" data-start="45.738" data-duration="0.25" data-volume="0.22" data-track-index="22"></audio>
+    <audio data-hf-id="hf-o9wg" id="sfx-59" src="assets/sfx/keypress-013.wav" data-start="45.834" data-duration="0.25" data-volume="0.22" data-track-index="23"></audio>
+    <audio data-hf-id="hf-p59y" id="sfx-60" src="assets/sfx/keypress-001.wav" data-start="46.026" data-duration="0.25" data-volume="0.22" data-track-index="24"></audio>
+    <audio data-hf-id="hf-k1aq" id="sfx-61" src="assets/sfx/keypress-004.wav" data-start="46.122" data-duration="0.25" data-volume="0.22" data-track-index="25"></audio>
+    <audio data-hf-id="hf-yvgb" id="sfx-62" src="assets/sfx/keypress-007.wav" data-start="46.218" data-duration="0.25" data-volume="0.22" data-track-index="26"></audio>
+    <audio data-hf-id="hf-om4c" id="sfx-63" src="assets/sfx/keypress-013.wav" data-start="46.41" data-duration="0.25" data-volume="0.22" data-track-index="27"></audio>
+    <audio data-hf-id="hf-l6qa" id="sfx-64" src="assets/sfx/impactSoft_medium_001.ogg" data-start="52.6" data-duration="0.18" data-volume="0.6" data-track-index="20"></audio>
+    <audio data-hf-id="hf-s51w" id="sfx-65" src="assets/sfx/impactSoft_medium_002.ogg" data-start="53" data-duration="0.135" data-volume="0.6" data-track-index="21"></audio>
+    <audio data-hf-id="hf-bolp" id="sfx-66" src="assets/sfx/impactWood_medium_000.ogg" data-start="56.03" data-duration="0.33" data-volume="0.5" data-track-index="22"></audio>
+    <audio data-hf-id="hf-von7" id="sfx-67" src="assets/sfx/impactWood_medium_002.ogg" data-start="56.14" data-duration="0.33" data-volume="0.5" data-track-index="23"></audio>
+    <audio data-hf-id="hf-mibw" id="sfx-68" src="assets/sfx/impactWood_medium_001.ogg" data-start="56.25" data-duration="0.33" data-volume="0.5" data-track-index="24"></audio>
+    <audio data-hf-id="hf-b6hh" id="sfx-69" src="assets/sfx/impactWood_medium_004.ogg" data-start="56.36" data-duration="0.33" data-volume="0.5" data-track-index="25"></audio>
+    <audio data-hf-id="hf-zfl1" id="sfx-70" src="assets/sfx/impactWood_medium_003.ogg" data-start="56.47" data-duration="0.33" data-volume="0.5" data-track-index="26"></audio>
+    <audio data-hf-id="hf-4utu" id="sfx-71" src="assets/sfx/impactWood_medium_000.ogg" data-start="56.58" data-duration="0.33" data-volume="0.5" data-track-index="27"></audio>
+    <audio data-hf-id="hf-8wt0" id="sfx-72" src="assets/sfx/impactWood_medium_002.ogg" data-start="56.69" data-duration="0.33" data-volume="0.5" data-track-index="20"></audio>
+    <audio data-hf-id="hf-ctx4" id="sfx-73" src="assets/sfx/impactWood_medium_001.ogg" data-start="56.8" data-duration="0.33" data-volume="0.5" data-track-index="21"></audio>
+    <audio data-hf-id="hf-fqu1" id="sfx-74" src="assets/sfx/impactWood_medium_004.ogg" data-start="56.91" data-duration="0.33" data-volume="0.5" data-track-index="22"></audio>
+    <audio data-hf-id="hf-cbqn" id="sfx-75" src="assets/sfx/impactWood_medium_003.ogg" data-start="57.02" data-duration="0.33" data-volume="0.5" data-track-index="23"></audio>
+    <audio data-hf-id="hf-mrya" id="sfx-76" src="assets/sfx/impactBell_heavy_000.ogg" data-start="57.08" data-duration="1.48" data-volume="0.55" data-track-index="24"></audio>
+    <audio data-hf-id="hf-xp8f" id="sfx-77" src="assets/sfx/impactBell_heavy_004.ogg" data-start="57.08" data-duration="0.3" data-volume="0.45" data-track-index="25"></audio>
+    <audio data-hf-id="hf-cc1t" id="sfx-78" src="assets/sfx/card-place-2.ogg" data-start="58.6" data-duration="0.46" data-volume="0.4" data-track-index="26"></audio>
+    </div>
+    <script>
+      const SC = {"faces":{"s":0,"d":2.1,"f":0,"e":2.1},"kaboom":{"s":2.1,"d":1.2,"f":0,"e":3.3},"sweep":{"s":3.3,"d":2.7,"f":0,"e":6},"ident":{"s":6,"d":2,"f":0,"e":8},"plan":{"s":8,"d":3,"f":0,"e":11},"build":{"s":11,"d":1.5,"f":0,"e":12.5},"push":{"s":12.5,"d":1.5,"f":0,"e":14},"wave":{"s":14,"d":4.5,"f":0,"e":18.5},"trick":{"s":18.5,"d":1.5,"f":0,"e":20},"trifork":{"s":20,"d":0.4,"f":1.6,"e":22},"hopper":{"s":22,"d":0.7,"f":1.8,"e":24.5},"rocket":{"s":24.5,"d":0.8,"f":1.7,"e":27},"blast":{"s":27,"d":0.4,"f":1.6,"e":29},"boom":{"s":29,"d":1.5,"f":0,"e":30.5},"ogre":{"s":30.5,"d":3,"f":0,"e":33.5},"general":{"s":33.5,"d":2.5,"f":0,"e":36},"shop":{"s":36,"d":3,"f":0,"e":39},"press":{"s":39,"d":3,"f":0,"e":42},"altar":{"s":42,"d":3,"f":0,"e":45},"gift":{"s":45,"d":3,"f":0,"e":48},"c1":{"s":48,"d":1.5,"f":0,"e":49.5},"c2":{"s":49.5,"d":1.5,"f":0,"e":51},"c3":{"s":51,"d":1.5,"f":0,"e":52.5},"c4":{"s":52.5,"d":2.5,"f":0,"e":55},"end":{"s":55,"d":7,"f":0,"e":62}};
+      const T = {"boom":2.5,"click":13.05,"wavePunch":16,"toppleStart":55.7,"toppleGap":0.11,"toppleFall":0.34,"toppleDone":57.03};
+      const OWN = {"sweep":3.6999999999999997,"shop":36.45,"press":39.45,"altar":42.45,"gift":45.45};
+      const TYPE = 0.024;
+      const GLOW = [0.04,0.13,0.24,0.35,0.37,0.32,0.3,0.25,0.22,0.21,0.2,0.18,0.19,0.19,0.22,0.33,0.33,0.33,0.31,0.27,0.27,0.24,0.26,0.23,0.21,0.19,0.19,0.19,0.18,0.23,0.54,0.56,0.51,0.48,0.42,0.38,0.31,0.3,0.28,0.26,0.22,0.22,0.19,0.19,0.18,0.22,0.21,0.19,0.18,0.18,0.13,0.11,0.1,0.1,0.1,0.11,0.11,0.11,0.11,0.16,0.32,0.28,0.25,0.22,0.2,0.18,0.16,0.14,0.14,0.13,0.12,0.12,0.12,0.12,0.13,0.21,0.19,0.15,0.16,0.14,0.15,0.15,0.15,0.16,0.15,0.15,0.15,0.14,0.14,0.17,0.41,0.46,0.43,0.4,0.38,0.31,0.24,0.21,0.18,0.17,0.15,0.16,0.14,0.13,0.16,0.23,0.2,0.17,0.15,0.16,0.14,0.13,0.16,0.14,0.13,0.13,0.14,0.15,0.15,0.2,0.48,0.57,0.58,0.57,0.5,0.4,0.35,0.29,0.25,0.22,0.19,0.18,0.17,0.16,0.17,0.28,0.24,0.21,0.21,0.17,0.19,0.17,0.22,0.2,0.18,0.15,0.16,0.15,0.15,0.19,0.47,0.52,0.48,0.42,0.36,0.31,0.27,0.24,0.23,0.22,0.18,0.19,0.19,0.18,0.19,0.26,0.22,0.19,0.17,0.17,0.14,0.14,0.16,0.16,0.17,0.18,0.19,0.19,0.19,0.25,0.55,0.57,0.51,0.46,0.43,0.35,0.29,0.24,0.22,0.2,0.19,0.19,0.17,0.18,0.24,0.39,0.29,0.23,0.23,0.21,0.2,0.18,0.18,0.18,0.18,0.16,0.17,0.16,0.18,0.25,0.44,0.43,0.46,0.43,0.42,0.38,0.3,0.28,0.24,0.22,0.2,0.19,0.17,0.16,0.21,0.39,0.3,0.29,0.27,0.3,0.29,0.3,0.32,0.29,0.26,0.24,0.22,0.22,0.21,0.29,0.58,0.63,0.6,0.57,0.51,0.41,0.35,0.31,0.31,0.29,0.28,0.28,0.26,0.23,0.25,0.45,0.33,0.26,0.25,0.22,0.23,0.2,0.26,0.26,0.26,0.25,0.27,0.27,0.26,0.33,0.55,0.56,0.53,0.48,0.39,0.34,0.31,0.26,0.26,0.25,0.24,0.24,0.26,0.27,0.27,0.32,0.29,0.27,0.24,0.21,0.2,0.2,0.21,0.18,0.17,0.17,0.18,0.19,0.21,0.28,0.57,0.55,0.52,0.52,0.45,0.37,0.34,0.3,0.25,0.23,0.21,0.21,0.18,0.18,0.22,0.42,0.31,0.25,0.25,0.26,0.26,0.26,0.23,0.24,0.22,0.21,0.19,0.17,0.16,0.23,0.42,0.43,0.45,0.39,0.41,0.36,0.3,0.29,0.24,0.23,0.23,0.2,0.18,0.17,0.2,0.33,0.27,0.24,0.21,0.21,0.21,0.24,0.26,0.25,0.23,0.22,0.21,0.21,0.21,0.27,0.56,0.62,0.58,0.54,0.45,0.35,0.29,0.24,0.22,0.2,0.2,0.23,0.25,0.21,0.23,0.39,0.32,0.26,0.23,0.2,0.2,0.18,0.19,0.2,0.19,0.19,0.19,0.21,0.21,0.27,0.53,0.54,0.51,0.47,0.39,0.32,0.29,0.26,0.21,0.2,0.18,0.17,0.17,0.18,0.21,0.32,0.3,0.28,0.26,0.23,0.22,0.21,0.21,0.19,0.17,0.17,0.16,0.17,0.17,0.24,0.54,0.52,0.54,0.52,0.43,0.4,0.38,0.33,0.27,0.25,0.22,0.19,0.19,0.17,0.2,0.37,0.29,0.23,0.21,0.22,0.21,0.25,0.22,0.25,0.24,0.25,0.23,0.22,0.2,0.23,0.42,0.47,0.45,0.39,0.41,0.32,0.28,0.27,0.21,0.24,0.25,0.25,0.24,0.22,0.27,0.48,0.37,0.3,0.25,0.23,0.21,0.21,0.23,0.22,0.21,0.23,0.25,0.27,0.29,0.37,0.62,0.73,0.71,0.68,0.58,0.47,0.39,0.31,0.27,0.24,0.22,0.22,0.25,0.24,0.28,0.4,0.39,0.37,0.32,0.29,0.26,0.24,0.24,0.22,0.22,0.2,0.2,0.22,0.21,0.27,0.56,0.57,0.53,0.5,0.44,0.39,0.32,0.31,0.28,0.26,0.23,0.22,0.2,0.2,0.23,0.42,0.36,0.32,0.29,0.29,0.29,0.29,0.28,0.27,0.28,0.27,0.27,0.24,0.23,0.32,0.59,0.59,0.58,0.5,0.42,0.39,0.36,0.31,0.28,0.26,0.23,0.2,0.18,0.18,0.18,0.24,0.21,0.17,0.18,0.16,0.16,0.18,0.16,0.17,0.17,0.18,0.19,0.18,0.18,0.19,0.42,0.48,0.44,0.41,0.39,0.32,0.26,0.22,0.18,0.17,0.16,0.18,0.16,0.14,0.18,0.25,0.22,0.19,0.16,0.17,0.14,0.15,0.17,0.15,0.13,0.14,0.14,0.16,0.16,0.22,0.51,0.61,0.62,0.6,0.53,0.42,0.37,0.3,0.25,0.22,0.19,0.18,0.16,0.16,0.16,0.24,0.23,0.21,0.21,0.17,0.19,0.17,0.21,0.18,0.17,0.14,0.15,0.14,0.13,0.16,0.47,0.51,0.48,0.42,0.36,0.31,0.26,0.24,0.23,0.21,0.17,0.18,0.17,0.16,0.17,0.21,0.19,0.17,0.15,0.15,0.13,0.13,0.15,0.15,0.17,0.18,0.18,0.18,0.17,0.23,0.54,0.57,0.52,0.45,0.42,0.35,0.3,0.25,0.22,0.2,0.18,0.18,0.17,0.17,0.18,0.24,0.21,0.17,0.18,0.16,0.16,0.15,0.16,0.16,0.16,0.15,0.15,0.15,0.16,0.19,0.43,0.45,0.44,0.41,0.38,0.33,0.25,0.22,0.2,0.18,0.16,0.16,0.14,0.13,0.16,0.24,0.2,0.19,0.18,0.2,0.18,0.17,0.2,0.17,0.16,0.16,0.15,0.16,0.16,0.21,0.48,0.57,0.58,0.57,0.52,0.43,0.38,0.32,0.31,0.29,0.27,0.26,0.23,0.21,0.25,0.43,0.33,0.27,0.27,0.23,0.24,0.21,0.29,0.29,0.29,0.26,0.27,0.28,0.26,0.33,0.55,0.58,0.54,0.48,0.41,0.36,0.32,0.29,0.3,0.3,0.29,0.3,0.31,0.31,0.31,0.39,0.33,0.3,0.26,0.24,0.22,0.2,0.22,0.21,0.22,0.24,0.26,0.27,0.29,0.37,0.62,0.61,0.54,0.54,0.49,0.38,0.33,0.29,0.26,0.24,0.22,0.22,0.2,0.22,0.26,0.42,0.32,0.27,0.29,0.29,0.27,0.26,0.23,0.24,0.22,0.2,0.19,0.18,0.18,0.25,0.43,0.42,0.46,0.42,0.43,0.39,0.32,0.31,0.26,0.24,0.23,0.2,0.19,0.18,0.2,0.29,0.24,0.23,0.21,0.21,0.21,0.22,0.24,0.22,0.19,0.18,0.16,0.17,0.16,0.19,0.45,0.53,0.52,0.5,0.43,0.34,0.28,0.23,0.2,0.19,0.17,0.18,0.17,0.15,0.15,0.26,0.22,0.18,0.17,0.15,0.16,0.15,0.17,0.17,0.16,0.14,0.15,0.15,0.14,0.17,0.46,0.5,0.47,0.43,0.35,0.29,0.25,0.23,0.19,0.17,0.15,0.15,0.15,0.15,0.15,0.18,0.17,0.17,0.16,0.15,0.14,0.15,0.16,0.15,0.13,0.13,0.14,0.15,0.15,0.19,0.51,0.52,0.51,0.47,0.42,0.35,0.31,0.27,0.22,0.2,0.18,0.17,0.16,0.14,0.15,0.25,0.21,0.17,0.17,0.17,0.16,0.18,0.16,0.18,0.17,0.17,0.15,0.15,0.13,0.16];
+      const tl = gsap.timeline({ paused: true });
+      const q = (s) => document.querySelectorAll(s);
+
+      // ---------- câmera / luz ----------
+      // 4% de margem: esconde a borda curva do efeito CRT do jogo nas explosões e dá folga para o tremor
+      tl.set('#cam', { scale: 1.04 }, 0);
+      // brilho quente (graves da trilha), 15 amostras por segundo
+      GLOW.forEach((v, i) => tl.to('#warm', { opacity: 0.12 + v * 0.55, duration: 1 / 15, ease: 'none' }, i / 15));
+      // tarja de cinema: abre no fim do título, fecha na tela final
+      tl.fromTo('.lb', { scaleY: 1 }, { scaleY: 0, duration: 0.35, ease: 'power2.in' }, SC.ident.e - 0.38);
+      tl.fromTo('.lb', { scaleY: 0 }, { scaleY: 1, duration: 0.45, ease: 'power3.out', immediateRender: false }, SC.end.s);
+
+      // 1 gancho: empurrão lento nos rostos; palavras sobem uma a uma
+      tl.fromTo('#w-faces', { scale: 1.0 }, { scale: 1.07, duration: SC.faces.d, ease: 'none', transformOrigin: '62% 45%' }, 0);
+      tl.fromTo('#cap-hook .w i', { yPercent: 110 }, { yPercent: 0, duration: 0.5, ease: 'power4.out', stagger: 0.11 }, 0.18);
+      tl.to('#cap-hook .line', { opacity: 0, duration: 0.14, ease: 'power2.in' }, SC.kaboom.s - 0.15);
+
+      // 2 KABOOM: flash, tremor, palavra do jogo
+      tl.fromTo('#flash', { opacity: 0 }, { opacity: 0.8, duration: 0.04, ease: 'none' }, T.boom - 0.02);
+      tl.to('#flash', { opacity: 0, duration: 0.28, ease: 'power2.out' }, T.boom + 0.03);
+      tl.fromTo('#cam', { x: 0, y: 0 }, { keyframes: [{ x: -22, y: 12, duration: 0.04 }, { x: 18, y: -14, duration: 0.05 }, { x: -11, y: 8, duration: 0.05 }, { x: 6, y: -4, duration: 0.05 }, { x: 0, y: 0, duration: 0.06 }], ease: 'none' }, T.boom);
+      tl.fromTo('#kab span', { scale: 2.6, rotation: -14, opacity: 0 }, { scale: 1, rotation: -7, opacity: 1, duration: 0.2, ease: 'power4.out' }, T.boom);
+      tl.fromTo('#kab span', { scale: 1 }, { scale: 1.08, duration: SC.kaboom.e - 0.15 - T.boom - 0.2, ease: 'none', immediateRender: false }, T.boom + 0.2);
+      tl.fromTo('#kab span', { scale: 1.08, opacity: 1 }, { scale: 1.3, opacity: 0, duration: 0.14, ease: 'power2.in', immediateRender: false }, SC.kaboom.e - 0.15);
+
+      // falas do Dono: o balão do jogo aparece e a fala é datilografada
+      function owner(id, at, out) {
+        const sel = '#ow-' + id;
+        tl.fromTo(sel + ' .speech', { opacity: 0, y: 16, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.25, ease: 'power2.out', transformOrigin: '0% 100%' }, at - 0.2);
+        q(sel + ' .speech b:not(.sp)').forEach((b) => {
+          const i = [...b.parentNode.children].indexOf(b);
+          tl.set(b, { opacity: 1 }, OWN[id] + i * TYPE);
+        });
+        tl.to(sel + ' .speech', { opacity: 0, y: -8, duration: 0.16, ease: 'power2.in' }, out - 0.17);
+      }
+      // 3 a mão varre a mesa; câmera chega perto da máscara
+      tl.fromTo('#w-sweep', { scale: 1.0 }, { scale: 1.07, duration: SC.sweep.d, ease: 'sine.inOut', transformOrigin: '50% 12%' }, SC.sweep.s);
+      tl.fromTo('#ow-sweep .owner-tag', { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.3, ease: 'power2.out' }, SC.sweep.s + 0.25);
+      tl.to('#ow-sweep .owner-tag', { opacity: 0, duration: 0.15 }, SC.sweep.e - 0.18);
+      owner('sweep', SC.sweep.s + 0.45, SC.sweep.e);
+
+      // 4 título: as letras se levantam como dominós
+      tl.fromTo('#w-ident', { scale: 1.12 }, { scale: 1.0, duration: SC.ident.d, ease: 'power1.out' }, SC.ident.s);
+      tl.fromTo('#title .logo b', { rotationX: -100, opacity: 0 }, { rotationX: 0, opacity: 1, duration: 0.55, ease: 'back.out(1.7)', stagger: 0.045 }, SC.ident.s + 0.02);
+      tl.fromTo('#title .sub', { opacity: 0, scale: 1.18 }, { opacity: 1, scale: 1, duration: 0.7, ease: 'expo.out' }, SC.ident.s + 0.55);
+      tl.fromTo('#title .sub-rule', { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: 1, duration: 0.6, ease: 'expo.out', transformOrigin: '100% 50%' }, SC.ident.s + 0.6);
+      tl.to('#title .logo, #title .sub, #title .sub-rule', { opacity: 0, duration: 0.18, ease: 'power2.in' }, SC.ident.e - 0.22);
+
+      // 5-8 passos
+      function stepIn(id, at, ease) {
+        const s = '#cap-' + id;
+        tl.fromTo(s + ' .num', { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: 0.3, ease: 'power2.out' }, at);
+        tl.fromTo(s + ' .rule', { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: 'expo.out' }, at + 0.05);
+        tl.fromTo(s + ' .head .w i', { yPercent: 105 }, { yPercent: 0, duration: 0.45, ease, stagger: 0.07 }, at + 0.08);
+      }
+      function stepOut(id, at) { tl.to('#cap-' + id + ' .num, #cap-' + id + ' .rule, #cap-' + id + ' .head', { opacity: 0, y: -10, duration: 0.18, ease: 'power2.in' }, at - 0.2); }
+      stepIn('plan', SC.plan.s + 0.18, 'power4.out'); stepOut('plan', SC.plan.e - 0.02);
+      tl.fromTo('#w-plan', { scale: 1.0 }, { scale: 1.05, duration: SC.plan.d, ease: 'none', transformOrigin: '45% 40%' }, SC.plan.s);
+      tl.fromTo('#w-build', { scale: 1.08 }, { scale: 1.0, duration: SC.build.d, ease: 'power2.out' }, SC.build.s);
+      stepIn('push', SC.push.s + 0.05, 'back.out(1.6)'); stepOut('push', SC.push.e - 0.02);
+      // empurrão até o botão FIRE! e volta no clique
+      // origem além do botão (canto): o zoom puxa o FIRE! para dentro do quadro em vez de empurrá-lo para a borda
+      tl.fromTo('#w-push', { scale: 1.0 }, { scale: 1.35, duration: 0.42, ease: 'power2.inOut', transformOrigin: '100% 100%' }, SC.push.s + 0.05);
+      tl.fromTo('#w-push', { scale: 1.35 }, { scale: 1.0, duration: 0.3, ease: 'expo.out', immediateRender: false }, T.click);
+      // 03: TOPPLE bate no tempo forte (14.02)
+      tl.fromTo('#cap-topple .num', { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: 0.3, ease: 'power2.out' }, SC.wave.s);
+      tl.fromTo('#cap-topple .rule', { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: 'expo.out' }, SC.wave.s);
+      tl.fromTo('#cap-topple .head .w', { scale: 1.7, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.24, ease: 'power4.out', stagger: 0.16, transformOrigin: '0% 80%' }, SC.wave.s);
+      stepOut('topple', SC.wave.e - 0.08);
+      tl.fromTo('#w-wave', { scale: 1.0 }, { scale: 1.12, duration: 0.3, ease: 'expo.out', transformOrigin: '55% 50%' }, T.wavePunch);
+      tl.fromTo('#w-wave', { scale: 1.12 }, { scale: 1.16, duration: SC.wave.e - T.wavePunch - 0.3, ease: 'none', immediateRender: false }, T.wavePunch + 0.3);
+
+      // 9-13 peças: cabeçalho grande que vira título de seção
+      function headerIn(id, at, shrinkAt, end) {
+        const s = '#hd-' + id + ' .hd';
+        tl.fromTo(s + ' .w i', { yPercent: 105 }, { yPercent: 0, duration: 0.5, ease: 'power3.out', stagger: 0.06 }, at);
+        tl.fromTo(s, { scale: 1, opacity: 1 }, { scale: 0.52, duration: 0.45, ease: 'power3.inOut' }, shrinkAt);
+        tl.to(s, { opacity: 0, duration: 0.18, ease: 'power2.in' }, end - 0.2);
+      }
+      headerIn('trick', SC.trick.s + 0.1, SC.trifork.s + SC.trifork.d - 0.05, SC.boom.e);
+      tl.fromTo('#w-trick', { scale: 1.0 }, { scale: 1.06, duration: SC.trick.d, ease: 'none', transformOrigin: '60% 45%' }, SC.trick.s);
+      ['trifork', 'hopper', 'rocket', 'blast'].forEach((id, k) => {
+        const f = SC[id].s + SC[id].d, d = SC[id].f, c = '#card-' + id;
+        tl.fromTo('#f-' + id + ' .inner', { scale: 1 }, { scale: 1.08, duration: d, ease: 'power1.out' }, f);
+        tl.fromTo('#f-' + id + ' .spot', { opacity: 0 }, { opacity: 1, duration: 0.22, ease: 'power2.out' }, f);
+        tl.fromTo('#f-' + id + ' .ring circle', { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.4, ease: 'power2.inOut' }, f + 0.05);
+        tl.fromTo('#flash', { opacity: 0.32 }, { opacity: 0, duration: 0.3, ease: 'power2.out', immediateRender: false }, f);
+        const from = [{ x: -260, rotation: -16 }, { y: 220, rotation: 10 }, { x: -260, rotation: 12 }, { y: 220, rotation: -10 }][k];
+        tl.fromTo(c + ' .tile', { opacity: 0, ...from }, { opacity: 1, x: 0, y: 0, rotation: k % 2 ? 4 : -4, duration: 0.42, ease: 'back.out(1.5)' }, f + 0.1);
+        q(c + ' .pname b').forEach((b, i) => tl.fromTo(b, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power3.out' }, f + 0.2 + i * 0.03));
+        tl.fromTo(c + ' .pdesc', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' }, f + 0.42);
+        const out = f + d + (id === 'blast' ? 0.45 : 0);
+        tl.to(c + ' .pcard', { opacity: 0, x: -40, duration: 0.16, ease: 'power2.in' }, out - 0.18);
+      });
+      tl.fromTo('#flash', { opacity: 0.45 }, { opacity: 0, duration: 0.4, ease: 'power2.out', immediateRender: false }, SC.boom.s);
+      tl.fromTo('#cam', { x: 0, y: 0 }, { keyframes: [{ x: 16, y: -10, duration: 0.05 }, { x: -12, y: 9, duration: 0.05 }, { x: 6, y: -4, duration: 0.05 }, { x: 0, y: 0, duration: 0.06 }], ease: 'none', immediateRender: false }, SC.boom.s);
+
+      // 14-15 inimigos
+      headerIn('fight', SC.ogre.s + 0.08, SC.ogre.s + 1.2, SC.general.e);
+      function enemyIn(id, at, end) {
+        const c = '#card-' + id;
+        tl.fromTo(c + ' .badge', { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'back.out(2.2)', transformOrigin: '0% 50%' }, at);
+        q(c + ' .ename b').forEach((b, i) => tl.fromTo(b, { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.28, ease: 'power3.out' }, at + 0.08 + i * 0.03));
+        q(c + ' .hp s').forEach((s, i) => tl.fromTo(s, { scale: 0 }, { scale: 1, duration: 0.25, ease: 'back.out(2.5)' }, at + 0.35 + i * 0.07));
+        tl.fromTo(c + ' .hp em, ' + c + ' .edesc', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out', stagger: 0.1 }, at + 0.45);
+        tl.to(c + ' .ecard', { opacity: 0, x: -40, duration: 0.16, ease: 'power2.in' }, end - 0.18);
+      }
+      enemyIn('ogre', SC.ogre.s + 0.5, SC.ogre.e);
+      enemyIn('general', SC.general.s + 0.2, SC.general.e);
+      tl.fromTo('#w-ogre', { scale: 1.06 }, { scale: 1.0, duration: SC.ogre.d, ease: 'power1.out', transformOrigin: '52% 35%' }, SC.ogre.s);
+      tl.fromTo('#w-general', { scale: 1.0 }, { scale: 1.1, duration: SC.general.d, ease: 'none', transformOrigin: '48% 22%' }, SC.general.s);
+
+      // 16-19 o Dono: um evento por vez
+      ['shop', 'press', 'altar', 'gift'].forEach((id, k) => {
+        const s = SC[id].s, e = SC[id].e, l = '#ev-' + id;
+        tl.fromTo('#w-' + id, { scale: 1.0 }, { scale: 1.06, duration: SC[id].d, ease: 'none', transformOrigin: k % 2 ? '60% 30%' : '40% 30%' }, s);
+        tl.fromTo(l + ' .kick', { opacity: 0 }, { opacity: 1, duration: 0.25 }, s + 0.12);
+        tl.fromTo(l + ' .rule', { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: 'expo.out' }, s + 0.12);
+        tl.fromTo(l + ' .name .w i', { yPercent: 105 }, { yPercent: 0, duration: 0.42, ease: 'power3.out', stagger: 0.06 }, s + 0.15);
+        tl.to(l + ' .kick, ' + l + ' .rule, ' + l + ' .name', { opacity: 0, duration: 0.15, ease: 'power2.in' }, e - 0.18);
+        owner(id, s + 0.5, e - 0.02);
+        if (id === 'shop') { tl.fromTo('#ow-shop .owner-tag', { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.3, ease: 'power2.out' }, s + 0.3); tl.to('#ow-shop .owner-tag', { opacity: 0, duration: 0.15 }, e - 0.2); }
+      });
+
+      // 20-23 clímax
+      tl.fromTo('#w-c1', { scale: 1.18 }, { scale: 1.0, duration: 0.45, ease: 'expo.out' }, SC.c1.s);
+      tl.fromTo('#w-c2', { scale: 1.0 }, { scale: 1.1, duration: SC.c2.d, ease: 'power1.in', transformOrigin: '55% 45%' }, SC.c2.s);
+      tl.fromTo('#flash', { opacity: 0.45 }, { opacity: 0, duration: 0.4, ease: 'power2.out', immediateRender: false }, SC.c3.s);
+      tl.fromTo('#w-c3', { scale: 1.12 }, { scale: 1.02, duration: SC.c3.d, ease: 'power2.out' }, SC.c3.s);
+      tl.fromTo('#w-c4', { scale: 1.1 }, { scale: 1.0, duration: SC.c4.d, ease: 'power1.out' }, SC.c4.s);
+      tl.fromTo('#tag .l1 .w', { scale: 1.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.22, ease: 'power4.out', stagger: 0.12, transformOrigin: '50% 80%' }, SC.c4.s + 0.08);
+      tl.fromTo('#tag .l2 .w i', { yPercent: 105 }, { yPercent: 0, duration: 0.42, ease: 'power3.out', stagger: 0.08 }, SC.c4.s + 0.5);
+      tl.to('#tag .l1, #tag .l2, #tag .scrim', { opacity: 0, duration: 0.16, ease: 'power2.in' }, SC.c4.e - 0.18);
+
+      // 24 tela final: dominós com rosto caem um a um e formam o nome
+      tl.fromTo('#w-end', { scale: 1.12 }, { scale: 1.0, duration: SC.end.d, ease: 'power1.out' }, SC.end.s);
+      tl.fromTo('#etable', { rotationX: 62, y: 40 }, { rotationX: 62, y: 0, duration: 0.6, ease: 'power2.out' }, SC.end.s);
+      q('.tile3').forEach((t, i) => {
+        const at = T.toppleStart + i * T.toppleGap;
+        tl.set(t.querySelector('.calm'), { opacity: 0 }, at - 0.2);
+        tl.set(t.querySelector('.scared'), { opacity: 1 }, at - 0.2);
+        tl.fromTo(t, { rotationX: 90 }, { rotationX: 0, duration: T.toppleFall, ease: 'power2.in' }, at);
+        tl.fromTo(t, { rotationX: 0 }, { keyframes: [{ rotationX: 7, duration: 0.07, ease: 'power2.out' }, { rotationX: 0, duration: 0.09, ease: 'power2.in' }], immediateRender: false }, at + T.toppleFall);
+      });
+      tl.fromTo('#etable', { rotationX: 62, y: 0 }, { rotationX: 24, y: 40, duration: 0.9, ease: 'power2.inOut', immediateRender: false }, T.toppleDone - 0.1);
+      tl.fromTo('.tile3 .up', { boxShadow: '0 0 0 rgba(240,212,138,0)' }, { boxShadow: '0 0 34px rgba(240,212,138,.55)', duration: 0.4, ease: 'power2.out', stagger: 0.03 }, T.toppleDone + 0.05);
+      tl.fromTo('#endcard .rogue', { opacity: 0, scale: 1.18 }, { opacity: 1, scale: 1, duration: 0.7, ease: 'expo.out' }, T.toppleDone + 0.45);
+      tl.fromTo('#endcard .btn', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.45, ease: 'back.out(1.8)' }, SC.end.s + 3.6);
+      tl.fromTo('#endcard .btn .sheen', { x: -160 }, { x: 1000, duration: 0.9, ease: 'power2.inOut' }, SC.end.s + 4.3);
+      tl.fromTo('#endcard .btn .sheen', { x: -160 }, { x: 1000, duration: 0.9, ease: 'power2.inOut', immediateRender: false }, SC.end.s + 5.9);
+
+      window.__timelines['main'] = tl;
+    </script>
+  </body>
+</html>

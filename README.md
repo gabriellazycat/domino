@@ -2,7 +2,9 @@
 
 Jogo de dominó tático: monte o caminho de peças e derrube a patrulha antes que ela derrube você.
 
-Versão web (Three.js + Rapier + TypeScript + Vite) — veja [web/](web/README.md).
+**[▶ Jogar no navegador](https://gabriellazycat.github.io/domino/)**: sem instalar nada. Atualiza sozinho a cada push na `web-remake`.
+
+Para rodar localmente, a versão web (Three.js + Rapier + TypeScript + Vite) — veja [web/](web/README.md).
 
 ```bash
 cd web

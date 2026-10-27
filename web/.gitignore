@@ -9,4 +9,7 @@ e2e/trailer/shots/
 e2e/trailer/hero-*.json
 e2e/trailer/*.log
 e2e/trailer/raw2/
+e2e/trailer/raw3/
+e2e/trailer/raw4/
 e2e/trailer/overlays/
+e2e/trailer/overlays-pt/

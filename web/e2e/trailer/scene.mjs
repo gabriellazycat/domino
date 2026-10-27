@@ -2,7 +2,7 @@
 
 /** Menu → run nova, em modo de planejamento. */
 export async function enterRun(page, seed = 42) {
-  await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Jogar/.test(b.textContent))?.click());
+  await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Jogar|Play/.test(b.textContent))?.click());
   await page.waitForFunction(() => window.__dominotion.state().mode === 'planning', null, { timeout: 30000 });
   await page.evaluate((s) => window.__dominotion.newRun(s), seed);
   await page.waitForTimeout(2500);

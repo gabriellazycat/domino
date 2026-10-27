@@ -161,7 +161,7 @@ const TAKES = {
   },
 
   // eventos entre fases (sem textos): loja, prensa de selos, altar
-  ...Object.fromEntries(['shop', 'press', 'mystic'].map((k) => [k, async () => {
+  ...Object.fromEntries(['shop', 'press', 'mystic', 'curse'].map((k) => [k, async () => {
     const { browser, page } = await setup({});
     await page.evaluate((k) => window.__dominotion.openEvent(k), k);
     await page.waitForTimeout(6000);

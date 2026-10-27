@@ -7,7 +7,7 @@ import { here, RAW, FFMPEG } from './lib.mjs';
 
 const OUT = path.resolve(here, '..', '..', '..', process.env.OUT_DIR ?? 'marketing');
 mkdirSync(OUT, { recursive: true });
-const OV = path.join(here, 'overlays');
+const OV = path.join(here, process.env.OVL ?? 'overlays');
 const raw = (n, ext = 'mp4') => path.join(RAW, `${n}.${ext}`);
 
 /**

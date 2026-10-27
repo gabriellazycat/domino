@@ -5,7 +5,8 @@ import { readFileSync, mkdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { here, root } from './lib.mjs';
 
-const OUT = path.join(here, 'overlays');
+const PT = process.env.OVL === 'overlays-pt';
+const OUT = path.join(here, process.env.OVL ?? 'overlays');
 mkdirSync(OUT, { recursive: true });
 const font = (pkg, file) => readFileSync(path.join(root, 'node_modules', '@fontsource', pkg, 'files', file)).toString('base64');
 const FELL = font('im-fell-english-sc', 'im-fell-english-sc-latin-400-normal.woff2');
@@ -39,6 +40,7 @@ const CAPS = [
 ];
 const TAGS = [['t-trifork', 'TRIFORK'], ['t-tower', 'TOWER'], ['t-jumper', 'JUMPER'], ['t-rocket', 'ROCKET'], ['t-blast', 'BLAST'], ['t-fork', 'FORK'], ['t-boss', 'THE GENERAL']];
 
+const T = (x) => (PT ? ({"Plan the chain.":"Planeje a corrente.","Push one piece.":"Empurre uma peça.","Topple everything.":"Derrube tudo.","A domino roguelike":"Um roguelike de dominó","Every piece has a trick":"Cada peça tem um truque","They fight back.":"Eles revidam.","Build your box.":"Monte sua caixa.","Survive the table.":"Sobreviva à mesa.","Wishlist now on Steam":"Lista de desejos na Steam","TRIFORK":"TRIFURCAÇÃO","TOWER":"TORRE","JUMPER":"SALTADORA","ROCKET":"FOGUETE","BLAST":"EXPLOSIVA","FORK":"BIFURCAÇÃO","THE GENERAL":"O GENERAL"}[x] ?? x) : x);
 const chrome = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const browser = await chromium.launch({ executablePath: existsSync(chrome) ? chrome : undefined });
 for (const [w, h, sfx] of [[1920, 1080, ''], [1080, 1920, '-v']]) {
@@ -52,17 +54,17 @@ for (const [w, h, sfx] of [[1920, 1080, ''], [1080, 1920, '-v']]) {
   const capSize = vert ? 100 : 96;
   const capTop = vert ? '22vh' : '74vh';
   for (const [n, t] of CAPS) {
-    await render('cap-' + n, `<div class="wrap" style="justify-content:flex-start;padding-top:${capTop}"><div class="cap" style="font-size:${capSize}px;max-width:90%">${t}</div></div>`);
+    await render('cap-' + n, `<div class="wrap" style="justify-content:flex-start;padding-top:${capTop}"><div class="cap" style="font-size:${capSize}px;max-width:90%">${T(t)}</div></div>`);
   }
   for (const [n, t] of TAGS) {
-    await render(n, `<div class="wrap" style="justify-content:flex-start;padding-top:${vert ? '36vh' : '84vh'}"><div class="small" style="font-size:${vert ? 72 : 64}px">${t}</div></div>`);
+    await render(n, `<div class="wrap" style="justify-content:flex-start;padding-top:${vert ? '36vh' : '84vh'}"><div class="${PT ? 'cap' : 'small'}" style="font-size:${vert ? 84 : 72}px;${PT ? 'color:#ffd77a' : ''}">${T(t)}</div></div>`);
   }
   // tela final
   const L = vert ? 110 : 160;
   await render('endcard', `<div class="wrap" style="justify-content:center;gap:${vert ? 46 : 34}px">
     <div class="logo" style="font-size:${L}px">DOMINOTION</div>
-    <div class="cap" style="font-size:${vert ? 50 : 46}px;color:#e8dcc0">A domino roguelike</div>
-    <div class="btn" style="font-size:${vert ? 58 : 54}px;margin-top:${vert ? 40 : 26}px">Wishlist now on Steam</div></div>`);
+    <div class="cap" style="font-size:${vert ? 50 : 46}px;color:#e8dcc0">${T('A domino roguelike')}</div>
+    <div class="btn" style="align-self:center;white-space:nowrap;font-size:${vert ? 58 : 54}px;margin-top:${vert ? 40 : 26}px">${T('Wishlist now on Steam')}</div></div>`);
   await render('logo', `<div class="wrap" style="justify-content:center"><div class="logo" style="font-size:${vert ? 110 : 180}px">DOMINOTION</div></div>`);
   await page.close();
 }

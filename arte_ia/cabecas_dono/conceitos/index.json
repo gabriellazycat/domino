@@ -1,0 +1,176 @@
+{
+ "entalhado__s2026.png": {
+  "id": "entalhado",
+  "seed": 2026,
+  "size": 768,
+  "model": "qwen21t",
+  "prompt": "Studio product photograph of a single antique ventriloquist dummy head with its short neck, seen straight from the front at eye level, perfectly centered, the whole head and neck visible with empty space around it, isolated on a plain flat light grey seamless background, soft even diffuse lighting, no strings, no body, no hands, no text, sharp focus, realistic materials. Hand-carved wooden head with visible knife facets, carved side-parted auburn hair in chunky grooves, painted rosy round cheeks, glossy glass eyes with blue irises, thick painted eyebrows, a hinged jaw with two vertical seam lines from the mouth corners to the chin, wide painted grin showing a row of carved teeth, worn cream paint over pale wood.",
+  "seconds": 132.4,
+  "created": "2026-11-12 23:54:31"
+ },
+ "rachado__s2026.png": {
+  "id": "rachado",
+  "seed": 2026,
+  "size": 768,
+  "model": "qwen21t",
+  "prompt": "Studio product photograph of a single antique ventriloquist dummy head with its short neck, seen straight from the front at eye level, perfectly centered, the whole head and neck visible with empty space around it, isolated on a plain flat light grey seamless background, soft even diffuse lighting, no strings, no body, no hands, no text, sharp focus, realistic materials. Old cracked painted wooden head, the cream face paint peeling in flakes and showing dark wood underneath, a long crack across the forehead, sunken dark eye sockets with glossy staring glass eyes, faded red lips in a stiff grin, hinged jaw with vertical seam lines, slick dark brown carved hair, unsettling and eerie.",
+  "seconds": 507.9,
+  "created": "2026-11-13 00:02:59"
+ },
+ "marionete__s2026.png": {
+  "id": "marionete",
+  "seed": 2026,
+  "size": 768,
+  "model": "qwen21t",
+  "prompt": "Studio product photograph of a single antique ventriloquist dummy head with its short neck, seen straight from the front at eye level, perfectly centered, the whole head and neck visible with empty space around it, isolated on a plain flat light grey seamless background, soft even diffuse lighting, no strings, no body, no hands, no text, sharp focus, realistic materials. Rustic folk-art wooden puppet head carved in big blocky facets, short orange carved hair, sleepy half-closed painted eyelids over pale blue eyes, a bulbous red-painted nose, small freckles, a thin painted smile, hinged jaw with seam lines, raw pale wood with thin washes of colour and visible tool marks.",
+  "seconds": 334.9,
+  "created": "2026-11-13 00:08:34"
+ },
+ "cavalheiro__s2026.png": {
+  "id": "cavalheiro",
+  "seed": 2026,
+  "size": 768,
+  "model": "qwen21t",
+  "prompt": "Studio product photograph of a single antique ventriloquist dummy head with its short neck, seen straight from the front at eye level, perfectly centered, the whole head and neck visible with empty space around it, isolated on a plain flat light grey seamless background, soft even diffuse lighting, no strings, no body, no hands, no text, sharp focus, realistic materials. Distinguished old gentleman ventriloquist dummy head, carved wood with ivory paint, a monocle on a thin chain over the right glass eye, a curled waxed painted moustache, grey carved hair combed back, raised arched eyebrow, hinged jaw with seam lines, smug thin-lipped smile, varnish yellowed with age.",
+  "seconds": 2356.1,
+  "created": "2026-11-13 00:47:50"
+ },
+ "palhaco__s2026.png": {
+  "id": "palhaco",
+  "seed": 2026,
+  "size": 768,
+  "model": "qwen21t",
+  "prompt": "Studio product photograph of a single antique ventriloquist dummy head with its short neck, seen straight from the front at eye level, perfectly centered, the whole head and neck visible with empty space around it, isolated on a plain flat light grey seamless background, soft even diffuse lighting, no strings, no body, no hands, no text, sharp focus, realistic materials. Antique carnival clown ventriloquist dummy head, carved wood, faded white face paint with chipped red diamond shapes around the glass eyes, a small round red nose, painted wide red mouth with a hinged jaw and seam lines, tufts of carved curly hair painted faded green, cracked old varnish, slightly sinister.",
+  "seconds": 298.3,
+  "created": "2026-11-13 00:52:48"
+ },
+ "apostador__s2026.png": {
+  "id": "apostador",
+  "seed": 2026,
+  "size": 768,
+  "model": "qwen21t",
+  "prompt": "Studio product photograph of a single antique ventriloquist dummy head with its short neck, seen straight from the front at eye level, perfectly centered, the whole head and neck visible with empty space around it, isolated on a plain flat light grey seamless background, soft even diffuse lighting, no strings, no body, no hands, no text, sharp focus, realistic materials. Gambler ventriloquist dummy head, carved wood with tan paint, slicked-back glossy black carved hair, one painted gold tooth in a crooked grin, a thin pencil moustache, a black eye patch over the left eye and a glass eye on the right, hinged jaw with seam lines, a small domino tile carved as an earring, worn and scratched paint.",
+  "seconds": 216.2,
+  "created": "2026-11-13 00:56:24"
+ },
+ "entalhado__qwen21t__jogo__s2026.png": {
+  "id": "entalhado",
+  "seed": 2026,
+  "size": 768,
+  "model": "qwen21t",
+  "style": "jogo",
+  "prompt": "Stylized 3D game character asset render of a single ventriloquist dummy head with its short neck, slightly exaggerated cartoon proportions with a big head and large eyes, hand-painted textures, seen straight from the front at eye level, perfectly centered, whole head and neck visible, isolated on a plain flat light grey background, soft even lighting, no body, no text. Hand-carved wooden head with visible knife facets, carved side-parted auburn hair in chunky grooves, painted rosy round cheeks, glossy glass eyes with blue irises, thick painted eyebrows, a hinged jaw with two vertical seam lines from the mouth corners to the chin, wide painted grin showing a row of carved teeth, worn cream paint over pale wood.",
+  "seconds": 281.5,
+  "created": "2026-11-13 06:12:24"
+ },
+ "rachado__qwen21t__jogo__s2026.png": {
+  "id": "rachado",
+  "seed": 2026,
+  "size": 768,
+  "model": "qwen21t",
+  "style": "jogo",
+  "prompt": "Stylized 3D game character asset render of a single ventriloquist dummy head with its short neck, slightly exaggerated cartoon proportions with a big head and large eyes, hand-painted textures, seen straight from the front at eye level, perfectly centered, whole head and neck visible, isolated on a plain flat light grey background, soft even lighting, no body, no text. Old cracked painted wooden head, the cream face paint peeling in flakes and showing dark wood underneath, a long crack across the forehead, sunken dark eye sockets with glossy staring glass eyes, faded red lips in a stiff grin, hinged jaw with vertical seam lines, slick dark brown carved hair, unsettling and eerie.",
+  "seconds": 214.0,
+  "created": "2026-11-13 06:15:58"
+ },
+ "marionete__qwen21t__jogo__s2026.png": {
+  "id": "marionete",
+  "seed": 2026,
+  "size": 768,
+  "model": "qwen21t",
+  "style": "jogo",
+  "prompt": "Stylized 3D game character asset render of a single ventriloquist dummy head with its short neck, slightly exaggerated cartoon proportions with a big head and large eyes, hand-painted textures, seen straight from the front at eye level, perfectly centered, whole head and neck visible, isolated on a plain flat light grey background, soft even lighting, no body, no text. Rustic folk-art wooden puppet head carved in big blocky facets, short orange carved hair, sleepy half-closed painted eyelids over pale blue eyes, a bulbous red-painted nose, small freckles, a thin painted smile, hinged jaw with seam lines, raw pale wood with thin washes of colour and visible tool marks.",
+  "seconds": 216.4,
+  "created": "2026-11-13 06:19:34"
+ },
+ "cavalheiro__qwen21t__jogo__s2026.png": {
+  "id": "cavalheiro",
+  "seed": 2026,
+  "size": 768,
+  "model": "qwen21t",
+  "style": "jogo",
+  "prompt": "Stylized 3D game character asset render of a single ventriloquist dummy head with its short neck, slightly exaggerated cartoon proportions with a big head and large eyes, hand-painted textures, seen straight from the front at eye level, perfectly centered, whole head and neck visible, isolated on a plain flat light grey background, soft even lighting, no body, no text. Distinguished old gentleman ventriloquist dummy head, carved wood with ivory paint, a monocle on a thin chain over the right glass eye, a curled waxed painted moustache, grey carved hair combed back, raised arched eyebrow, hinged jaw with seam lines, smug thin-lipped smile, varnish yellowed with age.",
+  "seconds": 204.4,
+  "created": "2026-11-13 06:22:58"
+ },
+ "palhaco__qwen21t__jogo__s2026.png": {
+  "id": "palhaco",
+  "seed": 2026,
+  "size": 768,
+  "model": "qwen21t",
+  "style": "jogo",
+  "prompt": "Stylized 3D game character asset render of a single ventriloquist dummy head with its short neck, slightly exaggerated cartoon proportions with a big head and large eyes, hand-painted textures, seen straight from the front at eye level, perfectly centered, whole head and neck visible, isolated on a plain flat light grey background, soft even lighting, no body, no text. Antique carnival clown ventriloquist dummy head, carved wood, faded white face paint with chipped red diamond shapes around the glass eyes, a small round red nose, painted wide red mouth with a hinged jaw and seam lines, tufts of carved curly hair painted faded green, cracked old varnish, slightly sinister.",
+  "seconds": 205.1,
+  "created": "2026-11-13 06:26:24"
+ },
+ "apostador__qwen21t__jogo__s2026.png": {
+  "id": "apostador",
+  "seed": 2026,
+  "size": 768,
+  "model": "qwen21t",
+  "style": "jogo",
+  "prompt": "Stylized 3D game character asset render of a single ventriloquist dummy head with its short neck, slightly exaggerated cartoon proportions with a big head and large eyes, hand-painted textures, seen straight from the front at eye level, perfectly centered, whole head and neck visible, isolated on a plain flat light grey background, soft even lighting, no body, no text. Gambler ventriloquist dummy head, carved wood with tan paint, slicked-back glossy black carved hair, one painted gold tooth in a crooked grin, a thin pencil moustache, a black eye patch over the left eye and a glass eye on the right, hinged jaw with seam lines, a small domino tile carved as an earring, worn and scratched paint.",
+  "seconds": 232.9,
+  "created": "2026-11-13 06:30:17"
+ },
+ "entalhado__krea2anime__pintado__s2026.png": {
+  "id": "entalhado",
+  "seed": 2026,
+  "size": 768,
+  "model": "krea2anime",
+  "style": "pintado",
+  "prompt": "Hand-painted concept art of a single ventriloquist dummy head with its short neck, painterly brushwork, dark fairy-tale toy mood, seen straight from the front at eye level, perfectly centered, whole head and neck visible, isolated on a plain flat light grey background, even lighting, no body, no text. Hand-carved wooden head with visible knife facets, carved side-parted auburn hair in chunky grooves, painted rosy round cheeks, glossy glass eyes with blue irises, thick painted eyebrows, a hinged jaw with two vertical seam lines from the mouth corners to the chin, wide painted grin showing a row of carved teeth, worn cream paint over pale wood.",
+  "seconds": 123.4,
+  "created": "2026-11-13 06:32:22"
+ },
+ "rachado__krea2anime__pintado__s2026.png": {
+  "id": "rachado",
+  "seed": 2026,
+  "size": 768,
+  "model": "krea2anime",
+  "style": "pintado",
+  "prompt": "Hand-painted concept art of a single ventriloquist dummy head with its short neck, painterly brushwork, dark fairy-tale toy mood, seen straight from the front at eye level, perfectly centered, whole head and neck visible, isolated on a plain flat light grey background, even lighting, no body, no text. Old cracked painted wooden head, the cream face paint peeling in flakes and showing dark wood underneath, a long crack across the forehead, sunken dark eye sockets with glossy staring glass eyes, faded red lips in a stiff grin, hinged jaw with vertical seam lines, slick dark brown carved hair, unsettling and eerie.",
+  "seconds": 79.7,
+  "created": "2026-11-13 06:33:41"
+ },
+ "marionete__krea2anime__pintado__s2026.png": {
+  "id": "marionete",
+  "seed": 2026,
+  "size": 768,
+  "model": "krea2anime",
+  "style": "pintado",
+  "prompt": "Hand-painted concept art of a single ventriloquist dummy head with its short neck, painterly brushwork, dark fairy-tale toy mood, seen straight from the front at eye level, perfectly centered, whole head and neck visible, isolated on a plain flat light grey background, even lighting, no body, no text. Rustic folk-art wooden puppet head carved in big blocky facets, short orange carved hair, sleepy half-closed painted eyelids over pale blue eyes, a bulbous red-painted nose, small freckles, a thin painted smile, hinged jaw with seam lines, raw pale wood with thin washes of colour and visible tool marks.",
+  "seconds": 78.6,
+  "created": "2026-11-13 06:35:00"
+ },
+ "cavalheiro__krea2anime__pintado__s2026.png": {
+  "id": "cavalheiro",
+  "seed": 2026,
+  "size": 768,
+  "model": "krea2anime",
+  "style": "pintado",
+  "prompt": "Hand-painted concept art of a single ventriloquist dummy head with its short neck, painterly brushwork, dark fairy-tale toy mood, seen straight from the front at eye level, perfectly centered, whole head and neck visible, isolated on a plain flat light grey background, even lighting, no body, no text. Distinguished old gentleman ventriloquist dummy head, carved wood with ivory paint, a monocle on a thin chain over the right glass eye, a curled waxed painted moustache, grey carved hair combed back, raised arched eyebrow, hinged jaw with seam lines, smug thin-lipped smile, varnish yellowed with age.",
+  "seconds": 78.7,
+  "created": "2026-11-13 06:36:19"
+ },
+ "palhaco__krea2anime__pintado__s2026.png": {
+  "id": "palhaco",
+  "seed": 2026,
+  "size": 768,
+  "model": "krea2anime",
+  "style": "pintado",
+  "prompt": "Hand-painted concept art of a single ventriloquist dummy head with its short neck, painterly brushwork, dark fairy-tale toy mood, seen straight from the front at eye level, perfectly centered, whole head and neck visible, isolated on a plain flat light grey background, even lighting, no body, no text. Antique carnival clown ventriloquist dummy head, carved wood, faded white face paint with chipped red diamond shapes around the glass eyes, a small round red nose, painted wide red mouth with a hinged jaw and seam lines, tufts of carved curly hair painted faded green, cracked old varnish, slightly sinister.",
+  "seconds": 78.8,
+  "created": "2026-11-13 06:37:37"
+ },
+ "apostador__krea2anime__pintado__s2026.png": {
+  "id": "apostador",
+  "seed": 2026,
+  "size": 768,
+  "model": "krea2anime",
+  "style": "pintado",
+  "prompt": "Hand-painted concept art of a single ventriloquist dummy head with its short neck, painterly brushwork, dark fairy-tale toy mood, seen straight from the front at eye level, perfectly centered, whole head and neck visible, isolated on a plain flat light grey background, even lighting, no body, no text. Gambler ventriloquist dummy head, carved wood with tan paint, slicked-back glossy black carved hair, one painted gold tooth in a crooked grin, a thin pencil moustache, a black eye patch over the left eye and a glass eye on the right, hinged jaw with seam lines, a small domino tile carved as an earring, worn and scratched paint.",
+  "seconds": 79.7,
+  "created": "2026-11-13 06:38:57"
+ }
+}

@@ -18,6 +18,7 @@ import type { UI } from '../ui/ui';
 import { icon } from '../ui/icons';
 import { sealImg, buffImg } from './sigils';
 import * as P from './props';
+import { ShopKit, shopKit, currentShopStyle, theatreRug, theatrePedestal } from './shopStyles';
 
 // EVENTOS entre as fases, montados em 3D na mesa vazia (depois que a mão de porcelana varre tudo):
 // LOJA, PRENSA DE SELOS e ALTAR MÍSTICO. Cada um é uma cena com itens clicáveis (raio do mouse),
@@ -31,6 +32,8 @@ export interface EventCtx {
   ui: UI;
   fx: Fx;
   say(lines: string[], force?: boolean): void;
+  /** a câmera levanta e encara o dono por alguns segundos */
+  lookUp?(seconds: number): void;
   /** atualiza vida/ouro/tentativas/bênçãos na HUD */
   refresh(): void;
   setCursor(c: string | null): void;
@@ -115,7 +118,7 @@ export abstract class EventScene {
     this.ctx.ui.eventStart(this.title, this.subtitle);
     this.refreshBar();
     this.ctx.rig.frame(new THREE.Vector3(0, 0.9, 0.4), 13.5, 0, 0.98);
-    setTimeout(() => { if (!this.dead) this.ctx.say(this.intro(), true); }, 1300);
+    setTimeout(() => { if (!this.dead) { this.ctx.say(this.intro(), true); this.ctx.lookUp?.(2.6); } }, 1300);
   }
 
   protected buttons(): { label: string; cls: string; fn: () => void }[] {
@@ -343,6 +346,7 @@ class ShopScene extends EventScene {
   private hammer: THREE.Group | null = null;
   private anvilTop = new THREE.Vector3();
   private anvil: THREE.Group | null = null;
+  private kit: ShopKit | null = null;
 
   protected intro() { return [t('Veio fazer compras? Tudo aqui tem preço.'), t('Meu estoque é pequeno. Minha paciência também.')]; }
   protected bar() {
@@ -364,15 +368,21 @@ class ShopScene extends EventScene {
 
   protected build() {
     const g = this.group;
-    const c = P.cloth(11.6, 5.6);
+    // laboratório visual: com uma direção de arte escolhida (teclas 1/2/3 na loja), o kit troca tapete,
+    // expositores, serviços e enfeites; sem escolha, fica a loja de sempre
+    const style = currentShopStyle();
+    this.kit = style ? shopKit(style) : null;
+    const c = this.kit?.rug ?? P.cloth(11.6, 5.6);
     c.position.set(0, 0, 0.5);
     g.add(c);
+    for (const d of this.kit?.decor ?? []) g.add(d);
     this.roll().forEach((opt, i) => this.makeOffer(opt, (i - 1) * 3.6));
     this.makeServices();
   }
 
   private makeOffer(opt: RewardOption, x: number) {
-    const stand = P.plinth(2.6);
+    const stand = this.kit?.stand(2.6) ?? P.plinth(2.6);
+    const standTop = (stand.userData.top as number | undefined) ?? 0.23;
     stand.position.set(x, 0, -0.7);
     this.group.add(stand);
     const pieces: THREE.Mesh[] = [];
@@ -381,7 +391,7 @@ class ShopScene extends EventScene {
     shown.forEach((type, k) => {
       const d = this.domino({ type, seals: [] }, 500 + k * 13 + Math.round(x * 7));
       const n = shown.length;
-      d.position.set((k - (n - 1) / 2) * 0.4, 0.23 + PIECES[type].h / 2, 0);
+      d.position.set((k - (n - 1) / 2) * 0.4, standTop + PIECES[type].h / 2, 0);
       d.rotation.y = (k - (n - 1) / 2) * 0.05;
       stand.add(d);
       pieces.push(d);
@@ -390,7 +400,7 @@ class ShopScene extends EventScene {
     const off: Offer = { opt, price, stand, pieces, x };
     const star = opt.items.find((it) => it.piece !== 'common') ?? opt.items[0];
     off.item = this.addItem({
-      obj: stand, name: opt.label, tagY: 1.65,
+      obj: stand, name: opt.label, tagY: (stand.userData.tagY as number | undefined) ?? 1.65,
       desc: () => `${PIECES[star.piece].desc}<br><small>${t('vai para a sua caixa de peças')}</small>`,
       price: () => off.price,
       act: () => this.buyOffer(off),
@@ -401,7 +411,8 @@ class ShopScene extends EventScene {
   private makeServices() {
     const run = this.ctx.run;
     // remédio
-    const v = P.vial();
+    const v = this.kit?.vial() ?? P.vial();
+    const corkY = v.cork.position.y;
     v.g.position.set(-4.0, 0, 2.15);
     this.group.add(v.g);
     const heal = this.addItem({
@@ -413,7 +424,7 @@ class ShopScene extends EventScene {
         if (!this.charge(RULES.shopHealCost)) return;
         this.busy = true;
         heal.sold = true; this.renderTag(heal);
-        await this.tween(0.35, (k) => { v.cork.position.y = 0.64 + k * 0.5; v.cork.rotation.x = k * 3; }, easeOut);
+        await this.tween(0.35, (k) => { v.cork.position.y = corkY + k * 0.5; v.cork.rotation.x = k * 3; }, easeOut);
         v.cork.visible = false;
         await this.tween(0.5, (k) => { v.g.position.y = heal.baseY + k * 0.8; v.g.rotation.z = Math.sin(k * 9) * 0.2; });
         this.ctx.fx.sparkBurst(v.g.position.x, 1.2, v.g.position.z, 26, '#ff4a5a', 2.2);
@@ -430,7 +441,7 @@ class ShopScene extends EventScene {
       },
     });
     // vela extra
-    const cd = P.candle(0.6, 0.11, false);
+    const cd = this.kit?.candle() ?? P.candle(0.6, 0.11, false);
     cd.g.position.set(-1.35, 0, 2.2);
     this.group.add(cd.g);
     const candleLight = P.borrowLight(cd.g, '#ff8a3a', 0, 4, 1.8, new THREE.Vector3(0, 0.9, 0));
@@ -454,7 +465,7 @@ class ShopScene extends EventScene {
       },
     });
     // bigorna e martelo
-    const a = P.anvilAndHammer();
+    const a = this.kit?.anvil() ?? P.anvilAndHammer();
     a.g.position.set(1.35, 0, 2.2);
     a.g.rotation.y = -0.15;
     this.group.add(a.g);
@@ -470,7 +481,7 @@ class ShopScene extends EventScene {
       act: () => this.startChoose(),
     });
     // sininho (mercadoria nova)
-    const b = P.deskBell();
+    const b = this.kit?.bell() ?? P.deskBell();
     b.g.position.set(4.0, 0, 2.15);
     this.group.add(b.g);
     this.addItem({
@@ -633,7 +644,7 @@ class PressScene extends EventScene {
 
   protected build() {
     const g = this.group;
-    const c = P.cloth(11, 5.2, P.M.velvetDark());
+    const c = theatreRug(11, 5.2);
     c.position.set(0, 0, 0.4);
     g.add(c);
     this.press = P.press();
@@ -852,15 +863,20 @@ class MysticScene extends EventScene {
   protected build() {
     const g = this.group;
     // a bola de cristal fica no fundo do círculo; as oferendas, na frente
+    const rug = theatreRug(9.6, 6.6, '#6f6a80');
+    rug.position.set(0, 0, 0.2);
+    g.add(rug);
     this.altar = P.altar(-1.5);
     this.altar.g.position.set(0, 0, 0.2);
+    // o círculo arcano fica bordado em cima do veludo
+    this.altar.circle.position.y = 0.05;
     g.add(this.altar.g);
     const r = runRng(this.ctx.run);
     const offers = buffOffers(r, this.ctx.run.buffs);
     saveRng(this.ctx.run, r);
     const xs = offers.length === 1 ? [0] : offers.length === 2 ? [-1.4, 1.4] : [-2.5, 0, 2.5];
     offers.forEach((id, i) => {
-      const ped = P.pedestal();
+      const ped = theatrePedestal();
       ped.position.set(xs[i], 0, i === 1 && offers.length === 3 ? 1.35 : 0.95);
       g.add(ped);
       const em = P.emblem(id);
@@ -962,7 +978,7 @@ class CurseScene extends EventScene {
 
   protected build() {
     const g = this.group;
-    const c = P.cloth(8.4, 4.6, P.M.velvetDark());
+    const c = theatreRug(8.4, 4.6, '#5c6a5e');
     c.position.set(0, 0, 0.5);
     g.add(c);
     this.ctx.watcher?.('amused');
@@ -979,7 +995,7 @@ class CurseScene extends EventScene {
     const offers = curseOffers(r);
     saveRng(this.ctx.run, r);
     offers.forEach((type, i) => {
-      const ped = P.pedestal();
+      const ped = theatrePedestal();
       ped.position.set(i ? 1.7 : -1.7, 0, 0.9);
       g.add(ped);
       const top = ped.userData.top as number;

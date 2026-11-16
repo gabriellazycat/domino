@@ -18,8 +18,16 @@ export class CameraRig {
   userMoved = false;
   keys = new Set<string>();
   private t = 0;
+  /** inclinação lateral da câmera (plano holandês), em radianos; `frame()` zera */
+  roll = 0; goalRoll = 0;
+  /** soco de lente: 1 = o campo de visão fecha ~22% de uma vez e solta devagar */
+  fovKick = 0;
+  private fovBase: number;
+  /** "olhar para o dono": enquadramento guardado para voltar quando o olhar acaba */
+  private look: { left: number; target: THREE.Vector3; az: number; pol: number; dist: number } | null = null;
 
   constructor(public cam: THREE.PerspectiveCamera, el: HTMLElement) {
+    this.fovBase = cam.fov;
     let mode: 'orbit' | 'pan' | null = null;
     let lx = 0, ly = 0;
     el.addEventListener('pointerdown', (e) => {
@@ -68,13 +76,59 @@ export class CameraRig {
     this.goalDist = dist;
     this.goalAz = az;
     this.goalPol = pol;
+    this.goalRoll = 0;
     this.userMoved = false;
+    // um enquadramento novo no meio do olhar vira o lugar para onde a câmera volta
+    if (this.look) { this.look.target.copy(center); this.look.dist = dist; this.look.az = az; this.look.pol = pol; this.applyLook(); }
   }
 
   snap() {
     this.target.copy(this.goalTarget);
     this.az = this.goalAz; this.pol = this.goalPol; this.dist = this.goalDist;
+    this.roll = this.goalRoll;
   }
+
+  /** Corte seco (estilo Persona): a câmera pula para o enquadramento, já inclinada, sem deslizar. */
+  cut(center: THREE.Vector3, dist: number, az: number, pol: number, roll = 0) {
+    this.look = null;
+    this.frame(center, dist, az, pol);
+    this.goalRoll = roll;
+    this.snap();
+  }
+
+  /** Ponto que a câmera encara no "olhar para o dono" e de onde (baixo, rente à mesa). */
+  private lookAim = { target: new THREE.Vector3(), dist: 9, pol: 1.6 };
+  private applyLook() {
+    this.goalTarget.copy(this.lookAim.target);
+    this.goalDist = this.lookAim.dist;
+    this.goalPol = this.lookAim.pol;
+    this.goalAz = 0;
+  }
+
+  /**
+   * Olhar para o dono (estilo Inscryption): a câmera levanta da mesa e encara `target` de baixo por
+   * `seconds`, depois desce de volta para o enquadramento em que estava.
+   */
+  lookUp(target: THREE.Vector3, dist: number, pol: number, seconds: number) {
+    if (!this.look) this.look = { left: seconds, target: this.goalTarget.clone(), az: this.goalAz, pol: this.goalPol, dist: this.goalDist };
+    else this.look.left = Math.max(this.look.left, seconds);
+    this.lookAim.target.copy(target); this.lookAim.dist = dist; this.lookAim.pol = pol;
+    this.applyLook();
+    this.ease = 2.4;
+    this.userMoved = false;
+  }
+
+  /** Encerra o olhar e volta para a mesa. */
+  lookEnd() {
+    const l = this.look;
+    if (!l) return;
+    this.look = null;
+    this.goalTarget.copy(l.target);
+    this.goalAz = l.az; this.goalPol = l.pol; this.goalDist = l.dist;
+    this.ease = 2.8;
+  }
+
+  get looking() { return !!this.look; }
 
   addTrauma(a: number) { this.trauma = Math.min(1, this.trauma + a); }
 
@@ -100,8 +154,19 @@ export class CameraRig {
       if (this.keys.has('q')) this.goalAz += dt * 1.6;
       if (this.keys.has('e')) this.goalAz -= dt * 1.6;
     }
+    if (this.look) {
+      this.look.left -= dt;
+      // o jogador mexeu na câmera: o olhar acaba e a câmera fica onde ele deixou
+      if (this.userMoved) this.look = null;
+      else if (this.look.left <= 0) this.lookEnd();
+      else this.ease = Math.min(this.ease, 2.4);
+    }
     this.ease += (this.easeRest - this.ease) * (1 - Math.exp(-dt * 0.9));
     const k = 1 - Math.exp(-dt * this.ease);
+    this.roll += (this.goalRoll - this.roll) * (1 - Math.exp(-dt * 5));
+    this.fovKick *= Math.exp(-dt * 2.4);
+    const fov = this.fovBase * (1 - 0.22 * this.fovKick);
+    if (Math.abs(fov - this.cam.fov) > 0.01) { this.cam.fov = fov; this.cam.updateProjectionMatrix(); }
     this.target.lerp(this.goalTarget, k);
     this.az += (this.goalAz - this.az) * k;
     this.pol += (this.goalPol - this.pol) * k;
@@ -117,6 +182,7 @@ export class CameraRig {
       this.target.z + d * sinP * Math.cos(this.az),
     );
     this.cam.lookAt(this.target);
+    if (Math.abs(this.roll) > 1e-4) this.cam.rotateZ(this.roll);
     // respiração: a câmera nunca fica 100% parada (alguém segurando)
     const b = this.shakeScale;
     this.cam.rotateZ(Math.sin(this.t * 0.41) * 0.004 * b);

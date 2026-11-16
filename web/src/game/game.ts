@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { World } from './world';
+import { MASK_POS } from './backdrop';
 import { CameraRig } from './camera';
 import { Board } from './board';
 import { Fx } from './fx';
@@ -22,16 +23,30 @@ import { Card, Kind, kindType, kindName, kindRank } from '../core/cards';
 import { buffLevel, buffMaxed, BUFF_ORDER } from '../core/buffs';
 import { EventKind, rollEvent } from '../core/events';
 import { EventScene, createEvent } from './events';
+import { SHOP_STYLE_NAME, type ShopStyle } from './shopStyles';
 import type { SweepTarget } from './hand';
 import { RULES, starsFor, goldFor } from '../core/rules';
 import { draft3 } from '../core/rewards';
 import { autoPlan } from '../core/bot';
-import { solve } from './solver';
+import { findDemo, type DemoRequest, type DemoResult } from './demoWorker';
 import { Hand } from './hand';
 import { icon } from '../ui/icons';
 import { t } from '../i18n';
 
 type Mode = 'menu' | 'planning' | 'sim' | 'result' | 'screen' | 'transition' | 'event';
+/** Boneco do dono em cada evento (vilaoTrajes.ts; ids: banqueiro, vidente, magico, palhaco, juiz, coveiro, pirata,
+ *  chef, inventor, rei). Nas fases ele volta ao de sempre. Escolhidos pelo dono da ideia na página e2e/vilao-trajes. */
+const TRAJE_DO_EVENTO: Record<EventKind, string> = { shop: 'banqueiro', mystic: 'vidente', press: 'coveiro', curse: 'palhaco' };
+/** Só no servidor local: a página e2e/vilao-trajes grava a escolha em localStorage para testar antes de fixar aqui. */
+function trajeDoEvento(kind: EventKind): string | null {
+  if (import.meta.env.DEV) {
+    try {
+      const lab = JSON.parse(localStorage.getItem('lab.trajes') ?? 'null') as Record<string, string> | null;
+      if (lab && kind in lab) return lab[kind] || null;
+    } catch { /* sem localStorage: fica o do código */ }
+  }
+  return TRAJE_DO_EVENTO[kind];
+}
 
 interface Settings { master: number; music: number; sfx: number; shake: number; post: boolean; tilt: boolean; crt: boolean; ao: boolean; ink: boolean; dof: boolean }
 // chaves antigas (do nome TOPPLE) mantidas de propósito: guardam configurações e recorde já salvos
@@ -72,7 +87,7 @@ export class Game {
   timeScale = 1;
   slowmoUntil = 0;
   /** fechada no último inimigo derrubado (câmera lenta de vitória) */
-  private killcam: { x: number; z: number; until: number } | null = null;
+  private killcam: { x: number; z: number; t0: number; until: number; side: number } | null = null;
   /** ponto suavizado que a câmera persegue na cascata */
   private chase: THREE.Vector3 | null = null;
   private frameDist = 15;
@@ -96,7 +111,12 @@ export class Game {
   private pointer = { x: 0, y: 0, inside: false };
   private rightDown: { x: number; y: number } | null = null;
   private attemptsUsed = 0;
-  private demo: { loops: number; waitUntil: number; seed: number; endAt: number } | null = null;
+  private demo: { loops: number; waitUntil: number; seed: number; endAt: number; shown: boolean } | null = null;
+  /** próxima mesa da demo, já calculada (pelo worker) e esperando a vez */
+  private demoNext: DemoResult | null = null;
+  private demoTicket = 0;
+  private demoWorker: Worker | null = null;
+  private demoWorkerBroken = false;
   private phaseKnocked = 0;
   /** o que foi disparado na última tentativa (para o replay): peças na ordem em que foram postas e a fase da patrulha */
   private lastShot: { pieces: Placed[]; patrolT: number } | null = null;
@@ -272,6 +292,10 @@ export class Game {
         if (n >= 1 && n <= 9) { const id = this.ui.hand.kinds()[n - 1]; if (id) this.select(id); }
       } else if (this.mode === 'sim') {
         if (k === ' ' || k === 'f') { e.preventDefault(); this.toggleSpeed(); }
+      } else if (this.mode === 'event' && this.event?.kind === 'shop') {
+        // laboratório visual: 1/2/3 trocam a direção de arte da Loja, 0 volta para a de sempre
+        const st = ({ '1': 'A', '2': 'B', '3': 'C', '0': '' } as Record<string, string>)[k];
+        if (st !== undefined) this.labShopStyle(st);
       }
     });
   }
@@ -573,6 +597,7 @@ export class Game {
   /** `animate`: a fase surge peça por peça; `glide`: a câmera desliza até ela (em vez de cortar). */
   startPhase(animate = false, glide = false) {
     const run = this.run!;
+    this.world.backdrop.setCostume(null);
     if (this.event) { this.event.dispose(); this.event = null; }
     saveRun(run);
     this.disposeSim();
@@ -606,7 +631,7 @@ export class Game {
     if (this.spec.boss && animate) {
       audio.bossStinger();
       // o chefe fala depois que a faixa de entrada passa, para não brigar com o título
-      setTimeout(() => { if (this.mode === 'planning') this.say([t('Você chegou até aqui. Que pena.')], true); }, 2400);
+      setTimeout(() => { if (this.mode === 'planning') { this.say([t('Você chegou até aqui. Que pena.')], true); this.ownerLook(3); } }, 2400);
     }
     this.frameBoard();
     if (animate) { this.board.spawnIn(); this.ui.phaseBanner(this.spec); }
@@ -771,12 +796,12 @@ export class Game {
       },
       impact: (speed, x, y, z, material) => this.onImpact(speed, x, y, z, material),
       allDown: () => {
-        this.slowmoUntil = this.realT + 1.1;
+        this.slowmoUntil = this.realT + (this.mode === 'sim' ? 1.6 : 1.1);
         if (this.mode === 'sim') {
           // câmera lenta no último inimigo: a câmera fecha nele e depois abre para a mesa inteira
           const last = this.sim?.enemies.reduce((a, b) => (b.knockedAt > a.knockedAt ? b : a));
           const lp = last?.body.translation();
-          if (lp) this.killcam = { x: lp.x, z: lp.z, until: this.realT + 1.3 };
+          if (lp) this.finalBlow(lp.x, lp.z);
           const c = this.sim?.enemies.at(-1)?.body.translation();
           this.fx.confetti(c?.x ?? 0, c?.z ?? 0);
         }
@@ -818,6 +843,16 @@ export class Game {
     this.ui.speak(p.x, p.y, line);
     // o queixo do boneco bate enquanto a frase aparece
     this.world.backdrop.talk(THREE.MathUtils.clamp(line.length * 0.045, 0.8, 2.4));
+  }
+
+  /**
+   * Olhar para o dono (estilo Inscryption): nas falas que importam (entrada do chefe, começo de evento)
+   * a câmera levanta da mesa e encara o boneco de baixo; depois desce de volta sozinha.
+   */
+  private ownerLook(seconds = 2.6) {
+    if (this.paused || this.mode === 'sim' || this.mode === 'transition' || this.mode === 'menu') return;
+    this.rig.lookUp(new THREE.Vector3(MASK_POS.x, MASK_POS.y + 0.5, MASK_POS.z + 1.6), 9.6, 1.6, seconds);
+    this.world.backdrop.startle(0.25);
   }
 
   /** Impacto físico entre dois corpos: som de acordo com a velocidade e poeira nos choques fortes (com limite por frame). */
@@ -1093,11 +1128,13 @@ export class Game {
     this.mode = 'event';
     this.board.mood = 'calm';
     this.world.backdrop.mood = 'watch';
+    this.world.backdrop.setCostume(trajeDoEvento(kind)); // o dono troca de boneco (como a troca de máscara)
     this.refreshTopStats();
     this.ui.setBuffs(run.buffs);
     this.event = createEvent(kind, {
       scene: this.world.scene, camera: this.world.camera, rig: this.rig, run, ui: this.ui, fx: this.fx,
       say: (lines, force) => this.say(lines, force),
+      lookUp: (sec) => this.ownerLook(sec),
       refresh: () => { this.refreshTopStats(); this.ui.setBuffs(run.buffs); },
       setCursor: (c) => this.setCursor(c === 'pointer' ? 'pointer' : CURSOR_QUILL),
       leave: () => this.leaveEvent(),
@@ -1107,6 +1144,16 @@ export class Game {
     this.event.start();
     audio.setMusic(true, 0);
     audio.setTension(0.05);
+  }
+
+  /** Laboratório visual: remonta a Loja na direção de arte pedida ('A' | 'B' | 'C' | '' = a de sempre). */
+  private labShopStyle(style: string) {
+    if (this.mode !== 'event' || this.event?.kind !== 'shop') return;
+    localStorage.setItem('lab.shop', style || 'off');
+    this.event.dispose();
+    this.event = null;
+    this.startEvent('shop');
+    this.ui.toast(style ? `Loja ${style} · ${SHOP_STYLE_NAME[style as ShopStyle]}` : 'Loja antiga', true);
   }
 
   /** Ir embora: a mão varre o evento e monta a fase. */
@@ -1141,6 +1188,7 @@ export class Game {
       this.fx.dust(this.hand.palm.x + 0.5, -2.5, 2.5);
     };
     this.hand.onSweep = () => audio.scrape(1.1);
+    this.hand.dress(this.world.backdrop.costume); // a mão é a do boneco que está na mesa (traje do evento ou o de sempre)
     this.hand.start([...this.board.sweepTargets(), ...extra], after);
   }
 
@@ -1239,25 +1287,47 @@ export class Game {
   }
 
   // ================= demo do menu (modo atração) =================
-  private startDemo() {
-    this.demo = { loops: 0, waitUntil: this.realT + 1.5, seed: 4242, endAt: -1 };
-    this.buildDemo();
-  }
-
-  private buildDemo() {
-    const d = this.demo!;
-    this.decals.clear();
+  private demoDeck() {
     const deck = emptyDeck();
     deck.common = 80; deck.fork = 3; deck.heavy = 4; deck.blast = 3;
-    // procura (headless) uma fase que o bot vence: a demo sempre termina em festa
-    for (let tries = 0; tries < 4; tries++) {
-      const spec = generatePhase(d.seed, 4 + (d.seed % 5), deck);
-      const r = solve(spec, deck);
-      this.spec = spec;
-      this.layout = r.layout;
-      if (r.win) break;
-      d.seed += 31;
+    return deck;
+  }
+
+  private startDemo() {
+    this.demo = { loops: 0, waitUntil: this.realT + 1.5, seed: 4242, endAt: -1, shown: false };
+    this.demoNext = null;
+    this.requestDemo(this.demo.seed);
+  }
+
+  /**
+   * Pede a próxima mesa da demo. Achar uma fase que o bot vence custa de 0,3 a vários segundos (plano +
+   * física headless), então a conta roda num worker: no quadro do jogo só entra a montagem (~25 ms).
+   */
+  private requestDemo(seed: number) {
+    const ticket = ++this.demoTicket;
+    const req: DemoRequest = { ticket, seed, deck: this.demoDeck() };
+    if (!this.demoWorker && !this.demoWorkerBroken) {
+      try {
+        this.demoWorker = new Worker(new URL('./demoWorker.ts', import.meta.url), { type: 'module' });
+        this.demoWorker.onmessage = (e: MessageEvent<DemoResult>) => { if (e.data.ticket === this.demoTicket && this.demo) this.demoNext = e.data; };
+        this.demoWorker.onerror = () => { this.demoWorkerBroken = true; this.demoWorker = null; this.requestDemo(seed); };
+      } catch { this.demoWorkerBroken = true; }
     }
+    if (this.demoWorker) this.demoWorker.postMessage(req);
+    // plano B (sem worker): calcula aqui mesmo, como era antes
+    else this.demoNext = { ticket, ...findDemo(seed, req.deck) };
+  }
+
+  /** Monta na mesa a demo que o worker devolveu e já encomenda a seguinte. */
+  private buildDemo(next: DemoResult) {
+    const d = this.demo!;
+    const deck = this.demoDeck();
+    this.decals.clear();
+    this.fx.clear();
+    d.seed = next.seed;
+    this.spec = generatePhase(next.seed, next.depth, deck);
+    this.layout = new Layout(this.spec, deck);
+    this.layout.pieces = next.pieces;
     this.board.build(this.spec);
     this.board.mood = 'calm';
     this.world.backdrop.mood = 'watch';
@@ -1265,10 +1335,17 @@ export class Game {
     this.board.setHeads([], false);
     this.sim = null;
     this.rig.frame(new THREE.Vector3(0, 0, 0.5), 15, this.rig.goalAz, 0.9);
+    d.shown = true;
+    d.endAt = -1;
+    d.waitUntil = this.realT + 1.2;
+    this.demoNext = null;
+    this.requestDemo(next.seed + 17);
   }
 
   private stopDemo() {
     this.demo = null;
+    this.demoNext = null;
+    this.demoTicket++;
     this.disposeSim();
     this.fx.clear();
   }
@@ -1276,6 +1353,8 @@ export class Game {
   private updateDemo() {
     const d = this.demo!;
     this.rig.goalAz += 0.0006;
+    // primeira mesa: entra assim que o worker responder
+    if (!d.shown) { if (this.demoNext) this.buildDemo(this.demoNext); return; }
     if (!this.sim && this.realT > d.waitUntil) {
       this.sim = this.makeSim(this.spec, this.layout.pieces, 0);
       this.sim.fire();
@@ -1287,13 +1366,11 @@ export class Game {
         this.board.mood = this.sim.win ? 'happy' : 'sad';
         this.world.backdrop.mood = this.sim.win ? 'angry' : 'amused';
       }
-      else if (this.realT - d.endAt > 2.5) {
+      // troca de mesa: só quando a próxima já chegou (se o worker ainda estiver calculando, a festa dura mais)
+      else if (this.realT - d.endAt > 2.5 && this.demoNext) {
         d.loops++;
-        d.seed += 17;
         this.disposeSim();
-        this.fx.clear();
-        this.buildDemo();
-        d.waitUntil = this.realT + 1.2;
+        this.buildDemo(this.demoNext);
       }
     }
   }
@@ -1405,6 +1482,8 @@ export class Game {
     this.world.lamp.intensity *= Math.exp(-dt * 6);
     this.rig.update(dt, !this.paused && this.mode !== 'menu' && this.mode !== 'transition' && !this.ui.hasScreen());
     this.updateGaze(dt);
+    // o balão de fala acompanha o boneco quando a câmera se mexe
+    { const p = this.world.maskScreenPos(); this.ui.speakMove(p.x, p.y); }
     this.world.impact = Math.min(1, this.rig.trauma * this.rig.trauma * (0.4 + 0.6 * this.settings.shake));
     this.world.render(dt, this.fx.flash);
   }
@@ -1445,6 +1524,22 @@ export class Game {
   }
 
   /**
+   * Golpe final (estilo Persona): no último inimigo a câmera CORTA para um ângulo baixo e inclinado ao lado
+   * dele, a lente dá um soco, o tempo congela um instante e segue em câmera lenta enquanto ela gira.
+   */
+  private finalBlow(x: number, z: number) {
+    const side = x > 0 ? -1 : 1; // gira pelo lado de dentro da mesa
+    this.killcam = { x, z, t0: this.realT, until: this.realT + 1.6, side };
+    this.rig.userMoved = false;
+    this.rig.cut(new THREE.Vector3(x, 0.45, z), 4.4, side * 0.9, 1.38, side * 0.17);
+    this.rig.fovKick = 1;
+    this.rig.addTrauma(0.35);
+    this.hitstop = Math.max(this.hitstop, 0.16);
+    this.fx.flash = Math.min(0.35, this.fx.flash + 0.22);
+    this.world.backdrop.startle(1);
+  }
+
+  /**
    * Câmera da cascata: persegue a frente da onda (média das últimas quedas, suavizada) um pouco mais perto
    * que o enquadramento da fase, com um giro lento; no último inimigo fecha nele em câmera lenta.
    */
@@ -1452,10 +1547,17 @@ export class Game {
     const sim = this.sim!;
     const rig = this.rig;
     rig.easeRest = 3.2;
-    if (this.killcam && this.realT < this.killcam.until) {
-      rig.goalTarget.set(this.killcam.x, 0, this.killcam.z + 0.2);
-      rig.goalDist = Math.max(6, this.frameDist * 0.5);
-      rig.goalPol = 0.8;
+    if (this.killcam) {
+      // golpe final: depois do corte, a câmera gira baixa em volta do último inimigo, abre e endireita;
+      // fica nesse quadro até o resultado entrar (sem voltar para a câmera da cascata no meio)
+      const kc = this.killcam;
+      const k = Math.min(1, (this.realT - kc.t0) / (kc.until - kc.t0));
+      rig.ease = 6;
+      rig.goalTarget.set(kc.x, 0.45, kc.z);
+      rig.goalDist = 4.4 + k * 2.2;
+      rig.goalPol = 1.38 - k * 0.16;
+      rig.goalAz = kc.side * (0.9 - k * 0.8);
+      rig.goalRoll = kc.side * 0.17 * (1 - k);
       return;
     }
     const recent = sim.recentFalls.filter((f) => sim.t - f.t < 0.7);

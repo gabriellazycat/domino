@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trajes do dono</title>
+<style>
+  :root { --bg:#17110d; --card:#231a14; --line:#3a2c22; --ink:#f1e6d6; --dim:#b7a48c; --gold:#d9a441; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui, sans-serif; padding-bottom:90px; }
+  header, main, #mesas { max-width:1200px; margin:auto; padding:16px; }
+  h1 { margin:0 0 4px; font-size:24px; } h2 { margin:8px 0; font-size:18px; }
+  header p { margin:0; color:var(--dim); }
+  #mesas .grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; }
+  .mesa { background:var(--card); border:2px solid var(--gold); border-radius:12px; padding:12px; display:grid; gap:8px; align-content:start; }
+  .mesa .ev { font-weight:700; font-size:17px; color:var(--gold); }
+  .mesa .evd { color:var(--dim); font-size:13px; margin-top:-6px; }
+  .mesa img { width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:6px; background:#000; display:block; }
+  .mesa .vazio { aspect-ratio:16/10; border:1px dashed var(--line); border-radius:6px; display:grid; place-items:center; color:var(--dim); font-size:13px; text-align:center; padding:8px; }
+  select, a.btn, button { font:inherit; padding:7px 12px; border-radius:8px; border:1px solid var(--line); background:#2e2219; color:var(--ink); text-decoration:none; cursor:pointer; text-align:center; }
+  a.btn:hover, button:hover, select:hover { border-color:var(--gold); }
+  main { display:grid; gap:16px; }
+  .card { background:var(--card); border:2px solid var(--line); border-radius:12px; padding:14px; display:grid; gap:10px; }
+  .card.usado { border-color:#6a5434; }
+  .top { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 14px; }
+  .num { font-weight:700; color:var(--gold); font-size:20px; } .name { font-weight:700; font-size:18px; }
+  .tags { display:flex; gap:6px; flex-wrap:wrap; }
+  .tag { font-size:13px; border:1px solid var(--gold); color:var(--gold); padding:1px 8px; border-radius:99px; }
+  .desc { color:var(--dim); margin:0; }
+  .shots { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
+  .shots figure { margin:0; }
+  .shots img { width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:6px; display:block; background:#000; }
+  .shots img, .mesa img { cursor:zoom-in; }
+  .shots figcaption { font-size:12px; color:var(--dim); text-align:center; }
+  .acts { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .acts span { color:var(--dim); font-size:13px; }
+  .acts button.on { border-color:var(--gold); background:#4a3518; }
+  #bar { position:fixed; left:0; right:0; bottom:0; background:#0f0b08f2; border-top:1px solid var(--line); padding:10px 16px; display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  #bar code { color:var(--gold); font-size:15px; }
+  #zoom { position:fixed; inset:0; background:#000e; z-index:10; overflow:hidden; touch-action:none; }
+  #zoom[hidden] { display:none; }
+  #zimg { position:absolute; left:0; top:0; transform-origin:0 0; user-select:none; -webkit-user-drag:none; cursor:grab; max-width:none; }
+  #zimg.drag { cursor:grabbing; }
+  #zcap { position:absolute; left:16px; top:12px; color:var(--ink); font-weight:700; text-shadow:0 1px 3px #000; }
+  #zhelp { position:absolute; left:16px; right:16px; bottom:12px; color:var(--dim); font-size:13px; text-align:center; text-shadow:0 1px 3px #000; }
+  #zclose { position:absolute; right:12px; top:8px; font-size:18px; }
+  @media (max-width:800px) { #mesas .grid { grid-template-columns:repeat(2, 1fr); } .shots { grid-template-columns:repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Qual traje o dono veste em cada mesa?</h1>
+  <p>Em cima ficam as 4 mesas de evento. Escolha um traje para cada uma no menu da mesa ou pelos botões "Pôr na mesa" de cada traje. "Testar no jogo" abre o jogo já dentro daquele evento, com a sua escolha, e mostra o boneco sendo trocado pelas cordas. Clique numa foto para ampliar. Quando terminar, copie a linha da barra de baixo e me mande no chat.</p>
+</header>
+<section id="mesas"><h2>As mesas</h2><div class="grid" id="mgrid"></div></section>
+<main id="list"><h2 style="margin:0">Os 10 trajes</h2></main>
+<div id="bar"><span>Sua escolha:</span><code id="linha"></code><button id="copiar">Copiar</button><button id="limpar" title="Volta à escolha provisória que está no código">Voltar ao provisório</button></div>
+<div id="zoom" hidden>
+  <img id="zimg" alt="">
+  <div id="zcap"></div>
+  <div id="zhelp">Roda do mouse ou pinça = zoom · arrastar = mover · duplo clique = ampliar no ponto · ← → troca de foto · Esc fecha</div>
+  <button id="zclose" aria-label="Fechar">✕</button>
+</div>
+<script>
+const T = [
+  ['banqueiro', 'Banqueiro', 'Cartola com faixa dourada, monóculo com corrente, bigode encerado, paletó verde e gravata dourada.'],
+  ['vidente', 'Vidente', 'Turbante roxo com joia vermelha e pena, argolas de ouro, paletó vinho.'],
+  ['magico', 'Mágico', 'Cartola alta com faixa vermelha, bigodinho fino, capa vermelha de gola alta, paletó preto e gravata branca.'],
+  ['palhaco', 'Palhaço', 'Peruca de tufos laranja, chapeuzinho listrado com pompom, nariz de bola, gola de babados, paletó amarelo.'],
+  ['juiz', 'Juiz', 'Peruca branca de cachos, toga preta e jabô branco no peito.'],
+  ['coveiro', 'Coveiro', 'Cartola alta e fina com fita de crepe, lírio branco na lapela, tudo preto.'],
+  ['pirata', 'Capitão', 'Tricórnio de três pontas com caveirinha, argola de ouro, casaca vermelha.'],
+  ['chef', 'Chef', 'Touca de chef branca, bigode encaracolado, dólmã branca e lenço vermelho.'],
+  ['inventor', 'Inventor', 'Óculos de proteção de latão na testa (topete à mostra), jaleco claro e gravata verde.'],
+  ['rei', 'Rei', 'Coroa de ouro com joias e forro de veludo, gola de arminho, paletó vermelho.'],
+];
+const NOME = Object.fromEntries(T.map(([id, n]) => [id, n]));
+const E = [
+  ['shop', 'Loja', 'compra de peças e serviços'],
+  ['mystic', 'Místico', 'a vidência e as bênçãos'],
+  ['press', 'Prensa', 'a máquina que forja peças'],
+  ['curse', 'Presente do Dono', 'o presente amaldiçoado'],
+];
+const PADRAO = { shop: 'banqueiro', mystic: 'vidente', press: 'coveiro', curse: 'palhaco' };
+const KEY = 'lab.trajes'; // o jogo (game.ts) lê esta chave no localhost
+let esc;
+try { esc = { ...PADRAO, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { esc = { ...PADRAO }; }
+const salvar = () => { try { localStorage.setItem(KEY, JSON.stringify(esc)); } catch {} render(); };
+const img = (id, s) => `../shots/lab-vilao-traje-${id}-${s}.png`;
+
+const mg = document.getElementById('mgrid'), list = document.getElementById('list');
+function render() {
+  mg.innerHTML = '';
+  for (const [k, ev, evd] of E) {
+    const id = esc[k];
+    const d = document.createElement('div'); d.className = 'mesa';
+    d.innerHTML = `<div class="ev">${ev}</div><div class="evd">${evd}</div>
+      ${id ? `<img src="${img(id, 'medio')}" alt="${ev}: ${NOME[id]}">` : '<div class="vazio">sem traje: o dono de sempre (T7B)</div>'}
+      <select>${['', ...T.map((t) => t[0])].map((o) => `<option value="${o}" ${o === (id || '') ? 'selected' : ''}>${o ? NOME[o] : 'Sem traje (T7B)'}</option>`).join('')}</select>
+      <a class="btn" href="/?evento=${k}" target="_blank">Testar no jogo ↗</a>`;
+    d.querySelector('select').onchange = (e) => { esc[k] = e.target.value; salvar(); };
+    mg.append(d);
+  }
+  for (const c of list.querySelectorAll('.card')) {
+    const id = c.dataset.id, onde = E.filter(([k]) => esc[k] === id);
+    c.classList.toggle('usado', onde.length > 0);
+    c.querySelector('.tags').innerHTML = onde.map(([, ev]) => `<span class="tag">${ev}</span>`).join('');
+    c.querySelectorAll('[data-ev]').forEach((b) => b.classList.toggle('on', esc[b.dataset.ev] === id));
+  }
+  document.getElementById('linha').textContent = E.map(([k, ev]) => `${ev.toLowerCase()} = ${esc[k] ? NOME[esc[k]].toLowerCase() : 'sem traje'}`).join(', ');
+}
+const SH = [['medio', 'plano médio'], ['perto', 'deboche'], ['bravo', 'bravo falando'], ['inimigos', 'soldadinhos']];
+T.forEach(([id, nome, desc], i) => {
+  const c = document.createElement('section'); c.className = 'card'; c.dataset.id = id;
+  c.innerHTML = `<div class="top"><span class="num">${i + 1}</span><span class="name">${nome}</span><span class="tags"></span></div>
+    <p class="desc">${desc}</p>
+    <div class="shots">${SH.map(([s, l]) => `<figure><img src="${img(id, s)}" alt="${nome}, ${l}"><figcaption>${l}</figcaption></figure>`).join('')}</div>
+    <div class="acts"><span>Pôr na mesa:</span>${E.map(([k, ev]) => `<button data-ev="${k}">${ev}</button>`).join('')}
+      <a class="btn" href="/?traje=${id}" target="_blank">Ver parado no jogo ↗</a></div>`;
+  c.querySelectorAll('[data-ev]').forEach((b) => b.onclick = () => { const k = b.dataset.ev; esc[k] = esc[k] === id ? '' : id; salvar(); });
+  list.append(c);
+});
+document.getElementById('copiar').onclick = async (e) => {
+  try { await navigator.clipboard.writeText(document.getElementById('linha').textContent); e.target.textContent = 'Copiado!'; } catch { e.target.textContent = 'Selecione e copie'; }
+  setTimeout(() => { e.target.textContent = 'Copiar'; }, 1500);
+};
+document.getElementById('limpar').onclick = () => { esc = { ...PADRAO }; try { localStorage.removeItem(KEY); } catch {} render(); };
+render();
+
+// ---- visualizador com zoom: clique numa foto abre em tela cheia
+const Z = document.getElementById('zoom'), ZI = document.getElementById('zimg'), ZC = document.getElementById('zcap');
+const all = () => [...document.querySelectorAll('.mesa img, .shots img')];
+let cur = 0, s = 1, tx = 0, ty = 0, fit = 1;
+const apply = () => { ZI.style.transform = `translate(${tx}px,${ty}px) scale(${s})`; };
+function fitView() {
+  const w = ZI.naturalWidth, h = ZI.naturalHeight;
+  fit = Math.min(innerWidth / w, (innerHeight - 70) / h);
+  s = fit; tx = (innerWidth - w * s) / 2; ty = (innerHeight - h * s) / 2; apply();
+}
+function zoomAt(k, cx, cy) {
+  const ns = Math.min(fit * 12, Math.max(fit, s * k));
+  tx = cx - (cx - tx) * (ns / s); ty = cy - (cy - ty) * (ns / s); s = ns; apply();
+}
+function openAt(i) {
+  const l = all(); cur = (i + l.length) % l.length;
+  const im = l[cur];
+  ZC.textContent = `${im.alt}  (${cur + 1}/${l.length})`;
+  ZI.onload = fitView; ZI.src = im.src; if (ZI.complete && ZI.naturalWidth) fitView();
+  Z.hidden = false;
+}
+document.body.addEventListener('click', (e) => {
+  if (e.target.tagName !== 'IMG' || e.target.id === 'zimg') return;
+  e.stopPropagation(); openAt(all().indexOf(e.target));
+}, true);
+document.getElementById('zclose').onclick = () => { Z.hidden = true; };
+Z.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY); }, { passive: false });
+Z.addEventListener('dblclick', (e) => { if (s > fit * 1.05) fitView(); else zoomAt(3, e.clientX, e.clientY); });
+const pts = new Map(); let lastD = 0;
+Z.addEventListener('pointerdown', (e) => { if (e.target.id === 'zclose') return; Z.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); ZI.classList.add('drag'); });
+Z.addEventListener('pointermove', (e) => {
+  if (!pts.has(e.pointerId)) return;
+  const [px, py] = pts.get(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pts.size === 1) { tx += e.clientX - px; ty += e.clientY - py; apply(); return; }
+  const [a, b] = [...pts.values()];
+  const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+  if (lastD) zoomAt(d / lastD, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+  lastD = d;
+});
+const up = (e) => { pts.delete(e.pointerId); lastD = 0; if (!pts.size) ZI.classList.remove('drag'); };
+Z.addEventListener('pointerup', up); Z.addEventListener('pointercancel', up);
+addEventListener('keydown', (e) => {
+  if (Z.hidden) return;
+  if (e.key === 'Escape') Z.hidden = true;
+  if (e.key === 'ArrowRight') openAt(cur + 1);
+  if (e.key === 'ArrowLeft') openAt(cur - 1);
+});
+addEventListener('resize', () => { if (!Z.hidden) fitView(); });
+</script>
+</body>
+</html>

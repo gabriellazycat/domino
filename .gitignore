@@ -1,2 +1,8 @@
 # vídeos renderizados de marketing (passam do limite do GitHub; ficam só locais)
 marketing*/**/*.mp4
+
+# lixo automático das ferramentas de arte (backups do Blender, cache do Python, logs de execução)
+*.blend1
+__pycache__/
+tools/**/*.log
+arte_ia/**/*.log

@@ -196,6 +196,12 @@ export class Backdrop {
   /** ponto do mundo que o dono da mesa encara */
   target = new THREE.Vector3(0, 0, 0);
   mood: WatcherMood = 'watch';
+  /** puxão das cordas para cima (troca de traje: o boneco sobe para fora do quadro e desce trocado) */
+  lift = 0;
+  /** traje pedido pelo jogo (null = o de sempre); o vilão oficial (vilaoOficial.ts) escuta por `costumeHook` */
+  costume: string | null = null;
+  costumeHook?: (id: string | null) => void;
+  setCostume(id: string | null) { if (id === this.costume) return; this.costume = id; this.costumeHook?.(id); }
   pulse = 0;
   /** 0 = calmo (planejando), 1 = cascata correndo: o redemoinho acelera e esquenta (suavizado) */
   tension = 0;
@@ -365,6 +371,39 @@ export class Backdrop {
   }
   private fixedStrings = 0;
 
+  /**
+   * Laboratório de vilões (?vilao=): troca a cabeça montada aqui por um modelo pronto. O modelo traz nós com
+   * nome Jaw, Eye_L/R e Lid_L/R (pivôs no lugar certo, frente = +Z); o resto da animação continua igual.
+   * Peças que faltarem ficam paradas. A pintura de rachaduras (setCrack) não alcança o modelo novo.
+   */
+  adoptModel(root: THREE.Object3D, jawCorners: [number, number, number] = [0.27, -0.32, 0.83]) {
+    const keep = new Set<THREE.Object3D>([this.strings, this.jaw]);
+    for (const c of [...this.head.children]) {
+      if (keep.has(c) || (c as THREE.Light).isLight) continue;
+      this.head.remove(c);
+    }
+    for (const c of [...this.jaw.children]) if (!this.jawAnchors.includes(c)) this.jaw.remove(c);
+    root.traverse((m) => { m.castShadow = false; m.receiveShadow = true; });
+    this.head.add(root);
+    const jaw = root.getObjectByName('Jaw');
+    if (jaw) {
+      this.jaw.position.copy(jaw.position);
+      jaw.position.set(0, 0, 0);
+      this.jaw.add(jaw);
+      this.jawAnchors.forEach((o, i) => o.position.set((i ? 1 : -1) * jawCorners[0], jawCorners[1], jawCorners[2]));
+    }
+    this.eyes.forEach((e, i) => {
+      const s = i === 0 ? 'R' : 'L'; // eyes[0] = side -1 = direita do boneco
+      const ball = root.getObjectByName(`Eye_${s}`) as THREE.Mesh | undefined;
+      const lid = root.getObjectByName(`Lid_${s}`) as THREE.Mesh | undefined;
+      e.ball = (ball ?? new THREE.Mesh()) as THREE.Mesh;
+      e.ball.rotation.order = 'YXZ';
+      e.lid = (lid ?? new THREE.Mesh()) as THREE.Mesh;
+      e.tilt = new THREE.Group();
+      e.brow = new THREE.Mesh();
+    });
+  }
+
   /** Susto: olhos arregalados e queixo caído (explosão, combo grande, a mão descendo). */
   startle(amount = 1) { this.wide = Math.min(1.4, this.wide + amount); this.pulse = Math.min(1, this.pulse + amount * 0.5); }
 
@@ -397,7 +436,7 @@ export class Backdrop {
 
     // pendurado nas cordas atrás da borda de trás da mesa: balança devagar e vira o rosto para a câmera
     const h = this.head;
-    h.position.set(MASK_POS.x + Math.sin(this.t * 0.23) * 0.12, MASK_POS.y + Math.sin(this.t * 0.6) * 0.08, MASK_POS.z);
+    h.position.set(MASK_POS.x + Math.sin(this.t * 0.23) * 0.12, MASK_POS.y + Math.sin(this.t * 0.6) * 0.08 + this.lift, MASK_POS.z);
     h.rotation.order = 'YXZ';
     h.rotation.y = Math.atan2(cam.position.x - h.position.x, cam.position.z - h.position.z) + Math.sin(this.t * 0.17) * 0.05;
     h.rotation.x = 0.12 + Math.sin(this.t * 0.4) * 0.02;

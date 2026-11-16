@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escolha do vilão</title>
+<style>
+  :root { --bg:#17110d; --card:#231a14; --line:#3a2c22; --ink:#f1e6d6; --dim:#b7a48c; --gold:#d9a441; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui, sans-serif; }
+  header { padding:24px 16px 8px; max-width:1200px; margin:auto; }
+  h1 { margin:0 0 4px; font-size:24px; }
+  header p { margin:0; color:var(--dim); }
+  main { max-width:1200px; margin:auto; padding:16px; display:grid; gap:16px; }
+  .card { background:var(--card); border:2px solid var(--line); border-radius:12px; padding:14px; display:grid; gap:10px; cursor:pointer; }
+  .card.sel { border-color:var(--gold); box-shadow:0 0 0 2px var(--gold) inset; }
+  .top { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 14px; }
+  .num { font-weight:700; color:var(--gold); font-size:20px; }
+  .name { font-weight:700; font-size:18px; }
+  .tech { color:var(--dim); font-size:13px; border:1px solid var(--line); padding:1px 8px; border-radius:99px; }
+  .desc { color:var(--dim); margin:0; }
+  .shots { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
+  .shots figure { margin:0; }
+  .shots img { width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:6px; display:block; background:#000; }
+  .shots figcaption { font-size:12px; color:var(--dim); text-align:center; }
+  .acts { display:flex; gap:8px; flex-wrap:wrap; }
+  a.btn, button { font:inherit; padding:7px 14px; border-radius:8px; border:1px solid var(--line); background:#2e2219; color:var(--ink); text-decoration:none; cursor:pointer; }
+  a.btn:hover, button:hover { border-color:var(--gold); }
+  .atual { opacity:.75; }
+  #bar { position:sticky; bottom:0; background:#0f0b08ee; border-top:1px solid var(--line); padding:12px 16px; text-align:center; }
+  #bar b { color:var(--gold); }
+  @media (max-width:700px) { .shots { grid-template-columns:repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Qual vira o vilão da mesa?</h1>
+  <p>Prints tirados no jogo. "Abrir no jogo" carrega a variação na mesa de verdade (olhos seguem, pisca, fala). Clique numa foto para ampliar com zoom; clique no resto do cartão para marcar sua escolha.</p>
+</header>
+<main id="list"></main>
+<div id="bar">Nenhuma marcada ainda.</div>
+<div id="zoom" hidden>
+  <img id="zimg" alt="">
+  <div id="zcap"></div>
+  <div id="zhelp">Roda do mouse ou pinça = zoom · arrastar = mover · duplo clique = ampliar no ponto · ← → troca de foto · Esc fecha</div>
+  <button id="zclose" aria-label="Fechar">✕</button>
+</div>
+<style>
+  .shots img { cursor:zoom-in; }
+  #zoom { position:fixed; inset:0; background:#000e; z-index:10; overflow:hidden; touch-action:none; }
+  #zoom[hidden] { display:none; }
+  #zimg { position:absolute; left:0; top:0; transform-origin:0 0; user-select:none; -webkit-user-drag:none; cursor:grab; max-width:none; }
+  #zimg.drag { cursor:grabbing; }
+  #zcap { position:absolute; left:16px; top:12px; color:var(--ink); font-weight:700; text-shadow:0 1px 3px #000; }
+  #zhelp { position:absolute; left:16px; right:16px; bottom:12px; color:var(--dim); font-size:13px; text-align:center; text-shadow:0 1px 3px #000; }
+  #zclose { position:absolute; right:12px; top:8px; font-size:18px; }
+</style>
+<script>
+const V = [
+  ['oficial', '★', 'Vilão oficial (T7B)', 'No jogo agora', 'O que está no jogo sem parâmetro: T7B com olho de vórtice, sobrancelhas com fio, rachaduras por fase. Os soldadinhos também têm o vórtice.'],
+  ['traje-banqueiro', 'Banqueiro', 'Traje · Banqueiro', 'Evento: Loja (provisório)', 'Cartola com faixa dourada, monóculo com corrente, bigode encerado, paletó verde e gravata dourada. Mesmo boneco (T7B); troca puxado pelas cordas.'],
+  ['traje-vidente', 'Vidente', 'Traje · Vidente', 'Evento: Místico (provisório)', 'Turbante roxo com joia vermelha e pena, argolas de ouro, paletó vinho. Mesmo boneco (T7B); troca puxado pelas cordas.'],
+  ['traje-magico', 'Mágico', 'Traje · Mágico', 'Evento: Presente do Dono (provisório)', 'Cartola alta com faixa vermelha, bigodinho fino, capa vermelha de gola alta, paletó preto e gravata branca. Mesmo boneco (T7B); troca puxado pelas cordas.'],
+  ['traje-palhaco', 'Palhaço', 'Traje · Palhaço', 'Evento: —', 'Peruca de tufos laranja, chapeuzinho listrado com pompom, nariz de bola, gola de babados, paletó amarelo. Mesmo boneco (T7B); troca puxado pelas cordas.'],
+  ['traje-juiz', 'Juiz', 'Traje · Juiz', 'Evento: —', 'Peruca branca de cachos, toga preta e jabô branco no peito. Mesmo boneco (T7B); troca puxado pelas cordas.'],
+  ['traje-coveiro', 'Coveiro', 'Traje · Coveiro', 'Evento: —', 'Cartola alta e fina com fita de crepe, lírio branco na lapela, tudo preto. Mesmo boneco (T7B); troca puxado pelas cordas.'],
+  ['traje-pirata', 'Capitão', 'Traje · Capitão', 'Evento: —', 'Tricórnio de três pontas com caveirinha, argola de ouro, casaca vermelha. Mesmo boneco (T7B); troca puxado pelas cordas.'],
+  ['traje-chef', 'Chef', 'Traje · Chef', 'Evento: —', 'Touca de chef branca, bigode encaracolado, dólmã branca e lenço vermelho. Mesmo boneco (T7B); troca puxado pelas cordas.'],
+  ['traje-inventor', 'Inventor', 'Traje · Inventor', 'Evento: Prensa (provisório)', 'Óculos de proteção de latão na testa (com o topete à mostra), jaleco claro e gravata verde. Mesmo boneco (T7B); troca puxado pelas cordas.'],
+  ['traje-rei', 'Rei', 'Traje · Rei', 'Evento: —', 'Coroa de ouro com joias e forro de veludo, gola de arminho, paletó vermelho. Mesmo boneco (T7B); troca puxado pelas cordas.'],
+  ['T7A', 'T7A', 'T6A · cabelo preto lambido', 'Opção de cabelo', 'Preto laqueado, fino e penteado com risca do lado. Olho e corpo iguais ao T6A; com esse link os inimigos também ganham o olho de vórtice.'],
+  ['T7B', 'T7B', 'T6A · cabelo topete castanho', 'Opção de cabelo', 'Castanho com topete alto na frente, poucos gomos largos. Olho e corpo iguais ao T6A; com esse link os inimigos também ganham o olho de vórtice.'],
+  ['T7C', 'T7C', 'T6A · cabelo pintado rente', 'Opção de cabelo', 'Pintado direto na cabeça (quase sem volume), preto com riscos de pente. Olho e corpo iguais ao T6A; com esse link os inimigos também ganham o olho de vórtice.'],
+  ['T6A', 'T6A', 'Olho 2D pintado na superfície', 'Olho 2D sem pálpebra', 'O olho é um desenho colado no rosto (acompanha a órbita): vazio preto, e partículas de tinta correm em espiral para dentro e viram o próprio olho. Nunca fecha; a expressão vem da forma (deboche = meio cerrado, raiva = corte inclinado, susto = cresce).'],
+  ['T6B', 'T6B', 'Olho 2D desenhado por cima', 'Olho 2D sem pálpebra', 'Desenho chapado por cima do rosto, no traço de nanquim dos dominós: aro grosso, miolo creme e a pupila é o redemoinho; os traços de tinta são sugados para dentro e viram o aro e a pupila. Nunca fecha; mesma expressão pela forma.'],
+  ['T5A', 'T5A', 'Marionete · vórtice de tinta', 'Olho 2D + partículas', 'Olho de vórtice preto com gotas de tinta preta saindo do olho em espiral (mais rápido e em brasa na raiva, some ao piscar). Sobrancelhas 3D de madeira que mexem, cada uma num fio; cordas de barbante com ilhós de latão que saem da superfície e não atravessam o boneco.'],
+  ['T5B', 'T5B', 'Marionete · vórtice de faíscas', 'Olho 2D + partículas', 'Olho de vórtice preto com faíscas riscadas saindo do olho em espiral (mais rápido e em brasa na raiva, some ao piscar). Sobrancelhas 3D de madeira que mexem, cada uma num fio; cordas de barbante com ilhós de latão que saem da superfície e não atravessam o boneco.'],
+  ['T5C', 'T5C', 'Marionete · vórtice de rabiscos', 'Olho 2D + partículas', 'Olho de vórtice preto com anéis de nanquim desenhados saindo do olho em espiral (mais rápido e em brasa na raiva, some ao piscar). Sobrancelhas 3D de madeira que mexem, cada uma num fio; cordas de barbante com ilhós de latão que saem da superfície e não atravessam o boneco.'],
+  ['T4', 'T4', 'Brinquedo · olho 2D de vórtice', 'A em linguagem brinquedo', 'Corpo do T1, mas o olho é 2D: um buraco preto com redemoinho. O centro anda com o olhar; no deboche gira devagar com um pontinho aceso; na raiva gira rápido em brasa; no susto fecha e mostra uma pupila branca.'],
+  ['T1', 'T1', 'Brinquedo · olho de bola + laca', 'A em linguagem brinquedo', 'Forma de boneco (cabeçudo, nariz de bolinha, cabelo em gomos), laca chapada como os soldadinhos, olho marfim com pupila preta, contorno de luz.'],
+  ['T2', 'T2', 'Brinquedo · olho de traço + laca', 'A em linguagem brinquedo', 'Mesma forma e laca; o olho é desenhado em tinta preta (aro + pupila), igual aos rostinhos dos dominós.'],
+  ['T3', 'T3', 'Brinquedo · olho de bola + madeira suave', 'A em linguagem brinquedo', 'Mesma forma e olho do T1, mas com as marcas de goiva bem leves aparecendo por baixo da tinta.'],
+  ['atual', '—', 'Atual (para comparar)', 'Código antigo', 'O vilão de hoje, formas simples empilhadas.'],
+  ['A', 1,'Entalhado-cavalheiro', 'Blender', 'Madeira talhada com marcas de goiva, tinta fina, cabelo ruivo entalhado, pálpebra caída de deboche.'],
+  ['B', 2, 'Rachado-sinistro', 'Blender', 'Tinta creme craquelada com lascas, monóculo de latão, dente de ouro, bigodinho.'],
+  ['C1', 3, 'Entalhado (código)', 'Código', 'Mesma ideia do A, gerado no navegador, sem arquivo de textura.'],
+  ['C2', 4, 'Rachado (código)', 'Código', 'Mesma ideia do B, gerado no navegador.'],
+  ['IA-A', 5, 'Cavalheiro de bigode', 'IA + Blender', 'Bigode e óculos, a malha de IA mais detalhada (fica escura sob a vela).'],
+  ['IA-B', 6, 'Rachado de olhos arregalados', 'IA + Blender', 'A mais assustadora (pálpebra não aparece ao piscar).'],
+];
+const SH = [['medio','plano médio'],['perto','deboche'],['bravo','bravo falando'],['fechado','piscando']];
+const list = document.getElementById('list'), bar = document.getElementById('bar');
+for (const [id, n, name, tech, desc] of V) {
+  const c = document.createElement('section');
+  c.className = 'card' + (id === 'atual' ? ' atual' : '');
+  c.dataset.id = id;
+  const url = id === 'oficial' ? '/' : id.startsWith('traje-') ? `/?traje=${id.slice(6)}` : `/?vilao=${id}`;
+  c.innerHTML = `
+    <div class="top"><span class="num">${n}</span><span class="name">${name}</span><span class="tech">${tech}</span></div>
+    <p class="desc">${desc}</p>
+    <div class="shots">${SH.map(([s, l]) => `<figure><img src="../shots/lab-vilao-${id}-${s}.png" alt="${name}, ${l}"><figcaption>${l}</figcaption></figure>`).join('')}</div>
+    <div class="acts"><a class="btn" href="${url}" target="_blank" onclick="event.stopPropagation()">Abrir no jogo ↗</a></div>`;
+  if (id !== 'atual') c.onclick = () => {
+    document.querySelectorAll('.card').forEach((x) => x.classList.toggle('sel', x === c));
+    bar.innerHTML = `Marcada: <b>${n} · ${name}</b> — me diga no chat "quero a ${n}" (ou "${id}").`;
+  };
+  list.append(c);
+}
+
+// ---- visualizador com zoom: clique numa foto abre em tela cheia
+const Z = document.getElementById('zoom'), ZI = document.getElementById('zimg'), ZC = document.getElementById('zcap');
+const all = () => [...document.querySelectorAll('.shots img')];
+let cur = 0, s = 1, tx = 0, ty = 0, fit = 1;
+const apply = () => { ZI.style.transform = `translate(${tx}px,${ty}px) scale(${s})`; };
+function fitView() {
+  const w = ZI.naturalWidth, h = ZI.naturalHeight;
+  fit = Math.min(innerWidth / w, (innerHeight - 70) / h);
+  s = fit; tx = (innerWidth - w * s) / 2; ty = (innerHeight - h * s) / 2; apply();
+}
+function zoomAt(k, cx, cy) {
+  const ns = Math.min(fit * 12, Math.max(fit, s * k));
+  tx = cx - (cx - tx) * (ns / s); ty = cy - (cy - ty) * (ns / s); s = ns; apply();
+}
+function openAt(i) {
+  const list = all(); cur = (i + list.length) % list.length;
+  const im = list[cur];
+  ZC.textContent = `${im.alt}  (${cur + 1}/${list.length})`;
+  ZI.onload = fitView; ZI.src = im.src; if (ZI.complete && ZI.naturalWidth) fitView();
+  Z.hidden = false;
+}
+list.addEventListener('click', (e) => {
+  if (e.target.tagName !== 'IMG') return;
+  e.stopPropagation(); openAt(all().indexOf(e.target));
+}, true);
+document.getElementById('zclose').onclick = () => { Z.hidden = true; };
+Z.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY); }, { passive: false });
+Z.addEventListener('dblclick', (e) => { if (s > fit * 1.05) fitView(); else zoomAt(3, e.clientX, e.clientY); });
+// arrastar e pinça (ponteiros)
+const pts = new Map(); let lastD = 0;
+Z.addEventListener('pointerdown', (e) => { if (e.target.id === 'zclose') return; Z.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); ZI.classList.add('drag'); });
+Z.addEventListener('pointermove', (e) => {
+  if (!pts.has(e.pointerId)) return;
+  const [px, py] = pts.get(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pts.size === 1) { tx += e.clientX - px; ty += e.clientY - py; apply(); return; }
+  const [a, b] = [...pts.values()];
+  const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+  if (lastD) zoomAt(d / lastD, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+  lastD = d;
+});
+const up = (e) => { pts.delete(e.pointerId); lastD = 0; if (!pts.size) ZI.classList.remove('drag'); };
+Z.addEventListener('pointerup', up); Z.addEventListener('pointercancel', up);
+addEventListener('keydown', (e) => {
+  if (Z.hidden) return;
+  if (e.key === 'Escape') Z.hidden = true;
+  if (e.key === 'ArrowRight') openAt(cur + 1);
+  if (e.key === 'ArrowLeft') openAt(cur - 1);
+  if (e.key === '+' || e.key === '=') zoomAt(1.4, innerWidth / 2, innerHeight / 2);
+  if (e.key === '-') zoomAt(1 / 1.4, innerWidth / 2, innerHeight / 2);
+});
+addEventListener('resize', () => { if (!Z.hidden) fitView(); });
+</script>
+</body>
+</html>

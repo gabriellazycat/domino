@@ -46,6 +46,13 @@ export class Hand {
   private stringTops: THREE.Vector3[] = [];
   private strings!: THREE.LineSegments;
   private tmp = new THREE.Vector3();
+  /** peças da mão (palma, falanges, pulso) e lascas da quebra: as luvas dos trajes trocam o material delas */
+  private handParts: THREE.Mesh[] = [];
+  private freshParts: THREE.Mesh[] = [];
+  private mats!: { wood: THREE.Material; cloth: THREE.MeshStandardMaterial; shirt: THREE.MeshStandardMaterial };
+  private outfits = new Map<string, THREE.Object3D[]>();
+  private gloves = new Map<string, THREE.Material>();
+  private dressed: string | null = null;
 
   constructor(scene: THREE.Scene) {
     this.build();
@@ -86,6 +93,7 @@ export class Hand {
       const bone = add(new THREE.Mesh(carvedBlock(r * 1.9, r * 1.55, L, r * 0.32, [2, 2, 4], chips, 0.25, uvSeed++), wood), seg);
       bone.position.z = GAP / 2 + L / 2;
       const drum = add(new THREE.Mesh(new THREE.CylinderGeometry(r * 0.62, r * 0.62, r * 1.3, 14), wood), seg);
+      this.handParts.push(bone, drum);
       drum.rotation.z = Math.PI / 2;
       pin(seg, r * 2.15, r * 0.2);
       return GAP / 2 + L;
@@ -97,6 +105,7 @@ export class Hand {
       { c: new THREE.Vector3(-1.0, 0.05, -0.55), rad: 0.36, depth: 0.13 },
     ], 0.4, uvSeed++), wood), this.root);
     palm.position.set(0, 0, 0.1);
+    this.handParts.push(palm);
     // dedos: falanges separadas por um vão, com um pino em cada junta
     const F = [
       { x: -0.72, len: [0.95, 0.72, 0.52], r: 0.16 },
@@ -123,9 +132,11 @@ export class Hand {
             const a = (k / 6) * Math.PI * 2;
             sp.position.set(Math.cos(a) * r * 0.55, Math.sin(a) * r * 0.45, tipZ - r * 0.1);
             sp.rotation.set(Math.PI / 2 + Math.sin(a) * 0.25, 0, Math.cos(a) * 0.25);
+            this.freshParts.push(sp);
           }
           const scar = add(new THREE.Mesh(new THREE.CircleGeometry(r * 0.72, 9), fresh), seg);
           scar.position.z = tipZ + 0.002;
+          this.freshParts.push(scar);
         } else if (last) anchor(seg, 0, r * 0.75, tipZ * 0.8);
         parent.add(seg);
         segs.push(seg);
@@ -151,6 +162,8 @@ export class Hand {
     const wrist = add(new THREE.Mesh(new THREE.SphereGeometry(0.62, 24, 16), wood), this.root);
     wrist.position.set(0, 0, -1.05);
     wrist.scale.set(1, 0.7, 0.8);
+    this.handParts.push(wrist);
+    this.mats = { wood, cloth, shirt };
     pin(this.root, 1.5, 0.08, -1.05);
     for (const sx of [-1, 1]) {
       const cap = add(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.06, 12), brass), this.root);
@@ -212,6 +225,76 @@ export class Hand {
       a.setXYZ(i * 2 + 1, t.x, t.y, t.z);
     });
     a.needsUpdate = true;
+  }
+
+  /**
+   * Veste a mão conforme o boneco que está na mesa (o traje do dono, vilaoTrajes.ts): manga e punho na cor do
+   * figurino, luvas e joias. `null` = a mão de sempre (madeira crua, paletó escuro).
+   */
+  dress(id: string | null) {
+    if (id === this.dressed) return;
+    this.dressed = id;
+    const look: Record<string, { cloth: string; shirt: string; glove?: () => THREE.Material }> = {
+      banqueiro: { cloth: '#1d3a2a', shirt: '#efe7d6' },
+      vidente: { cloth: '#4a1532', shirt: '#d6a646' },
+      coveiro: { cloth: '#0d0b10', shirt: '#1a181e', glove: () => new THREE.MeshStandardMaterial({ color: '#16131a', roughness: 0.5, metalness: 0.05 }) },
+      palhaco: { cloth: '#d9a420', shirt: '#2a5ad0', glove: () => new THREE.MeshStandardMaterial({ color: '#f3efe6', roughness: 0.75 }) },
+    };
+    const L = id ? look[id] : undefined;
+    this.mats.cloth.color.set(L?.cloth ?? '#1b1820');
+    this.mats.shirt.color.set(L?.shirt ?? '#b9ae96');
+    let glove: THREE.Material | undefined;
+    if (L?.glove) { glove = this.gloves.get(id!); if (!glove) { glove = L.glove(); this.gloves.set(id!, glove); } }
+    for (const m of this.handParts) m.material = glove ?? this.mats.wood;
+    for (const m of this.freshParts) m.visible = !glove; // a luva cobre o dedo quebrado
+    for (const [k, list] of this.outfits) for (const o of list) o.visible = k === id;
+    if (id && L && !this.outfits.has(id)) this.outfits.set(id, this.buildOutfit(id));
+  }
+
+  /** Joias e enfeites de cada traje, presos nos dedos/pulso (somem quando a mão volta a ser a de sempre). */
+  private buildOutfit(id: string) {
+    const made: THREE.Object3D[] = []; // tudo que este traje pôs na mão (anéis ficam nos dedos, o resto no braço)
+    const gold = new THREE.MeshStandardMaterial({ color: '#d6a646', roughness: 0.3, metalness: 0.9 });
+    const add = (m: THREE.Mesh, parent: THREE.Object3D = this.root) => { m.castShadow = true; m.receiveShadow = true; parent.add(m); made.push(m); return m; };
+    /** anel na primeira falange do dedo `fi` (o dedo é um bloco ~0,32 × 0,26; o anel abraça com folga mínima) */
+    const ring = (fi: number, gem?: string, wide = 0.05) => {
+      const seg = this.fingers[fi][0];
+      const r = [0.16, 0.17, 0.17, 0.14][fi] ?? 0.16;
+      const band = add(new THREE.Mesh(new THREE.TorusGeometry(r * 1.13, wide * 0.6, 10, 28), gold), seg);
+      band.scale.set(1, 0.84, 1);
+      band.position.z = 0.42;
+      if (gem) {
+        const s = add(new THREE.Mesh(new THREE.SphereGeometry(r * 0.42, 16, 12), new THREE.MeshStandardMaterial({ color: gem, roughness: 0.12 })), seg);
+        s.position.set(0, r * 0.95, 0.42); s.scale.set(1, 0.65, 1);
+        if (wide > 0.06) { const plate = add(new THREE.Mesh(new THREE.CylinderGeometry(r * 0.55, r * 0.55, 0.05, 20), gold), seg); plate.position.set(0, r * 0.88, 0.42); }
+      }
+    };
+    /** pulseira em volta do antebraço (raio do antebraço ~0,56 perto do pulso) */
+    const bangle = (z: number, tube = 0.05) => add(new THREE.Mesh(new THREE.TorusGeometry(0.6 + tube * 0.4, tube, 10, 32), gold)).position.set(0, 0, z);
+    if (id === 'banqueiro') {
+      ring(1, '#1d1a12', 0.075); // anel de sinete de ouro com pedra escura no indicador
+      ring(3);
+      // abotoadura grande de ouro no punho branco
+      const link = add(new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.06, 20), gold));
+      link.rotation.z = Math.PI / 2; link.position.set(1.02, 0.25, -4.2);
+    }
+    if (id === 'vidente') {
+      ring(0, '#c0182a'); ring(1, '#2a8a5a'); ring(2); ring(3, '#3a5ad0');
+      bangle(-1.7); bangle(-1.86, 0.035); bangle(-2.0);
+    }
+    if (id === 'coveiro') {
+      // faixa de luto de crepe na manga
+      const band = add(new THREE.Mesh(new THREE.CylinderGeometry(1.11, 1.13, 0.6, 24, 1, true), new THREE.MeshStandardMaterial({ color: '#050407', roughness: 0.95, side: THREE.DoubleSide })));
+      band.rotation.x = Math.PI / 2; band.position.z = -5.6;
+    }
+    if (id === 'palhaco') {
+      // luva de desenho: punho enrolado e bufante e três pespontos nas costas da mão
+      const cuff = add(new THREE.Mesh(new THREE.TorusGeometry(0.64, 0.2, 14, 32), this.gloves.get('palhaco')!));
+      cuff.position.z = -1.55;
+      const ink = new THREE.MeshStandardMaterial({ color: '#1a1410', roughness: 0.8 });
+      for (const x of [-0.42, 0, 0.42]) { const st = add(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.02, 0.9), ink)); st.position.set(x, 0.26, -0.15); }
+    }
+    return made;
   }
 
   /** Começa a cena: varre `targets` e chama `onCleared` quando o tabuleiro está limpo (a mão ainda está saindo). */

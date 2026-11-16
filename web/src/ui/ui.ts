@@ -362,6 +362,14 @@ export class UI {
     this.speechT = window.setTimeout(() => el.classList.remove('on'), ms);
   }
 
+  /** Reposiciona o balão do dono enquanto ele está na tela (a câmera pode estar se movendo). */
+  speakMove(x: number, y: number) {
+    const el = this.speechEl;
+    if (!el.classList.contains('on') || !Number.isFinite(x) || !Number.isFinite(y)) return;
+    el.style.left = `${Math.min(window.innerWidth - 330, Math.max(20, x - 150))}px`;
+    el.style.top = `${Math.min(window.innerHeight - 140, Math.max(20, y + 64))}px`;
+  }
+
   /** Balãozinho de uma peça: preso acima do ponto (x, y) da tela. */
   pieceSpeak(x: number, y: number, text: string, ms = 2200) {
     const el = this.pieceSpeechEl;

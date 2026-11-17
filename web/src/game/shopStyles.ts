@@ -648,8 +648,10 @@ function stageStand(w: number): THREE.Group {
   for (const s of [-1, 1]) {
     mesh(cyl(0.05, 0.06, AH, 12), M.gold(), g, s * (w / 2 - 0.07), 0.27 + AH / 2, -0.34);
     mesh(new THREE.SphereGeometry(0.075, 12, 10), M.gold(), g, s * (w / 2 - 0.07), 0.27 + AH + 0.06, -0.34);
-    const dr = drape(w * 0.5, AH - 0.06, s, curtain);
-    dr.position.set(s * w * 0.235, 0.27 + AH / 2 - 0.03, -0.33);
+    // larguras que não se cruzam no centro (antes 0.5w a ±0.235w: sobrepunha 0.03w, ondas quase coplanares)
+    const dr = drape(w * 0.47, AH - 0.06, s, curtain);
+    dr.position.set(s * w * 0.255, 0.27 + AH / 2 - 0.03, -0.33);
+    dr.receiveShadow = false; // pano de dupla face + spot que balança = acne tremendo; não recebe sombra
     g.add(dr);
     const tie = mesh(new THREE.TorusGeometry(0.06, 0.016, 6, 12), M.gold(), g, s * (w / 2 - 0.13), 0.62, -0.3);
     tie.rotation.y = Math.PI / 2;
@@ -662,9 +664,12 @@ function stageStand(w: number): THREE.Group {
   mesh(box(w + 0.06, 0.03, 0.12, 0.01), M.gold(), g, 0, 0.27 + AH + 0.07, -0.33);
   const ns = Math.max(3, Math.round(w / 0.42));
   for (let i = 0; i < ns; i++) {
-    const sc = mesh(new THREE.CylinderGeometry(w / ns / 2, w / ns / 2, 0.03, 16, 1, false, 0, Math.PI), curtain, g, -w / 2 + (i + 0.5) * (w / ns), 0.27 + AH - 0.1, -0.3);
+    const sc = mesh(new THREE.CylinderGeometry(w / ns / 2, w / ns / 2, 0.03, 16, 1, false, 0, Math.PI), curtain, g, -w / 2 + (i + 0.5) * (w / ns), 0.27 + AH - 0.1, -0.262);
+    // z=-0.262 (meia espessura 0.015): a face de trás fica dentro da caixa do lambrequim (frente em -0.285),
+    // em vez de coincidir com ela como em -0.30
     sc.rotation.set(Math.PI / 2, Math.PI / 2, 0);
-    mesh(new THREE.SphereGeometry(0.022, 8, 6), M.gold(), g, -w / 2 + (i + 0.5) * (w / ns), 0.27 + AH - 0.1 - w / ns / 2 - 0.01, -0.285);
+    sc.receiveShadow = false;
+    mesh(new THREE.SphereGeometry(0.022, 8, 6), M.gold(), g, -w / 2 + (i + 0.5) * (w / ns), 0.27 + AH - 0.1 - w / ns / 2 - 0.01, -0.25);
   }
   g.userData.top = 0.278;
   g.userData.tagY = 2.12;

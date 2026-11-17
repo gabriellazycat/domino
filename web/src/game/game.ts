@@ -851,7 +851,12 @@ export class Game {
    */
   private ownerLook(seconds = 2.6) {
     if (this.paused || this.mode === 'sim' || this.mode === 'transition' || this.mode === 'menu') return;
-    this.rig.lookUp(new THREE.Vector3(MASK_POS.x, MASK_POS.y + 0.5, MASK_POS.z + 1.6), 9.6, 1.6, seconds);
+    if (this.mode === 'event') {
+      // nos eventos a mesa tem barracas, altar e prensa na frente do dono: câmera alta, olhando por cima deles
+      this.rig.lookUp(new THREE.Vector3(MASK_POS.x, MASK_POS.y + 1.0, MASK_POS.z + 1.2), 12, 1.05, seconds);
+    } else {
+      this.rig.lookUp(new THREE.Vector3(MASK_POS.x, MASK_POS.y + 0.5, MASK_POS.z + 1.6), 9.6, 1.6, seconds);
+    }
     this.world.backdrop.startle(0.25);
   }
 

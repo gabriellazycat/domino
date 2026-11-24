@@ -5,4 +5,3 @@ marketing*/**/*.mp4
 *.blend1
 __pycache__/
 tools/**/*.log
-arte_ia/**/*.log

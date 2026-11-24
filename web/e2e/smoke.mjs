@@ -33,6 +33,8 @@ const shot = (n) => page.screenshot({ path: path.join(out, `${n}.png`) });
 const wait = (ms) => page.waitForTimeout(ms);
 
 try {
+  // sem GPU cada quadro com pós-processamento leva segundos e a fase não termina no prazo: desliga os efeitos pesados
+  await page.addInitScript(() => localStorage.setItem('topple.settings.v1', JSON.stringify({ post: false, ao: false, dof: false, crt: false, ink: false })));
   await page.goto(url);
   await page.waitForFunction(() => window.__dominotion, null, { timeout: 60000 });
   await wait(2500);

@@ -1563,7 +1563,8 @@ export class Game {
       newRun: (seed: number) => this.newRun(seed),
       /** repete a cena da mão varrendo a fase atual (e remonta a mesma fase) */
       transition: () => { if (this.run) this.startTransition(() => this.startPhase(true, true)); },
-      autoPlan: () => { const r = autoPlan(this.layout); this.board.clearPieces(); for (const p of this.layout.pieces) this.board.addPiece(p, false); this.refreshHud(); return r; },
+      // planeja com o deck inteiro da run (como solver.ts): a mão de 7 acaba no meio da rota e o bot não pega da caixa
+      autoPlan: () => { const L = new Layout(this.spec, runDeck(this.run!)); const r = autoPlan(L); this.layout.pieces = L.pieces; this.board.clearPieces(); for (const p of this.layout.pieces) this.board.addPiece(p, false); this.refreshHud(); return r; },
       event: () => this.event,
       /** abre um evento na hora (testes): 'shop' | 'press' | 'mystic' */
       openEvent: (k: EventKind) => { if (this.run) this.startTransition(() => this.startEvent(k)); },

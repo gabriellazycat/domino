@@ -5,11 +5,8 @@ import type { EnemyKind } from '../core/mapgen';
 // desenhados num atlas (canvas) e colados numa calota curva na frente da cabeça. O pontinho
 // é branco no atlas e tingido pela cor do material (brilha no bloom); o preto continua preto.
 
-// Os inimigos têm o mesmo olho 2D de vórtice preto do dono da mesa (o atlas perde os olhos e uma calota com shader
-// desenha o vórtice). No laboratório (?vilao=<id>), só as variações com esse olho (T6A, T7*) usam; as outras voltam
-// aos olhos ocos antigos, para comparar.
-export const VORTEX_ENEMY_EYES = typeof location === 'undefined' || !/[?&]vilao=/i.test(location.search)
-  || /[?&]vilao=(T6A|T7[ABC])(&|$)/i.test(location.search);
+// Os olhos são o mesmo olho 2D de vórtice preto do dono da mesa: o atlas só traz boca e expressões sem olho
+// aberto, e uma calota com shader (vortexCap) desenha o vórtice por cima.
 
 export const ENEMY_EXPRS = ['idle', 'blink', 'lookL', 'lookR', 'alarm', 'hurt', 'dizzy', 'smug', 'angry'] as const;
 export type EnemyExpr = typeof ENEMY_EXPRS[number];
@@ -35,21 +32,16 @@ function enemyAtlas(): THREE.CanvasTexture {
     line(pts, 0.035);
     for (const t of [0.2, 0.5, 0.8]) { const [x, y] = pts[Math.round(t * 8)]; line([[x, y - 0.045], [x, y + 0.045]], 0.025); }
   };
-  const eyes = (rx: number, ry: number, dx: number, dy: number, dot: number) => {
-    if (VORTEX_ENEMY_EYES) return; // o vórtice é desenhado pela calota de shader
-    for (const x of [EL, ER]) { ell(x, EY, rx, ry, BLACK); if (dot > 0) ell(x + dx, EY + dy, dot, dot, LIGHT); }
-  };
 
   ENEMY_EXPRS.forEach((ex, i) => {
     g.save();
     g.translate(i * S, 0);
     switch (ex) {
-      case 'idle': eyes(0.11, 0.085, 0, 0.005, 0.03); mouth(); break;
+      case 'idle': mouth(); break;
       case 'blink': for (const x of [EL, ER]) line([[x - 0.1, EY + 0.01], [x + 0.1, EY + 0.01]], 0.05); mouth(); break;
-      case 'lookL': eyes(0.11, 0.085, -0.05, 0.005, 0.03); mouth(0, 0.03); break;
-      case 'lookR': eyes(0.11, 0.085, 0.05, 0.005, 0.03); mouth(0, -0.03); break;
+      case 'lookL': mouth(0, 0.03); break;
+      case 'lookR': mouth(0, -0.03); break;
       case 'alarm':
-        eyes(0.135, 0.13, 0, 0, 0.02);
         line([[0.2, 0.2], [0.42, 0.16]], 0.04); line([[0.58, 0.16], [0.8, 0.2]], 0.04);
         ell(0.5, 0.77, 0.06, 0.07, BLACK);
         break;
@@ -73,7 +65,6 @@ function enemyAtlas(): THREE.CanvasTexture {
         mouth(0.05, -0.05);
         break;
       case 'angry':
-        eyes(0.11, 0.08, 0, 0.015, 0.03);
         line([[0.18, 0.24], [0.43, 0.36]], 0.055); line([[0.57, 0.36], [0.82, 0.24]], 0.055);
         mouth(-0.05);
         break;
@@ -199,7 +190,8 @@ export class EnemyFaceRig {
     this.shown = this.base;
     this.radius = r * 1.03;
     this.mesh = new THREE.Mesh(faceGeometry(this.radius, this.base), faceMaterial(glint, kind === 'brute' || kind === 'general' || kind === 'ogre' ? 3.5 : 2.5));
-    if (VORTEX_ENEMY_EYES) { this.vortex = vortexCap(this.radius); this.mesh.add(this.vortex.mesh); }
+    this.vortex = vortexCap(this.radius);
+    this.mesh.add(this.vortex.mesh);
   }
 
   /** Reação rápida por cima da expressão base (susto, golpe). */

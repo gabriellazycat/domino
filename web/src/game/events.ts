@@ -18,7 +18,7 @@ import type { UI } from '../ui/ui';
 import { icon } from '../ui/icons';
 import { sealImg, buffImg } from './sigils';
 import * as P from './props';
-import { ShopKit, shopKit, currentShopStyle, theatreRug, theatrePedestal } from './shopStyles';
+import { ShopKit, shopKit, theatreRug, theatrePedestal } from './shopStyles';
 
 // EVENTOS entre as fases, montados em 3D na mesa vazia (depois que a mão de porcelana varre tudo):
 // LOJA, PRENSA DE SELOS e ALTAR MÍSTICO. Cada um é uma cena com itens clicáveis (raio do mouse),
@@ -346,7 +346,7 @@ class ShopScene extends EventScene {
   private hammer: THREE.Group | null = null;
   private anvilTop = new THREE.Vector3();
   private anvil: THREE.Group | null = null;
-  private kit: ShopKit | null = null;
+  private kit!: ShopKit;
 
   protected intro() { return [t('Veio fazer compras? Tudo aqui tem preço.'), t('Meu estoque é pequeno. Minha paciência também.')]; }
   protected bar() {
@@ -368,20 +368,18 @@ class ShopScene extends EventScene {
 
   protected build() {
     const g = this.group;
-    // laboratório visual: com uma direção de arte escolhida (teclas 1/2/3 na loja), o kit troca tapete,
-    // expositores, serviços e enfeites; sem escolha, fica a loja de sempre
-    const style = currentShopStyle();
-    this.kit = style ? shopKit(style) : null;
-    const c = this.kit?.rug ?? P.cloth(11.6, 5.6);
+    // cenário do Teatrinho (shopStyles.ts): tapete, expositores, serviços e enfeites
+    this.kit = shopKit();
+    const c = this.kit.rug;
     c.position.set(0, 0, 0.5);
     g.add(c);
-    for (const d of this.kit?.decor ?? []) g.add(d);
+    for (const d of this.kit.decor) g.add(d);
     this.roll().forEach((opt, i) => this.makeOffer(opt, (i - 1) * 3.6));
     this.makeServices();
   }
 
   private makeOffer(opt: RewardOption, x: number) {
-    const stand = this.kit?.stand(2.6) ?? P.plinth(2.6);
+    const stand = this.kit.stand(2.6);
     const standTop = (stand.userData.top as number | undefined) ?? 0.23;
     stand.position.set(x, 0, -0.7);
     this.group.add(stand);
@@ -411,7 +409,7 @@ class ShopScene extends EventScene {
   private makeServices() {
     const run = this.ctx.run;
     // remédio
-    const v = this.kit?.vial() ?? P.vial();
+    const v = this.kit.vial();
     const corkY = v.cork.position.y;
     v.g.position.set(-4.0, 0, 2.15);
     this.group.add(v.g);
@@ -441,7 +439,7 @@ class ShopScene extends EventScene {
       },
     });
     // vela extra
-    const cd = this.kit?.candle() ?? P.candle(0.6, 0.11, false);
+    const cd = this.kit.candle();
     cd.g.position.set(-1.35, 0, 2.2);
     this.group.add(cd.g);
     const candleLight = P.borrowLight(cd.g, '#ff8a3a', 0, 4, 1.8, new THREE.Vector3(0, 0.9, 0));
@@ -465,7 +463,7 @@ class ShopScene extends EventScene {
       },
     });
     // bigorna e martelo
-    const a = this.kit?.anvil() ?? P.anvilAndHammer();
+    const a = this.kit.anvil();
     a.g.position.set(1.35, 0, 2.2);
     a.g.rotation.y = -0.15;
     this.group.add(a.g);
@@ -481,7 +479,7 @@ class ShopScene extends EventScene {
       act: () => this.startChoose(),
     });
     // sininho (mercadoria nova)
-    const b = this.kit?.bell() ?? P.deskBell();
+    const b = this.kit.bell();
     b.g.position.set(4.0, 0, 2.15);
     this.group.add(b.g);
     this.addItem({
@@ -1099,11 +1097,3 @@ export function createEvent(kind: EventKind, ctx: EventCtx): EventScene {
   if (kind === 'press') return new PressScene(ctx);
   return new MysticScene(ctx);
 }
-
-/** Nome e frase curta de cada evento (anúncio no fim da fase). */
-export const EVENT_INFO: Record<EventKind, { name: string; hint: string }> = {
-  shop: { name: 'Loja', hint: 'peças, remédio e serviços' },
-  press: { name: 'Prensa de Selos', hint: 'carimbe um poder numa peça' },
-  mystic: { name: 'Altar Místico', hint: 'uma bênção para a run inteira' },
-  curse: { name: 'Presente do Dono', hint: 'ele tem um presentinho para você…' },
-};

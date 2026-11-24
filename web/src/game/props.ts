@@ -67,29 +67,6 @@ export function hoverRing(r: number): THREE.Mesh {
 }
 
 // ---------- coisas da mesa ----------
-/** Pano retangular com barra dourada e borlas nos cantos. */
-export function cloth(w: number, d: number, m: THREE.Material = M.velvet()): THREE.Group {
-  const g = new THREE.Group();
-  mesh(box(w, 0.035, d, 0.015), m, g, 0, 0.018, 0);
-  const t = 0.05;
-  for (const [x, z, ww, dd] of [[0, -d / 2, w, t], [0, d / 2, w, t], [-w / 2, 0, t, d], [w / 2, 0, t, d]] as const) {
-    mesh(box(ww, 0.02, dd, 0.008), M.brassDark(), g, x, 0.04, z);
-  }
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const tassel = mesh(new THREE.ConeGeometry(0.06, 0.2, 10), M.gold(), g, sx * (w / 2 + 0.02), 0.06, sz * (d / 2 + 0.02));
-    tassel.rotation.z = sx * 1.2;
-  }
-  return g;
-}
-
-/** Expositor de madeira (onde ficam as peças à venda). */
-export function plinth(w: number): THREE.Group {
-  const g = new THREE.Group();
-  mesh(box(w, 0.2, 0.75, 0.05), M.woodDark(), g, 0, 0.1, 0);
-  mesh(box(w - 0.12, 0.03, 0.63, 0.01), M.velvet(), g, 0, 0.215, 0);
-  mesh(box(w + 0.04, 0.035, 0.79, 0.015), M.brassDark(), g, 0, 0.02, 0);
-  return g;
-}
 
 /** Vela (acesa ou apagada). Devolve a vela e a chama (para acender/piscar). */
 export function candle(h: number, r = 0.1, lit = true): { g: THREE.Group; flame: THREE.Group } {

@@ -23,7 +23,6 @@ import { Card, Kind, kindType, kindName, kindRank } from '../core/cards';
 import { buffLevel, buffMaxed, BUFF_ORDER } from '../core/buffs';
 import { EventKind, rollEvent } from '../core/events';
 import { EventScene, createEvent } from './events';
-import { SHOP_STYLE_NAME, type ShopStyle } from './shopStyles';
 import type { SweepTarget } from './hand';
 import { RULES, starsFor, goldFor } from '../core/rules';
 import { draft3 } from '../core/rewards';
@@ -34,19 +33,8 @@ import { icon } from '../ui/icons';
 import { t } from '../i18n';
 
 type Mode = 'menu' | 'planning' | 'sim' | 'result' | 'screen' | 'transition' | 'event';
-/** Boneco do dono em cada evento (vilaoTrajes.ts; ids: banqueiro, vidente, magico, palhaco, juiz, coveiro, pirata,
- *  chef, inventor, rei). Nas fases ele volta ao de sempre. Escolhidos pelo dono da ideia na página e2e/vilao-trajes. */
+/** Boneco do dono em cada evento (trajes em vilaoTrajes.ts). Nas fases ele volta ao de sempre. */
 const TRAJE_DO_EVENTO: Record<EventKind, string> = { shop: 'banqueiro', mystic: 'vidente', press: 'coveiro', curse: 'palhaco' };
-/** Só no servidor local: a página e2e/vilao-trajes grava a escolha em localStorage para testar antes de fixar aqui. */
-function trajeDoEvento(kind: EventKind): string | null {
-  if (import.meta.env.DEV) {
-    try {
-      const lab = JSON.parse(localStorage.getItem('lab.trajes') ?? 'null') as Record<string, string> | null;
-      if (lab && kind in lab) return lab[kind] || null;
-    } catch { /* sem localStorage: fica o do código */ }
-  }
-  return TRAJE_DO_EVENTO[kind];
-}
 
 interface Settings { master: number; music: number; sfx: number; shake: number; post: boolean; tilt: boolean; crt: boolean; ao: boolean; ink: boolean; dof: boolean }
 // chaves antigas (do nome TOPPLE) mantidas de propósito: guardam configurações e recorde já salvos
@@ -292,10 +280,6 @@ export class Game {
         if (n >= 1 && n <= 9) { const id = this.ui.hand.kinds()[n - 1]; if (id) this.select(id); }
       } else if (this.mode === 'sim') {
         if (k === ' ' || k === 'f') { e.preventDefault(); this.toggleSpeed(); }
-      } else if (this.mode === 'event' && this.event?.kind === 'shop') {
-        // laboratório visual: 1/2/3 trocam a direção de arte da Loja, 0 volta para a de sempre
-        const st = ({ '1': 'A', '2': 'B', '3': 'C', '0': '' } as Record<string, string>)[k];
-        if (st !== undefined) this.labShopStyle(st);
       }
     });
   }
@@ -1133,7 +1117,7 @@ export class Game {
     this.mode = 'event';
     this.board.mood = 'calm';
     this.world.backdrop.mood = 'watch';
-    this.world.backdrop.setCostume(trajeDoEvento(kind)); // o dono troca de boneco (como a troca de máscara)
+    this.world.backdrop.setCostume(TRAJE_DO_EVENTO[kind]); // o dono troca de boneco (como a troca de máscara)
     this.refreshTopStats();
     this.ui.setBuffs(run.buffs);
     this.event = createEvent(kind, {
@@ -1149,16 +1133,6 @@ export class Game {
     this.event.start();
     audio.setMusic(true, 0);
     audio.setTension(0.05);
-  }
-
-  /** Laboratório visual: remonta a Loja na direção de arte pedida ('A' | 'B' | 'C' | '' = a de sempre). */
-  private labShopStyle(style: string) {
-    if (this.mode !== 'event' || this.event?.kind !== 'shop') return;
-    localStorage.setItem('lab.shop', style || 'off');
-    this.event.dispose();
-    this.event = null;
-    this.startEvent('shop');
-    this.ui.toast(style ? `Loja ${style} · ${SHOP_STYLE_NAME[style as ShopStyle]}` : 'Loja antiga', true);
   }
 
   /** Ir embora: a mão varre o evento e monta a fase. */

@@ -69,8 +69,6 @@ export function removeCard(run: RunState, uid: number) {
   run.cards = run.cards.filter((c) => c.uid !== uid);
 }
 
-export function cardCount(run: RunState): number { return run.cards.length; }
-
 export function damage(run: RunState, survivors: number): number {
   const d = survivors * RULES.damagePerSurvivor;
   run.life = Math.max(0, run.life - d);

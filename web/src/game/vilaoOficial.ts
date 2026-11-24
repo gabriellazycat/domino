@@ -10,7 +10,7 @@ import { buildTraje } from './vilaoTrajes';
 // Vilão oficial do dono da mesa (escolhido no laboratório: T7B). Boneco de ventríloquo em linguagem de brinquedo
 // (tools/vilao2, exportado leve por tools/vilao2/export_jogo.py), com:
 //   - sobrancelhas 3D que mexem presas em fio e cordas que não atravessam o boneco (vilaoMarionete.ts);
-//   - olho 2D de vórtice preto, rente ao rosto, que nunca fecha (vilaoOlho2d.ts, estilo A);
+//   - olho 2D de vórtice preto, rente ao rosto, que nunca fecha (vilaoOlho2d.ts);
 //   - contorno de luz igual ao dos inimigos e rachaduras por fase (setCrack) em shader.
 // Enquanto o GLB carrega, a cabeça antiga (backdrop.ts) continua na mesa.
 
@@ -104,8 +104,8 @@ function mount(backdrop: Backdrop, base: THREE.Object3D, id: string | null) {
   recolor.uSuitOn.value = traje?.suit ? 1 : 0; if (traje?.suit) recolor.uSuit.value.set(traje.suit);
   recolor.uBowOn.value = traje?.bow ? 1 : 0; if (traje?.bow) recolor.uBow.value.set(traje.bow);
   backdrop.adoptModel(root);
-  buildMarionete(backdrop, root, null);
-  buildOlho2d(backdrop, root, 'A');
+  buildMarionete(backdrop, root);
+  buildOlho2d(backdrop, root);
   // rachaduras seguem o nível da cabeça antiga (setCrack continua sendo chamado pelo jogo)
   const head = root.getObjectByName('Head') as THREE.Mesh;
   const prev = head.onBeforeRender;
@@ -162,8 +162,8 @@ export async function loadOfficialVillain(backdrop: Backdrop) {
   const gltf = await new GLTFLoader().loadAsync(vilaoUrl);
   const base = gltf.scene; // nunca vai para a cena: cada montagem é um clone
   prepare(base);
-  // ?traje=<id> trava um traje (laboratório/prints); senão o jogo escolhe pelo lugar (setCostume)
-  const fixed = new URLSearchParams(location.search).get('traje');
+  // só no servidor local: ?traje=<id> trava um traje (prints do e2e/lab.mjs giro); senão o jogo escolhe pelo lugar
+  const fixed = import.meta.env.DEV ? new URLSearchParams(location.search).get('traje') : null;
   if (fixed) { current = mount(backdrop, base, fixed); return; }
   mountedId = backdrop.costume;
   current = mount(backdrop, base, mountedId);

@@ -455,9 +455,7 @@ export class World {
     this.scene.add(this.ash);
     this.backdrop = new Backdrop(this.scene);
     // dono da mesa: o vilão oficial (GLB) entra assim que carrega; a cabeça antiga segura o lugar até lá.
-    // ?vilao=<id> é o laboratório de variações (?vilao=atual mostra a cabeça antiga, para comparar).
-    if (/[?&]vilao=/.test(location.search)) void import('./vilaoLab').then((m) => m.applyVilaoLab(this.backdrop));
-    else void import('./vilaoOficial').then((m) => m.loadOfficialVillain(this.backdrop)).catch((e) => console.warn('vilão oficial não carregou', e));
+    void import('./vilaoOficial').then((m) => m.loadOfficialVillain(this.backdrop)).catch((e) => console.warn('vilão oficial não carregou', e));
 
     // o composer desenha em um alvo com MSAA (4x): sem isso, o pós-processamento serrilha as bordas.
     // Em telas de alta densidade (DPR 2+) os pixels extras já escondem o serrilhado, então poupa-se a memória.

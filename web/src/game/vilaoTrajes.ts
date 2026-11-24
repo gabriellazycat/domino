@@ -74,15 +74,6 @@ function stripesTex(a: string, b: string, n = 8, vertical = true) {
   return t;
 }
 
-function spotsTex() { // arminho: branco com pintinhas pretas
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#efe9dc'; g.fillRect(0, 0, 128, 128); g.fillStyle = '#111';
-  for (let i = 0; i < 10; i++) { const x = (i * 53) % 128, y = (i * 37 + 20) % 128; g.beginPath(); g.ellipse(x, y, 4, 8, 0, 0, Math.PI * 2); g.fill(); }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(6, 1);
-  return t;
-}
-
 function texLaca(map: THREE.Texture, rough = 0.4) {
   const m = new THREE.MeshStandardMaterial({ map, roughness: rough });
   return m;
@@ -123,17 +114,6 @@ export const TRAJES: Record<string, { nome: string; build: Builder }> = {
       return { hideHair: true, suit: '#4a1532', bow: '#d6a646' };
     },
   },
-  magico: {
-    nome: 'Mágico',
-    build: (g) => {
-      hat(g, { y0: 0.74, r: 0.74, h: 1.15, brim: 0.98, color: '#0e0c12', band: '#a81c26', bandH: 0.16 });
-      mustache(g, '#0e0808', 0.02, 0.3, 0.03);
-      // capa com gola alta atrás da cabeça (vermelha por dentro)
-      const cape = new THREE.CylinderGeometry(1.25, 1.45, 1.5, 40, 1, true, Math.PI * 0.62, Math.PI * 0.76);
-      mesh(cape, new THREE.MeshStandardMaterial({ color: '#8e1620', roughness: 0.5, side: THREE.DoubleSide }), g, 0, -0.95, -0.25, false);
-      return { hideHair: true, suit: '#141218', bow: '#efe7d6' };
-    },
-  },
   palhaco: {
     nome: 'Palhaço',
     build: (g) => {
@@ -159,24 +139,6 @@ export const TRAJES: Record<string, { nome: string; build: Builder }> = {
       return { hideHair: true, suit: '#d9a420', bow: '#2a5ad0' };
     },
   },
-  juiz: {
-    nome: 'Juiz',
-    build: (g) => {
-      // peruca branca: touca + três fileiras de cachos de cada lado e atrás
-      const wig = laca('#ebe5d8', 0.6);
-      const cap = mesh(new THREE.SphereGeometry(0.92, 32, 18, 0, Math.PI * 2, 0, Math.PI / 2), wig, g, 0, 0.62, -0.08);
-      cap.scale.y = 0.95;
-      for (const s of [-1, 1]) for (let row = 0; row < 3; row++) {
-        const c = mesh(new THREE.TorusGeometry(0.2, 0.09, 10, 20), wig, g, s * 0.9, 0.42 - row * 0.3, -0.25);
-        c.rotation.y = Math.PI / 2;
-      }
-      for (let row = 0; row < 3; row++) mesh(new THREE.TorusGeometry(0.24, 0.1, 10, 20), wig, g, 0, 0.4 - row * 0.3, -0.92);
-      // babado branco (jabô) no peito
-      const jab = mesh(new THREE.ConeGeometry(0.2, 0.42, 16), WHITE(), g, 0, -1.48, 0.5, false);
-      jab.rotation.x = Math.PI;
-      return { hideHair: true, suit: '#0f0d12', bow: '#ebe5d8' };
-    },
-  },
   coveiro: {
     nome: 'Coveiro',
     build: (g) => {
@@ -190,73 +152,7 @@ export const TRAJES: Record<string, { nome: string; build: Builder }> = {
       return { hideHair: true, suit: '#0d0b10', bow: '#1a1a1e' };
     },
   },
-  pirata: {
-    nome: 'Capitão',
-    build: (g) => {
-      // tricórnio: copa em domo + aba com três pontas viradas para cima, debrum dourado e caveirinha
-      const c = laca('#141016', 0.32);
-      const gg = new THREE.Group(); gg.position.set(0, 0.74, -0.04); g.add(gg);
-      const d = mesh(new THREE.SphereGeometry(0.78, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), c, gg); d.scale.y = 0.75;
-      const brim = new THREE.CylinderGeometry(1.08, 1.08, 0.05, 72, 1);
-      const p = brim.getAttribute('position') as THREE.BufferAttribute;
-      for (let i = 0; i < p.count; i++) {
-        const x = p.getX(i), z = p.getZ(i); const rr = Math.hypot(x, z); const a = Math.atan2(x, z);
-        p.setY(i, p.getY(i) + Math.max(0, rr - 0.7) * 1.3 * (0.5 + 0.5 * Math.cos(3 * a + Math.PI)));
-      }
-      brim.computeVertexNormals();
-      mesh(brim, c, gg);
-      mesh(new THREE.SphereGeometry(0.09, 14, 10), WHITE(), gg, 0, 0.42, 0.74, false);
-      hoop(g, 1, 0.13);
-      return { hideHair: true, suit: '#8a1820', bow: '#141016' };
-    },
-  },
-  chef: {
-    nome: 'Chef',
-    build: (g) => {
-      // touca branca: faixa + nuvem de bolotas no alto
-      mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.5, 40, 1, true), WHITE(), g, 0, 0.98, -0.04);
-      for (const [x, y, z, r] of [[0, 1.55, -0.04, 0.55], [-0.45, 1.45, 0.1, 0.42], [0.45, 1.45, 0.1, 0.42], [0, 1.45, 0.42, 0.42], [-0.3, 1.45, -0.4, 0.42], [0.3, 1.45, -0.4, 0.42]] as const) mesh(new THREE.SphereGeometry(r, 20, 14), WHITE(), g, x, y, z);
-      mustache(g, '#2a1408', 0.18, 0.4, 0.055);
-      return { hideHair: true, suit: '#e6e0d2', bow: '#c41e24' };
-    },
-  },
-  inventor: {
-    nome: 'Inventor',
-    build: (g) => {
-      // óculos de proteção puxados para a testa (aros de latão, lentes verdes) com tira de couro
-      for (const s of [-1, 1]) {
-        const rim = mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.16, 28, 1, true), laca('#b8862e', 0.3, 0.8), g, s * 0.3, 0.72, 0.84, false);
-        rim.rotation.x = Math.PI / 2 - 0.35;
-        const lens = mesh(new THREE.CircleGeometry(0.19, 28), laca('#2f6e4a', 0.08), g, s * 0.3, 0.75, 0.92, false);
-        lens.rotation.x = -0.35;
-      }
-      const strap = mesh(new THREE.TorusGeometry(0.93, 0.05, 8, 48), laca('#3a2214', 0.6), g, 0, 0.66, -0.02, false);
-      strap.rotation.x = Math.PI / 2 - 0.2;
-      return { hideHair: false, suit: '#dcd8cc', bow: '#2a8a4a' };
-    },
-  },
-  rei: {
-    nome: 'Rei',
-    build: (g) => {
-      // coroa de ouro com pontas e joias, forro de veludo vermelho; manto com gola de arminho
-      const gg = new THREE.Group(); gg.position.set(0, 0.74, -0.04); g.add(gg);
-      mesh(new THREE.CylinderGeometry(0.82, 0.8, 0.4, 40, 1, true), laca('#d6a646', 0.22, 0.9), gg, 0, 0.2);
-      const vel = mesh(new THREE.SphereGeometry(0.78, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), laca('#8a1424', 0.6), gg, 0, 0.3); vel.scale.y = 0.6;
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2;
-        const sp = mesh(new THREE.ConeGeometry(0.11, 0.32, 12), laca('#d6a646', 0.22, 0.9), gg, Math.sin(a) * 0.8, 0.55, Math.cos(a) * 0.8);
-        sp.rotation.set(Math.cos(a) * 0.15, 0, -Math.sin(a) * 0.15);
-        mesh(new THREE.SphereGeometry(0.05, 10, 8), laca('#efe7d6', 0.3), gg, Math.sin(a) * 0.82, 0.73, Math.cos(a) * 0.82, false);
-        mesh(new THREE.SphereGeometry(0.065, 12, 10), laca(i % 2 ? '#1c5ad0' : '#c0182a', 0.12), gg, Math.sin(a) * 0.835, 0.18, Math.cos(a) * 0.835, false);
-      }
-      const ermine = mesh(new THREE.TorusGeometry(1.0, 0.24, 14, 48), texLaca(spotsTex(), 0.7), g, 0, -1.3, -0.05, false);
-      ermine.rotation.x = Math.PI / 2; ermine.scale.set(1, 0.8, 1);
-      return { hideHair: true, suit: '#7a1420', bow: '#d6a646' };
-    },
-  },
 };
-
-export const TRAJE_IDS = Object.keys(TRAJES);
 
 export function buildTraje(id: string): Traje | null {
   const t = TRAJES[id];

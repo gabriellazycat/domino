@@ -1,5 +1,6 @@
-// Fotos do laboratório visual (variações da Loja, câmera): usa o dev server que já está rodando.
-// Uso: node e2e/lab.mjs shop [A B C]   →  e2e/shots/lab-*.png      (URL=http://localhost:5173 por padrão)
+// Capturas de inspeção visual: usa o dev server que já está rodando (URL=http://localhost:5173 por padrão).
+// Uso: node e2e/lab.mjs <modo> [args]  →  e2e/shots/lab-*.png
+// Modos: menu · events · giro [trajes] · trajes · maos · cam
 import { chromium } from 'playwright';
 import { existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +11,7 @@ const out = path.join(root, 'e2e', 'shots');
 mkdirSync(out, { recursive: true });
 const executablePath = [process.env.BROWSER, 'C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].filter(Boolean).find((p) => existsSync(p));
 const url = process.env.URL ?? 'http://localhost:5173/';
-const [what = 'shop', ...args] = process.argv.slice(2);
+const [what = 'events', ...args] = process.argv.slice(2);
 
 const browser = await chromium.launch({ executablePath, headless: true, args: ['--headless=new', '--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
@@ -23,27 +24,6 @@ const shot = (n) => page.screenshot({ path: path.join(out, `lab-${n}.png`) });
 await page.goto(url);
 await page.waitForFunction(() => !!window.__dominotion, null, { timeout: 30000 });
 await wait(1200);
-
-if (what === 'shop') {
-  const styles = args.length ? args : ['atual'];
-  await page.evaluate(() => { const t = window.__dominotion; t.newRun(7); });
-  await wait(2600);
-  for (const st of styles) {
-    await page.evaluate((st) => {
-      const t = window.__dominotion; t.game.run.gold = 60; t.game.run.life = 6;
-      if (st !== 'atual') localStorage.setItem('lab.shop', st); else localStorage.removeItem('lab.shop');
-      t.openEvent('shop');
-    }, st);
-    await wait(7500);
-    await shot(`shop-${st}`);
-    // de perto, do ângulo do jogador olhando os serviços
-    await page.evaluate(() => { const r = window.__dominotion.game.rig; r.frame(r.goalTarget.clone().setZ(1.4), 7.5, 0.25, 1.05); });
-    await wait(1600);
-    await shot(`shop-${st}-perto`);
-    await page.evaluate(() => { const g = window.__dominotion.game; g.event?.leave(); });
-    await wait(5200);
-  }
-}
 
 if (what === 'menu') {
   // a demo do menu é calculada no worker: a mesa tem de aparecer e trocar sem quadro longo
@@ -88,58 +68,6 @@ if (what === 'events') {
     // sai do evento sem passar pela escolha (o Presente não tem "ir embora")
     await page.evaluate(() => { const g = window.__dominotion.game; g.event.busy = false; g.leaveEvent(); });
     await wait(5200);
-  }
-}
-
-if (what === 'vilao') {
-  // variações do dono da mesa (?vilao=): plano médio, de perto (deboche), falando bravo e de olhos fechados
-  const ids = args.length ? args : ['atual'];
-  const hideTip = () => page.evaluate(() => {
-    for (const e of document.querySelectorAll('body *')) if (e.children.length < 3 && /Your hand is at the bottom|Sua mão/.test(e.textContent ?? '')) (e.closest('[class]') ?? e).style.visibility = 'hidden';
-  });
-  for (const id of ids) {
-    // 'oficial' = jogo sem parâmetro (vilão padrão); 'atual' = cabeça antiga (?vilao=atual)
-    // 'traje-<id>' = vilão oficial com aquele traje (?traje=<id>)
-    const u = new URL(url);
-    if (id.startsWith('traje-')) u.searchParams.set('traje', id.slice(6));
-    else if (id !== 'oficial') u.searchParams.set('vilao', id);
-    await page.goto(u.toString());
-    await page.waitForFunction(() => !!window.__dominotion, null, { timeout: 30000 });
-    // a variação carrega/monta em segundo plano: espera a cabeça nova entrar antes de começar a fase
-    if (id !== 'atual') await page.waitForFunction(() => !!window.__dominotion.game.world.backdrop.head.getObjectByName('Head'), null, { timeout: 60000 });
-    await page.evaluate(() => { window.__dominotion.newRun(7); });
-    await wait(9000);
-    if (process.env.LAB_EVAL) await page.evaluate(process.env.LAB_EVAL);
-    await hideTip();
-    // de perto nos soldadinhos (para ver os olhos deles: com ?vilao=T6A/T7* viram vórtice)
-    const hasEnemy = await page.evaluate(() => {
-      const g = window.__dominotion.game; const v = g.board.enemyViews[0];
-      if (!v) return false;
-      const p = v.pivot.position.clone(); p.y += 0.35;
-      g.rig.lookUp(p, 2.2, 1.25, 4);
-      // a câmera trava o azimute nesse olhar: só para o print, os soldadinhos viram o rosto para ela (+Z)
-      for (const w of g.board.enemyViews) w.pivot.rotation.y = 0;
-      return true;
-    });
-    if (hasEnemy) { await wait(2600); await shot(`vilao-${id}-inimigos`); }
-    await page.evaluate(() => {
-      const g = window.__dominotion.game; const T = g.world.backdrop.head.position;
-      g.rig.lookUp(T.clone().setY(T.y + 0.2).setZ(T.z + 1.6), 17, 1.2, 6);
-    });
-    await wait(1900);
-    await shot(`vilao-${id}-medio`);
-    await page.evaluate(() => { const g = window.__dominotion.game; g.world.backdrop.mood = 'amused'; g.ownerLook(9); });
-    await wait(2200);
-    await shot(`vilao-${id}-perto`);
-    await page.evaluate(() => { const g = window.__dominotion.game; g.world.backdrop.mood = 'angry'; g.world.backdrop.talk(2); });
-    await wait(700);
-    await shot(`vilao-${id}-bravo`);
-    await page.evaluate(() => {
-      const b = window.__dominotion.game.world.backdrop; const up = b.update.bind(b);
-      b.update = (dt, c) => { up(dt, c); for (const e of b.eyes) e.lid.rotation.x = 0.95; };
-    });
-    await wait(300);
-    await shot(`vilao-${id}-fechado`);
   }
 }
 

@@ -15,7 +15,7 @@ async function boot() {
   const canvas = document.getElementById('gl') as HTMLCanvasElement;
   const game = new Game(canvas);
   (window as any).__dominotion = game.debugApi();
-  // só no servidor local: ?evento=shop|mystic|press|curse começa uma run e já entra no evento (página e2e/vilao-trajes)
+  // só no servidor local: ?evento=shop|mystic|press|curse começa uma run e já entra no evento
   const ev = import.meta.env.DEV ? new URLSearchParams(location.search).get('evento') : null;
   if (ev) {
     const api = game.debugApi();

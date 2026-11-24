@@ -4,7 +4,8 @@ import type { Placed } from './layout';
 /**
  * Peça que cada Arqueiro vai queimar. A regra é estática (dá para mostrar no planejamento): é a PRIMEIRA peça da
  * corrente (menor distância de peças até o gatilho; empate = menor id) cuja posição colocada fica dentro do círculo
- * dele. O Foguete é imune. Só essa peça leva a flecha, e dela não dá para continuar a corrente.
+ * dele. O Foguete é imune. A flecha de fogo queima essa peça e a seguinte (game/sim.ts), e dela não dá para
+ * continuar a corrente.
  */
 export function archerTargets(spec: PhaseSpec, pieces: readonly Placed[]): { archer: number; piece: Placed }[] {
   const out: { archer: number; piece: Placed }[] = [];

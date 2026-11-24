@@ -1,21 +1,16 @@
 import * as THREE from 'three';
 import type { Backdrop } from './backdrop';
 
-// Olho 2D de vórtice (laboratório ?vilao=T6A|T6B). Sem bola 3D e sem pálpebra: o olho NUNCA fecha.
+// Olho 2D de vórtice do dono da mesa (vilaoOficial.ts). Sem bola 3D e sem pálpebra: o olho NUNCA fecha.
 // O olho e as partículas são a mesma coisa: partículas de tinta correm em espiral PARA o centro e, ao
 // cruzar a borda, viram o próprio olho (a borda é feita delas). A expressão vem da forma do desenho:
-//   deboche → topo reto e baixo (olho meio cerrado); raiva → corte inclinado, canto de dentro baixo;
+//   raiva → corte inclinado, canto de dentro baixo (o deboche não cerra o olho);
 //   susto → olho cresce e o redemoinho acelera; olhar → o centro do redemoinho anda dentro do olho.
-//   A · pintado NA superfície (decal que acompanha a órbita), vazio preto com brilho roxo.
-//   B · desenho 2D por CIMA do rosto, traço de nanquim (como os dominós): aro grosso, miolo creme, pupila-vórtice.
+//   Pintado NA superfície (película que acompanha a órbita), miolo preto.
 
 type Priv = { eyes: { ball: THREE.Object3D; lid: THREE.Object3D }[]; look: THREE.Vector2; mood: string; anger: number; wide: number };
 
-const VERT = `
-varying vec2 vUv;
-void main() { vUv = uv * 2.0 - 1.0; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
-
-function frag(style: 'A' | 'B') {
+function frag() {
   return `
 uniform float uTime, uAnger, uWide, uAmused, uSide;
 uniform vec2 uLook;
@@ -24,12 +19,12 @@ float h1(float n) { return fract(sin(n * 127.1) * 43758.5453); }
 // forma do olho (distância com sinal): círculo cortado em cima pelo humor
 float eyeD(vec2 q, float e) {
   float d = length(q) - e;
-  float topY = mix(e * 1.3, e * 0.22, ${style === 'A' ? '0.0' : 'uAmused'});
+  float topY = mix(e * 1.3, e * 0.22, 0.0);
   topY -= uAnger * (0.12 * e + max(0.0, -q.x * uSide) * 0.85);   // canto de dentro desce
   return max(d, q.y - topY);
 }
 vec4 eyePaint(vec2 q) {
-  float e = ${style === 'A' ? '0.34' : '0.40'} * (1.0 + 0.22 * uWide); // A: tamanho de olho normal
+  float e = 0.34 * (1.0 + 0.22 * uWide); // tamanho de olho normal
   vec2 c = uLook * vec2(0.13, 0.10);                 // centro do redemoinho segue o olhar
   vec2 qc = q - c;
   float r = length(qc), a = atan(qc.y, qc.x);
@@ -42,21 +37,9 @@ vec4 eyePaint(vec2 q) {
   vec3 glow = mix(cold, hot, uAnger);
   vec3 col = vec3(0.0); float alpha = 0.0;
 
-  ${style === 'A' ? `
-  // A · miolo: vazio preto com braços de redemoinho que correm para dentro
+  
   // miolo: vazio preto puro (pedido do dono: nada colorido dentro)
-  col = vec3(0.0); alpha = inside;` : `
-  // B · traço de nanquim: aro grosso, miolo creme, pupila preta que é o próprio redemoinho
-  float ring = 1.0 - smoothstep(0.0, 0.012, abs(d + 0.035) - 0.035);
-  float pr = e * mix(0.55, 0.42, uAmused) * (1.0 - 0.25 * uWide);
-  float arms = sin(a * 3.0 * uSide + log(r + 1e-3) * 6.0 + spin * 2.0);
-  float pupD = r - pr - 0.02 * arms;
-  float pupil = 1.0 - smoothstep(-0.006, 0.006, pupD);
-  vec3 cream = vec3(0.93, 0.87, 0.74);
-  vec3 eyeCol = mix(cream, vec3(0.02, 0.01, 0.03), max(ring, pupil));
-  // dentro da pupila, os braços aparecem como brilho
-  eyeCol += glow * smoothstep(0.6, 1.0, arms) * pupil * smoothstep(0.02, 0.12, r) * 0.6;
-  col = eyeCol; alpha = max(inside, ring);`}
+  col = vec3(0.0); alpha = inside;
 
   // partículas: nascem longe, giram e caem no centro; fora do olho são tinta, dentro viram brilho
   const int N = 34;
@@ -64,26 +47,23 @@ vec4 eyePaint(vec2 q) {
     float fk = float(k);
     float s = h1(fk + 1.0), s2 = h1(fk + 9.7);
     float l = fract(uTime * 0.22 * (0.7 + 0.6 * s2) + s);           // 0 = longe, 1 = no centro
-    float rr = ${style === 'A' ? '0.62' : '0.98'} * pow(1.0 - l, 0.85);
+    float rr = 0.62 * pow(1.0 - l, 0.85);
     float ang = floor(s * 3.0) / 3.0 * 6.2832 + (s2 - 0.5) * 0.6 - uSide * (l * 4.0 + uTime * 0.4);
     vec2 p = c * l + rr * vec2(cos(ang), sin(ang));
     vec2 tg = normalize(vec2(-sin(ang), cos(ang)));
     vec2 dd = q - p;
     float along = dot(dd, tg), across = dot(dd, vec2(-tg.y, tg.x));
-    float sz = mix(${style === 'A' ? '0.026' : '0.035'}, 0.010, l) * (1.0 + 0.4 * uWide);
+    float sz = mix(0.026, 0.010, l) * (1.0 + 0.4 * uWide);
     float stretch = 1.5 + 3.5 * l;                                    // esticam ao serem sugadas
     float blob = 1.0 - smoothstep(0.55, 1.0, length(vec2(along / (sz * stretch), across / sz)));
     float fade = smoothstep(0.0, 0.18, l);
     float inP = 1.0 - smoothstep(-0.01, 0.01, eyeD(p, e));
-    ${style === 'A' ? `
+    
     // fora: tinta preta sobre a pele; dentro: brilho (a partícula continua, só muda de cor no vazio)
     col = mix(col, vec3(0.0), blob * fade); // tinta preta: dentro some no vazio
-    alpha = max(alpha, blob * fade);` : `
-    // fora: traço de nanquim; dentro do creme continua preto até a pupila
-    col = mix(col, vec3(0.02, 0.01, 0.03), blob * fade);
-    alpha = max(alpha, blob * fade);`}
+    alpha = max(alpha, blob * fade);
   }
-  ${style === 'A' ? `
+  
   // coisas sendo engolidas (buraco negro): poucas lascas brancas pequenas, sem contorno, que vêm de fora,
   // aceleram, esticam e somem no centro. Dentro do preto aparecem em branco puro.
   for (int k = 0; k < 7; k++) {
@@ -103,11 +83,11 @@ vec4 eyePaint(vec2 q) {
     float fade = smoothstep(0.0, 0.1, l) * (1.0 - smoothstep(0.9, 1.0, l));
     col = mix(col, vec3(0.97, 0.95, 0.9), body * fade);
     alpha = max(alpha, body * fade);
-  }` : ''}
+  }
   alpha *= 1.0 - smoothstep(0.9, 1.0, max(abs(q.x), abs(q.y)));
   return vec4(col, alpha);
 }
-${style === 'A' ? '' : 'void main() { gl_FragColor = eyePaint(vUv); }'}`;
+`;
 }
 
 /** Grade NxN de frente (+Z) sobre a pele, no espaço do `root`. Pontos dentro de `rimR` usam a altura da borda
@@ -171,7 +151,7 @@ function litPaint(u: Record<string, { value: unknown }>) {
   const m = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.62, transparent: true, depthWrite: false,
     polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
   // tira a 1a linha de uniforms do desenho (o material declara as suas, com uRim/uSkin)
-  const lib = frag('A').replace('varying vec2 vUv;', 'varying vec2 vEyeUv;').replace('uniform float uTime, uAnger, uWide, uAmused, uSide;', '');
+  const lib = frag().replace('varying vec2 vUv;', 'varying vec2 vEyeUv;').replace('uniform float uTime, uAnger, uWide, uAmused, uSide;', '');
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, u);
     sh.vertexShader = 'varying vec2 vEyeUv;\n' + sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\nvEyeUv = uv * 2.0 - 1.0;');
@@ -187,7 +167,7 @@ function litPaint(u: Record<string, { value: unknown }>) {
   return m;
 }
 
-export function buildOlho2d(backdrop: Backdrop, root: THREE.Object3D, style: 'A' | 'B') {
+export function buildOlho2d(backdrop: Backdrop, root: THREE.Object3D) {
   const bd = backdrop as unknown as Priv;
   const head = root.getObjectByName('Head') as THREE.Mesh;
   root.updateMatrixWorld(true);
@@ -205,25 +185,13 @@ export function buildOlho2d(backdrop: Backdrop, root: THREE.Object3D, style: 'A'
       uSkin: { value: new THREE.Color('#e3b88d') }, uRim: { value: 0.56 },
     };
     unis.push(u);
-    const mat = style === 'A' ? litPaint(u) : new THREE.ShaderMaterial({
-      uniforms: u, vertexShader: VERT, fragmentShader: frag(style), transparent: true, depthWrite: false,
-      polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
-    });
+    const mat = litPaint(u);
     const size = R * 5.2;
-    let mesh: THREE.Mesh;
-    if (style === 'A') {
-      // película colada na pele: grade projetada de frente na cabeça; dentro da órbita ela NÃO afunda,
-      // estica reta de borda a borda (o olho fica rente ao rosto, como pintado numa tampa lisa)
-      const g = skinPatch(root, head, eye.position, size, R * 1.35);
-      g.computeVertexNormals();
-      mesh = new THREE.Mesh(g, mat);
-    } else {
-      // folha 2D por cima do rosto, sempre visível (desenho chapado sobre o 3D)
-      mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
-      mesh.position.copy(eye.position).add(new THREE.Vector3(0, 0, R * 1.3));
-      (mat as THREE.ShaderMaterial).depthTest = false;
-      mesh.renderOrder = 40;
-    }
+    // película colada na pele: grade projetada de frente na cabeça; dentro da órbita ela NÃO afunda,
+    // estica reta de borda a borda (o olho fica rente ao rosto, como pintado numa tampa lisa)
+    const g = skinPatch(root, head, eye.position, size, R * 1.35);
+    g.computeVertexNormals();
+    const mesh = new THREE.Mesh(g, mat);
     mesh.userData.noAO = true;
     mesh.frustumCulled = false;
     root.add(mesh);

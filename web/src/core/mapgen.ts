@@ -125,11 +125,6 @@ export function routeLength(trigger: Vec2, centers: Vec2[], walls: number): numb
   return len * detour;
 }
 
-/** Peças para cobrir a rota só com Comuns (passo 0,38): é o teto que o baralho precisa aguentar. */
-export function estimatePieces(trigger: Vec2, centers: Vec2[], walls: number): number {
-  return Math.ceil(routeLength(trigger, centers, walls) / 0.38);
-}
-
 /**
  * Alcance médio por peça usado no PAR: um deck que mistura Torres (1,15 m) com Comuns cobre a rota
  * com menos peças. Só de Comuns (0,38) passa do par; com algumas Torres fica dentro.

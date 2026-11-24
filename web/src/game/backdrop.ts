@@ -372,11 +372,12 @@ export class Backdrop {
   private fixedStrings = 0;
 
   /**
-   * Laboratório de vilões (?vilao=): troca a cabeça montada aqui por um modelo pronto. O modelo traz nós com
+   * Troca a cabeça montada aqui pelo modelo do vilão oficial (vilaoOficial.ts). O modelo traz nós com
    * nome Jaw, Eye_L/R e Lid_L/R (pivôs no lugar certo, frente = +Z); o resto da animação continua igual.
-   * Peças que faltarem ficam paradas. A pintura de rachaduras (setCrack) não alcança o modelo novo.
+   * Peças que faltarem ficam paradas. As rachaduras do modelo novo vêm do shader em vilaoOficial.ts.
    */
-  adoptModel(root: THREE.Object3D, jawCorners: [number, number, number] = [0.27, -0.32, 0.83]) {
+  adoptModel(root: THREE.Object3D) {
+    const jawCorners = [0.27, -0.32, 0.83];
     const keep = new Set<THREE.Object3D>([this.strings, this.jaw]);
     for (const c of [...this.head.children]) {
       if (keep.has(c) || (c as THREE.Light).isLight) continue;
